@@ -44,23 +44,27 @@ h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;}
 
 main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin:0 auto; }
 
-/* ── RESPONSIVE: DESKTOP/TABLET ── */
+/* ── RESPONSIVE: DESKTOP/TABLET ──
+   Masonry via CSS-kolonner: kortene flyder og udfylder pladsen, så sektioner
+   med kun ét kort ikke efterlader tomme kolonner. Brede widgets (Denne uge,
+   Kalender, Oversigt) spænder over alle kolonner via column-span. */
 @media (min-width:760px){
   .topbar{ padding-left:calc((100vw - 720px)/2 + 18px); padding-right:calc((100vw - 720px)/2 + 18px); }
-  main{
-    max-width:720px;
-    display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:start;
-  }
-  .section-label{ grid-column:1 / -1; margin-top:26px; }
+  main{ max-width:720px; columns:2; column-gap:16px; }
+  main > div{ break-inside:avoid; margin-bottom:12px; }
+  .section-label{ break-inside:avoid; break-after:avoid; margin-top:14px; margin-bottom:8px; }
   .section-label:first-child{ margin-top:6px; }
-  #slot-primary, #slot-secondary{ grid-column:span 1; }
-  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
-  #slot-attempts:empty, #slot-block-progression:empty, #slot-weekly-verdict:empty{ display:none; }
+  /* Brede widgets + deres labels fylder hele bredden */
+  #slot-schedule, #slot-calendar, #slot-oversigt{ column-span:all; }
+  .section-label:has(+ #slot-schedule),
+  .section-label:has(+ #slot-calendar),
+  .section-label:has(+ #slot-oversigt){ column-span:all; }
+  /* Tomme slots skal ikke optage plads i flowet */
+  main > div:empty{ display:none; margin:0; }
 }
 @media (min-width:1080px){
   .topbar{ padding-left:calc((100vw - 1040px)/2 + 18px); padding-right:calc((100vw - 1040px)/2 + 18px); }
-  main{ max-width:1040px; grid-template-columns:1fr 1fr 1fr; }
-  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
+  main{ max-width:1040px; columns:3; }
 }
 
 .section-label{
