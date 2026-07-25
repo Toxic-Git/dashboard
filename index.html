@@ -342,6 +342,9 @@ main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin
 
   <div class="section-label">AI-analyse</div>
   <div id="slot-insights"></div>
+
+  <div class="section-label">Indstillinger</div>
+  <div id="slot-settings"></div>
 </main>
 <script>
 // Pak hver sektion (label + tilhørende slots) i en .dash-sec-wrapper, så
@@ -1050,6 +1053,26 @@ function renderInsights(sRaw, lRaw){
     </div>`;
 }
 
+// ── Indstillinger — samlet sted for påmindelser, cyklus, sync og værktøjer ─
+function renderSettings(){
+  const sync = syncEnabled();
+  document.getElementById('slot-settings').innerHTML = `
+    <div class="section-card">
+      <h3>Indstillinger</h3>
+      <div class="schedule-settings-label">Påmindelser</div>
+      ${notificationButtonHtml() || '<div class="deferred-note">Notifikationer understøttes ikke i denne browser.</div>'}
+      <div class="schedule-settings-label" style="margin-top:14px;">Træningscyklus</div>
+      <button class="day-picker-btn" style="width:100%;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
+      <div class="deferred-note">Brug denne hvis I har holdt en uplanlagt pause og vil starte rytmen forfra fra i dag.</div>
+      <div class="schedule-settings-label" style="margin-top:14px;">Synkronisering</div>
+      <div class="deferred-note">${sync
+        ? 'Cross-device sync er aktiv — data deles automatisk mellem jeres enheder.'
+        : 'Cross-device sync er ikke sat op — data gemmes kun lokalt på denne enhed. Se opsætningsguiden (SETUP.md, trin 2).'}</div>
+      <div class="schedule-settings-label" style="margin-top:14px;">Værktøjer</div>
+      <a class="day-picker-btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;" href="./demo-data.html">Demo-data — se appen fyldt med eksempeldata</a>
+    </div>`;
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // NYE SEKTIONER: Åbningsforsøg, Blok-progression, Ugentlig verdict, Ugeskema
 // ══════════════════════════════════════════════════════════════════════════
@@ -1558,6 +1581,7 @@ function render(){
   renderMal(sRaw, lRaw);
   renderPR(sRaw, lRaw);
   renderInsights(sRaw, lRaw);
+  renderSettings();
 }
 
 function setProfile(name){
