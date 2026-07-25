@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dashboard-v1';
+const CACHE_NAME = 'dashboard-v2';
 const ASSETS = ['./index.html', './manifest.json', './dash-icon.svg'];
 
 self.addEventListener('install', function(event){
