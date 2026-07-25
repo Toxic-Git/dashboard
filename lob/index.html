@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#111318">
+<title>Løbetræning Tracker</title>
+<link rel="manifest" href="manifest.json">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#111318;
+  --surface:#1a1d24;
+  --surface2:#22262f;
+  --border:#2b303b;
+  --text:#e8e9ec;
+  --text-dim:#9098a8;
+  --accent:#d4a843;
+  --accent-dim:#8a733a;
+  --red:#c85450;
+  --green:#5ea472;
+  --z1:#4a90d9;
+  --z2:#5ea472;
+  --z3:#d4a843;
+  --z4:#d97b3a;
+  --z5:#c85450;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Barlow',sans-serif;
+  padding-bottom:70px;
+  -webkit-tap-highlight-color:transparent;
+}
+h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:0.02em;}
+header{
+  padding:18px 16px 14px; border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--bg); z-index:10;
+}
+header h1{font-size:22px; color:var(--accent); text-transform:uppercase;}
+header .sub{font-size:12px; color:var(--text-dim); margin-top:2px;}
+main{padding:14px 12px 20px; max-width:640px; margin:0 auto;}
+
+/* ── COMPUTER/DESKTOP: hold header og bundmenu i samme kolonne som main ── */
+@media (min-width:760px){
+  header{ padding-left:calc((100vw - 640px)/2 + 16px); padding-right:calc((100vw - 640px)/2 + 16px); }
+  .tabs{ padding-left:calc((100vw - 640px)/2); padding-right:calc((100vw - 640px)/2); }
+}
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px; margin-bottom:12px;
+}
+.card h2{font-size:18px; margin-bottom:10px; color:var(--text);}
+.card h2 .accent{color:var(--accent);}
+label{display:block; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; margin-top:10px;}
+label:first-child{margin-top:0;}
+input,select,textarea{
+  width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:9px 10px; border-radius:6px; font-size:15px; font-family:'Barlow',sans-serif;
+}
+input:focus,select:focus,textarea:focus{outline:none; border-color:var(--accent);}
+.row{display:flex; gap:8px;}
+.row > *{flex:1;}
+button{
+  background:var(--accent); color:#181a1f; border:none; padding:10px 16px; border-radius:6px;
+  font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:15px; text-transform:uppercase;
+  letter-spacing:0.03em; cursor:pointer; width:100%; margin-top:12px;
+}
+button.secondary{background:var(--surface2); color:var(--text); border:1px solid var(--border);}
+button.danger{background:var(--red); color:#fff;}
+button.small{width:auto; padding:6px 12px; font-size:13px; margin-top:0;}
+.tabs{
+  position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--surface);
+  border-top:1px solid var(--border); z-index:10;
+}
+.tab{
+  flex:1; text-align:center; padding:10px 4px 8px; font-size:11px; color:var(--text-dim);
+  text-transform:uppercase; letter-spacing:0.02em; cursor:pointer; font-family:'Barlow Condensed',sans-serif;
+}
+.tab.active{color:var(--accent); border-top:2px solid var(--accent);}
+.view{display:none;}
+.view.active{display:block;}
+.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
+.stat{background:var(--surface2); border-radius:8px; padding:10px; text-align:center;}
+.stat .val{font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:var(--accent);}
+.stat .lbl{font-size:10px; color:var(--text-dim); text-transform:uppercase; margin-top:2px;}
+.run-item{
+  background:var(--surface2); border-radius:8px; padding:10px 12px; margin-bottom:8px;
+  display:flex; justify-content:space-between; align-items:center; cursor:pointer;
+}
+.run-item .rd{}
+.run-item .rd .date{font-size:11px; color:var(--text-dim);}
+.run-item .rd .main{font-size:16px; font-weight:600;}
+.run-item .rp{text-align:right;}
+.run-item .rp .pace{color:var(--accent); font-weight:600;}
+.badge{
+  display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700;
+  text-transform:uppercase;
+}
+.badge.base{background:#2a4a6a; color:#8fc4f0;}
+.badge.build{background:#5a4a1a; color:#f0d68f;}
+.badge.peak{background:#5a2a2a; color:#f0a08f;}
+.badge.deload{background:#333; color:#aaa;}
+.zone-bar{display:flex; height:18px; border-radius:4px; overflow:hidden; margin-top:8px;}
+.zone-bar div{height:100%;}
+.zone-legend{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; font-size:10px; color:var(--text-dim);}
+.zone-legend span{display:inline-flex; align-items:center; gap:4px;}
+.dot{width:8px; height:8px; border-radius:2px; display:inline-block;}
+.against-for{font-size:13px; line-height:1.5; margin-top:8px;}
+.against-for .imod{color:#e08a86;}
+.against-for .for{color:#8fc99a;}
+.note{font-size:12px; color:var(--text-dim); margin-top:8px; line-height:1.4;}
+.empty{text-align:center; color:var(--text-dim); padding:24px 10px; font-size:13px;}
+canvas{width:100%; background:var(--surface2); border-radius:8px;}
+.hidden{display:none !important;}
+.warn-box{background:#3a2a1a; border:1px solid #6a4a2a; border-radius:8px; padding:10px; font-size:13px; margin-top:8px; color:#f0c078;}
+.ok-box{background:#1a3a2a; border:1px solid #2a6a4a; border-radius:8px; padding:10px; font-size:13px; margin-top:8px; color:#8fd0a8;}
+.profile-switch{display:flex; gap:8px; margin-top:10px;}
+.profile-btn{flex:1; padding:8px 4px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text-dim); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:pointer;}
+.profile-btn.active{background:var(--accent); color:#181a1f; border-color:var(--accent);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Løbe Tracker</h1>
+  <div class="sub" id="headerSub">Indlæser…</div>
+  <div class="profile-switch" id="profile-switch-bar">
+    <button class="profile-btn" id="btn-main" onclick="switchProfile('main')">Oliver</button>
+    <button class="profile-btn" id="btn-partner" onclick="switchProfile('partner')">Ellen</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ONBOARDING -->
+  <div class="view" id="view-onboarding">
+    <div class="card">
+      <h2>Opsætning</h2>
+      <div class="note">Udfyld dine basisværdier. Disse bruges til zoneberegning, VO2max-estimat og belastningsberegning (TRIMP).</div>
+      <label>Navn</label>
+      <input type="text" id="ob-navn" placeholder="Oliver">
+      <div class="row">
+        <div><label>Maxpuls (bpm)</label><input type="number" id="ob-maxhr" placeholder="195"></div>
+        <div><label>Hvilepuls (bpm)</label><input type="number" id="ob-resthr" placeholder="55"></div>
+      </div>
+      <div class="note">Kender du ikke din maxpuls? Brug 220-alder som groft udgangspunkt — juster senere når du har rigtige data.</div>
+      <label>Vægt (kg)</label>
+      <input type="number" id="ob-vaegt" placeholder="113">
+
+      <label style="margin-top:16px;">20-min tempotest (tærskelværdi)</label>
+      <div class="note">Løb 20 min for fuld tryk (så hårdt du kan holde konstant). Indtast distancen du nåede. Dette bruges til tærskelpuls/-pace i TRIMP og zoner. Har du ikke lavet testen endnu, kan du springe over og udfylde senere under Opsætning.</div>
+      <div class="row">
+        <div><label>Distance (km)</label><input type="number" step="0.01" id="ob-testkm" placeholder="4.2"></div>
+        <div><label>Tærskelpuls (bpm)</label><input type="number" id="ob-thrhr" placeholder="172"></div>
+      </div>
+
+      <label style="margin-top:16px;">Sæson-start</label>
+      <input type="date" id="ob-startdato">
+
+      <button onclick="saveOnboarding()">Gem og start</button>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="view" id="view-log">
+    <div id="plan-adjustment-banner"></div>
+
+    <div class="card" id="suggestion-card">
+      <h2>Næste løbetur <span class="accent" id="sug-type"></span></h2>
+      <div id="sug-body"></div>
+      <button class="secondary" id="not100-btn" onclick="toggleNotFeeling100()" style="margin-top:10px;"></button>
+    </div>
+
+    <div class="card">
+      <h2>Ny løbetur</h2>
+      <div class="row">
+        <div><label>Dato</label><input type="date" id="lg-dato"></div>
+        <div><label>Distance (km)</label><input type="number" step="0.01" id="lg-dist" oninput="calcPacePreview()"></div>
+      </div>
+      <div class="row">
+        <div><label>Tid (min:sek)</label><input type="text" id="lg-tid" placeholder="45:30" oninput="calcPacePreview()"></div>
+        <div><label>Pace</label><input type="text" id="lg-pace-preview" disabled placeholder="—"></div>
+      </div>
+      <div class="row">
+        <div><label>Gns. puls</label><input type="number" id="lg-avghr"></div>
+        <div><label>Max puls</label><input type="number" id="lg-maxhr"></div>
+      </div>
+      <div class="row">
+        <div><label>Højdemeter (m)</label><input type="number" id="lg-elev" placeholder="0"></div>
+        <div><label>Følelse (1-5, valgfri)</label><input type="number" id="lg-feeling" min="1" max="5" placeholder="—"></div>
+      </div>
+      <div class="note">1 = meget tung/udkørt, 5 = meget frisk. Bruges til at fange dage hvor kroppen var sliddet selv uden høj puls.</div>
+      <label>Noter</label>
+      <textarea id="lg-notat" rows="2" placeholder="Vejr, sko, terræn..."></textarea>
+      <button onclick="saveRun()">Gem løbetur</button>
+    </div>
+
+    <div class="card">
+      <h2>Denne uge <span class="accent" id="log-week-phase"></span></h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="val" id="log-week-km">0</div><div class="lbl">km denne uge</div></div>
+        <div class="stat"><div class="val" id="log-week-runs">0</div><div class="lbl">løbeture</div></div>
+      </div>
+      <div id="log-progression-warn"></div>
+    </div>
+
+    <div class="card">
+      <h2>Historik</h2>
+      <div id="run-list"></div>
+    </div>
+  </div>
+
+  <!-- ANALYSE -->
+  <div class="view" id="view-analyse">
+    <div class="card">
+      <h2>VO2max-estimat</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="val" id="an-vo2-hr">—</div><div class="lbl">HR-metode (Uth et al.)</div></div>
+        <div class="stat"><div class="val" id="an-vo2-vdot">—</div><div class="lbl">VDOT (Daniels-Gilbert)</div></div>
+      </div>
+      <div class="note">HR-metoden bruger kun maxpuls/hvilepuls og er en grov tommelfingerregel. VDOT beregnes fra din bedste sammenhængende løbetur (≥15 min) og er mere præcis for faktisk løbeform. De to vil ikke stemme perfekt overens — det er normalt.</div>
+    </div>
+
+    <div class="card">
+      <h2>Mål: VDOT-fremgang</h2>
+      <div id="goal-body"></div>
+    </div>
+
+    <div class="card">
+      <h2>Form: ATL / CTL</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="val" id="an-ctl">0</div><div class="lbl">CTL (kronisk, 42d)</div></div>
+        <div class="stat"><div class="val" id="an-atl">0</div><div class="lbl">ATL (akut, 7d)</div></div>
+      </div>
+      <div class="stat" style="margin-top:8px;"><div class="val" id="an-form">0</div><div class="lbl">Form (CTL − ATL)</div></div>
+      <div class="note" id="an-form-note"></div>
+      <canvas id="chart-form" height="140"></canvas>
+    </div>
+
+    <div class="card">
+      <h2>Pace-udvikling</h2>
+      <canvas id="chart-pace" height="140"></canvas>
+      <div class="note">Pace pr. løbetur over tid (lavere = hurtigere). Kun løb ≥ 2 km vises.</div>
+    </div>
+
+    <div class="card">
+      <h2>Zonefordeling (seneste 10 løb)</h2>
+      <div id="an-zone-summary"></div>
+    </div>
+  </div>
+
+  <!-- PERIODISERING -->
+  <div class="view" id="view-periode">
+    <div class="card">
+      <h2>Periodiseringsstatus</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="val" id="pe-uge">1</div><div class="lbl">uge i sæson</div></div>
+        <div class="stat"><div class="val" id="pe-fase-badge">Base</div><div class="lbl">nuværende fase</div></div>
+      </div>
+      <div class="note" id="pe-fase-desc"></div>
+      <div class="note" id="pe-deload-note"></div>
+    </div>
+    <div class="card">
+      <h2>Fase-oversigt</h2>
+      <div class="against-for">
+        <b>Base (aerob kapacitet):</b> Fokus på Zone 1-2, høj volumen, lav intensitet. Bygger det aerobe fundament.<br><br>
+        <b>Build (tempoarbejde):</b> Introducér Zone 3-4 intervaller/tempo-løb. Volumen stabiliseres, intensitet stiger.<br><br>
+        <b>Peak (konkurrenceforberedelse):</b> Reduceret volumen, høj kvalitet, Zone 4-5 skarphed. Tapering mod løb/mål.
+      </div>
+      <div class="note">Hver 4. uge er automatisk deload: volumen reduceres 40%, intensitet holdes. Dette gælder uanset fase.</div>
+    </div>
+    <div class="card">
+      <h2>10%-reglen</h2>
+      <div class="note">Ugentlig km-stigning bør ikke overstige 10% af forrige uges volumen (undtagen i planlagt deload/opbygning efter deload). Advarsel vises under Log-fanen hvis reglen brydes.</div>
+    </div>
+  </div>
+
+  <!-- OPSÆTNING -->
+  <div class="view" id="view-settings">
+    <div class="card">
+      <h2>Rediger profil</h2>
+      <div class="row">
+        <div><label>Maxpuls</label><input type="number" id="st-maxhr"></div>
+        <div><label>Hvilepuls</label><input type="number" id="st-resthr"></div>
+      </div>
+      <div class="row">
+        <div><label>Vægt (kg)</label><input type="number" id="st-vaegt"></div>
+        <div><label>Tærskelpuls</label><input type="number" id="st-thrhr"></div>
+      </div>
+      <label>20-min test distance (km)</label>
+      <input type="number" step="0.01" id="st-testkm">
+      <button onclick="saveSettings()">Gem ændringer</button>
+    </div>
+
+    <div class="card">
+      <h2>Målcyklus (VDOT)</h2>
+      <label>Målforbedring over 12 uger (%)</label>
+      <input type="number" step="0.5" id="st-goalpct">
+      <button onclick="saveSettings()">Gem målprocent</button>
+      <button class="secondary" onclick="startNewGoalCycle()">Start ny målcyklus (nulstil baseline til nu)</button>
+    </div>
+
+    <div class="card">
+      <h2>Zoner (baseret på % af maxpuls)</h2>
+      <div id="zone-table"></div>
+    </div>
+
+    <div class="card">
+      <h2>Import fra Samsung Health / Apple Health</h2>
+      <div class="note">Eksportér din aktivitet som GPX eller TCX fra din health-app og importér her. CSV med kolonner <code>dato,distance_km,tid_min,gns_puls,max_puls,højdemeter</code> understøttes også.</div>
+      <input type="file" id="import-file" accept=".gpx,.tcx,.csv" style="margin-top:10px;">
+      <button onclick="handleImport()">Importér fil</button>
+      <div id="import-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>Strava</h2>
+      <div id="strava-status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Data</h2>
+      <button class="secondary" onclick="exportData()">Eksportér alt data (JSON)</button>
+      <button class="danger" onclick="resetSeason()">Nulstil sæson (ny sæson-start)</button>
+      <button class="danger" onclick="wipeAll()">Slet alt data</button>
+    </div>
+  </div>
+
+</main>
+
+<div class="tabs">
+  <div class="tab active" data-view="log" onclick="switchTab('log')">Log</div>
+  <div class="tab" data-view="analyse" onclick="switchTab('analyse')">Analyse</div>
+  <div class="tab" data-view="periode" onclick="switchTab('periode')">Periode</div>
+  <div class="tab" data-view="settings" onclick="switchTab('settings')">Opsætning</div>
+</div>
+
+<script>
+/* ================= STATE ================= */
+const STORE_KEY = 'lob_state';
+const STORE_KEY_PARTNER = 'lob_partner';
+let state = null;
+let partnerState = null;
+let activeProfile = 'main';
+
+// ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
+// Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
+// URL her efter deploy (se sync-worker/DEPLOY.md).
+const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
+let _syncPushTimers = {};
+
+function syncEnabled(){
+  return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
+}
+
+async function syncPull(key){
+  if(!syncEnabled()) return false;
+  try{
+    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store' });
+    if(!res.ok) return false;
+    const data = await res.json();
+    if(data.value == null) return false;
+    const localUpdatedAt = parseInt(localStorage.getItem(key+'__updatedAt') || '0');
+    if(data.updatedAt > localUpdatedAt){
+      localStorage.setItem(key, JSON.stringify(data.value));
+      localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
+      return true;
+    }
+    return false;
+  }catch(e){
+    console.log('Sync-pull fejlede (offline?):', e);
+    return false;
+  }
+}
+
+function syncPush(key){
+  if(!syncEnabled()) return;
+  clearTimeout(_syncPushTimers[key]);
+  _syncPushTimers[key] = setTimeout(async ()=>{
+    try{
+      const raw = localStorage.getItem(key);
+      if(raw == null) return;
+      const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ value: JSON.parse(raw) }),
+      });
+      if(res.ok){
+        const data = await res.json();
+        localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
+      }
+    }catch(e){
+      console.log('Sync-push fejlede (offline?):', e);
+    }
+  }, 1500);
+}
+
+// ── Strava — forbind, status, manuel sync ───────────────────────────────
+// Selve auto-pull'et sker på Worker'en (Cron Trigger hver 3. time) og
+// skriver direkte ind i den samme sync-nøgle som almindelig localStorage-sync
+// — så nye løbeture dukker op helt af sig selv via syncPull() ovenfor.
+// Klienten skal derfor kun håndtere: forbind-knap, status, og en valgfri
+// "synkroniser nu"-knap til at trigge det manuelt.
+function stravaProfileKey(){ return activeProfile==='partner' ? 'partner' : 'main'; }
+
+function connectStrava(){
+  if(!syncEnabled()){ alert('Sæt din Worker-URL i SYNC_BASE_URL først.'); return; }
+  window.location.href = `${SYNC_BASE_URL}/strava/connect?profile=${stravaProfileKey()}`;
+}
+
+async function disconnectStrava(){
+  if(!syncEnabled()) return;
+  if(!confirm('Afbryd Strava-forbindelsen for denne profil?')) return;
+  try{
+    await fetch(`${SYNC_BASE_URL}/strava/disconnect?profile=${stravaProfileKey()}`);
+  }catch(e){ console.log('Kunne ikke afbryde Strava:', e); }
+  renderStravaStatus();
+}
+
+async function syncStravaNow(){
+  if(!syncEnabled()) return;
+  const el=document.getElementById('strava-status');
+  const btn=document.getElementById('strava-sync-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Synkroniserer…'; }
+  try{
+    const res=await fetch(`${SYNC_BASE_URL}/strava/sync?profile=${stravaProfileKey()}`);
+    const data=await res.json();
+    if(data.imported > 0){
+      await syncPull(activeProfile==='partner' ? STORE_KEY_PARTNER : STORE_KEY);
+      if(activeProfile==='partner'){ partnerState=loadState(STORE_KEY_PARTNER); } else { state=loadState(STORE_KEY); }
+      renderAll();
+    }
+    alert(data.imported!=null ? `${data.imported} nye løbeture importeret fra Strava.` : 'Synkronisering fejlede — prøv igen.');
+  }catch(e){
+    console.log('Strava-sync fejlede:', e);
+    alert('Kunne ikke synkronisere med Strava lige nu.');
+  }
+  renderStravaStatus();
+}
+
+async function renderStravaStatus(){
+  const el=document.getElementById('strava-status');
+  if(!el) return;
+  if(!syncEnabled()){
+    el.innerHTML=`<div class="note">Kræver at cross-device sync er sat op først (se sync-worker/DEPLOY.md).</div>`;
+    return;
+  }
+  el.innerHTML=`<div class="note">Henter status…</div>`;
+  try{
+    const res=await fetch(`${SYNC_BASE_URL}/strava/status?profile=${stravaProfileKey()}`);
+    const data=await res.json();
+    if(data.connected){
+      const last=data.lastSyncAt ? new Date(data.lastSyncAt*1000).toLocaleString('da-DK') : 'endnu ikke';
+      el.innerHTML=`
+        <div class="ok-box">Forbundet til Strava.</div>
+        <div class="note" style="margin-top:6px;">Sidst synkroniseret: ${last}. Auto-henter hver 3. time.</div>
+        <button id="strava-sync-btn" class="secondary" onclick="syncStravaNow()">Synkroniser nu</button>
+        <button class="danger" onclick="disconnectStrava()">Afbryd forbindelse</button>`;
+    } else {
+      el.innerHTML=`
+        <div class="note">Ikke forbundet endnu. Løbeture importeres automatisk hver 3. time når forbundet.</div>
+        <button onclick="connectStrava()">Forbind med Strava</button>`;
+    }
+  }catch(e){
+    el.innerHTML=`<div class="warn-box">Kunne ikke hente Strava-status (offline?).</div>`;
+  }
+}
+
+// Håndter redirect tilbage fra Strava-godkendelse
+function handleStravaRedirectParams(){
+  const params=new URLSearchParams(window.location.search);
+  const connected=params.get('strava_connected');
+  const error=params.get('strava_error');
+  if(connected || error){
+    if(connected) alert('Strava forbundet! Løbeture hentes automatisk fremover.');
+    if(error) alert('Strava-godkendelse fejlede: '+error);
+    const cleanUrl=window.location.origin+window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+  }
+}
+
+function defaultState(){
+  return {
+    profile:{
+      navn:'', maxHR:null, restHR:null, vaegt:null,
+      thresholdHR:null, testKm:null,
+      seasonStart: new Date().toISOString().slice(0,10),
+      onboarded:false,
+      goalBaselineVDOT:null, goalBaselineDate:null, goalTargetPct:8,
+      dismissedGapFor:null // dato for sidste løb da bruger valgte "behold planen" ved et hul
+    },
+    runs:[], // {id,date,distanceKm,durationSec,avgHR,maxHR,elev,feeling,notat}
+    notFeeling100:{} // { 'YYYY-MM-DD': true }
+  };
+}
+
+function loadState(key){
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if(!parsed.profile || !parsed.runs) return defaultState();
+    if(!parsed.notFeeling100) parsed.notFeeling100 = {};
+    if(parsed.profile.dismissedGapFor === undefined) parsed.profile.dismissedGapFor = null;
+    return parsed;
+  }catch(e){
+    console.error('Kunne ikke indlæse state', e);
+    return defaultState();
+  }
+}
+function saveState(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORE_KEY_PARTNER, JSON.stringify(partnerState));
+    syncPush(STORE_KEY);
+    syncPush(STORE_KEY_PARTNER);
+  }catch(e){
+    console.error('Kunne ikke gemme state', e);
+    alert('Fejl: kunne ikke gemme data. Tjek at der er plads i browserens lager.');
+  }
+}
+
+// Aktiv state — den profil der pt. er valgt
+function aState(){ return activeProfile === 'partner' ? partnerState : state; }
+
+function switchProfile(which){
+  activeProfile = which;
+  localStorage.setItem('lob_active_profile', which);
+  document.getElementById('btn-main').classList.toggle('active', which==='main');
+  document.getElementById('btn-partner').classList.toggle('active', which==='partner');
+  if(!aState().profile.onboarded){
+    document.getElementById('view-onboarding').classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>{ if(v.id!=='view-onboarding') v.classList.remove('active'); });
+    document.querySelectorAll('.tabs .tab').forEach(t=>t.style.display='none');
+  } else {
+    document.getElementById('view-onboarding').classList.remove('active');
+    document.querySelectorAll('.tabs .tab').forEach(t=>t.style.display='');
+    switchTab('log');
+  }
+}
+
+/* ================= HELPERS ================= */
+function fmtPace(secPerKm){
+  if(!isFinite(secPerKm) || secPerKm<=0) return '—';
+  const m = Math.floor(secPerKm/60);
+  const s = Math.round(secPerKm%60);
+  return m+':'+String(s).padStart(2,'0')+'/km';
+}
+function parseTidToSec(str){
+  if(!str) return 0;
+  const parts = str.split(':').map(Number);
+  if(parts.some(isNaN)) return 0;
+  if(parts.length===2) return parts[0]*60+parts[1];
+  if(parts.length===3) return parts[0]*3600+parts[1]*60+parts[2];
+  return Number(str)*60 || 0;
+}
+function fmtDate(d){
+  const dt = new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('da-DK',{day:'2-digit',month:'2-digit',year:'2-digit'});
+}
+function uid(){ return 'r'+Date.now()+Math.floor(Math.random()*1000); }
+
+function getZoneBounds(){
+  const max = Number(aState().profile.maxHR)||0;
+  return [
+    {name:'Z1', lo:0.50*max, hi:0.60*max, color:'var(--z1)'},
+    {name:'Z2', lo:0.60*max, hi:0.70*max, color:'var(--z2)'},
+    {name:'Z3', lo:0.70*max, hi:0.80*max, color:'var(--z3)'},
+    {name:'Z4', lo:0.80*max, hi:0.90*max, color:'var(--z4)'},
+    {name:'Z5', lo:0.90*max, hi:max*1.05, color:'var(--z5)'}
+  ];
+}
+function zoneForHR(hr){
+  const zones = getZoneBounds();
+  for(let i=0;i<zones.length;i++){
+    if(hr>=zones[i].lo && hr<zones[i].hi) return i;
+  }
+  if(hr < zones[0].lo) return 0;
+  return zones.length-1;
+}
+
+/* VO2max — HR method (Uth, Sørensen, Overgaard, Pedersen 2004): VO2max = 15.3 * (HRmax/HRrest) */
+function vo2FromHR(){
+  const max = Number(aState().profile.maxHR), rest = Number(aState().profile.restHR);
+  if(!max || !rest) return null;
+  return 15.3 * (max/rest);
+}
+
+/* VDOT — Daniels-Gilbert, from best sustained run >= 15 min */
+function vdotFromDistanceTime(distanceKm, minutes){
+  if(!distanceKm || !minutes) return null;
+  const v = (distanceKm*1000) / minutes; // m/min
+  const t = minutes; // min
+  const vo2 = -4.60 + 0.182258*v + 0.000104*v*v;
+  const pct = 0.8 + 0.1894393*Math.exp(-0.012778*t) + 0.2989558*Math.exp(-0.1932605*t);
+  const vdot = vo2/pct;
+  return isFinite(vdot) ? vdot : null;
+}
+
+function computeVDOT(){
+  const candidates = aState().runs.filter(r => r.durationSec >= 15*60 && r.distanceKm >= 2);
+  if(candidates.length===0) return null;
+  let bestVdot = -Infinity;
+  for(const r of candidates){
+    const vdot = vdotFromDistanceTime(r.distanceKm, r.durationSec/60);
+    if(vdot!==null && vdot > bestVdot){ bestVdot = vdot; }
+  }
+  return isFinite(bestVdot) ? bestVdot : null;
+}
+
+function getGoalStatus(){
+  const vdotNow = computeVDOT();
+  if(!aState().profile.goalBaselineVDOT && vdotNow){
+    aState().profile.goalBaselineVDOT = vdotNow;
+    aState().profile.goalBaselineDate = new Date().toISOString().slice(0,10);
+    saveState();
+  }
+  const baseline = aState().profile.goalBaselineVDOT;
+  if(!baseline || !vdotNow) return null;
+  const targetPct = aState().profile.goalTargetPct || 8;
+  const target = baseline * (1 + targetPct/100);
+  const progressPct = Math.max(0, Math.min(150, ((vdotNow-baseline)/(target-baseline))*100));
+  const baselineDate = new Date((aState().profile.goalBaselineDate||aState().profile.seasonStart)+'T00:00:00');
+  const weeksElapsed = Math.max(0, Math.floor((new Date()-baselineDate)/(7*86400000)));
+  const weeksLeft = Math.max(0, 12-weeksElapsed);
+  return {baseline, current:vdotNow, target, progressPct, weeksElapsed, weeksLeft, targetPct};
+}
+
+function startNewGoalCycle(){
+  const vdotNow = computeVDOT();
+  if(!vdotNow){
+    alert('Ingen VDOT-datapunkt at bruge som ny baseline endnu. Log et løb på mindst 15 min først.');
+    return;
+  }
+  if(!confirm('Start en ny 12-ugers målcyklus med din nuværende VDOT ('+vdotNow.toFixed(1)+') som ny baseline?')) return;
+  aState().profile.goalBaselineVDOT = vdotNow;
+  aState().profile.goalBaselineDate = new Date().toISOString().slice(0,10);
+  saveState();
+  renderAll();
+}
+
+/* TRIMP — Banister, male exponential weighting */
+function trimpForRun(r){
+  const max = Number(aState().profile.maxHR), rest = Number(aState().profile.restHR);
+  if(!max || !rest || !r.avgHR) return 0;
+  const durMin = r.durationSec/60;
+  const ratio = (r.avgHR - rest) / (max - rest);
+  if(ratio<=0) return 0;
+  return durMin * ratio * 0.64 * Math.exp(1.92*ratio);
+}
+
+function dailyTrimpMap(){
+  const map = {};
+  for(const r of aState().runs){
+    const t = trimpForRun(r);
+    map[r.date] = (map[r.date]||0) + t;
+  }
+  return map;
+}
+
+/* CTL/ATL — exponentially weighted moving average over date range */
+function computeCtlAtlSeries(){
+  const map = dailyTrimpMap();
+  if(aState().runs.length===0) return {series:[], ctl:0, atl:0};
+  const dates = Object.keys(map).sort();
+  const start = new Date(dates[0]+'T00:00:00');
+  const end = new Date(); // today
+  const CTL_TAU=42, ATL_TAU=7;
+  let ctl=0, atl=0;
+  const series=[];
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+    const key = d.toISOString().slice(0,10);
+    const load = map[key]||0;
+    ctl = ctl + (load-ctl)/CTL_TAU;
+    atl = atl + (load-atl)/ATL_TAU;
+    series.push({date:key, ctl, atl, form:ctl-atl});
+  }
+  const lastEntry = series[series.length-1] || {ctl:0,atl:0,form:0};
+  return {series, ctl:lastEntry.ctl, atl:lastEntry.atl};
+}
+
+function getWeekStart(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay(); // 0=søn
+  const diff = (day===0? -6 : 1-day); // mandag som start
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().slice(0,10);
+}
+function currentWeekRuns(){
+  const todayWeekStart = getWeekStart(new Date().toISOString().slice(0,10));
+  return aState().runs.filter(r => getWeekStart(r.date)===todayWeekStart);
+}
+function weekKmTotals(){
+  const map={};
+  for(const r of aState().runs){
+    const ws = getWeekStart(r.date);
+    map[ws]=(map[ws]||0)+r.distanceKm;
+  }
+  return map;
+}
+
+function seasonWeekNumber(){
+  const start = new Date(aState().profile.seasonStart+'T00:00:00');
+  const now = new Date();
+  const diffDays = Math.floor((now-start)/(1000*3600*24));
+  return Math.max(1, Math.floor(diffDays/7)+1);
+}
+function currentPhaseInfo(){
+  const wk = seasonWeekNumber();
+  const isDeload = wk % 4 === 0;
+  // simple 3-phase split across a 12-week block (repeating): weeks 1-5 base, 6-9 build, 10-12 peak — cyclical
+  const posInBlock = ((wk-1) % 12)+1;
+  let phase;
+  if(posInBlock<=5) phase='Base';
+  else if(posInBlock<=9) phase='Build';
+  else phase='Peak';
+  return {week:wk, phase, isDeload, posInBlock};
+}
+
+/* ================= NÆSTE ANBEFALING ================= */
+function isHardRun(r){
+  if(!r) return false;
+  if(r.avgHR && zoneForHR(r.avgHR) >= 2) return true; // Z3, Z4 eller Z5
+  if(r.feeling && r.feeling <= 2) return true; // subjektivt meget tung/udkørt
+  if(r.elev && r.distanceKm>0 && (r.elev/r.distanceKm) > 15) return true; // kuperet/hård terræn-heuristik
+  return false;
+}
+
+function avgArr(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+function detectPlateau(runsSorted){
+  const easyRuns = runsSorted.filter(r=> r.avgHR && zoneForHR(r.avgHR) <= 1 && r.distanceKm >= 3);
+  if(easyRuns.length < 6) return false;
+  const spanDays = (new Date(easyRuns[easyRuns.length-1].date) - new Date(easyRuns[0].date)) / 86400000;
+  if(spanDays < 21) return false;
+  const paces = easyRuns.map(r => r.durationSec / r.distanceKm);
+  const half = Math.floor(paces.length/2);
+  const firstHalfAvg = avgArr(paces.slice(0, half));
+  const secondHalfAvg = avgArr(paces.slice(half));
+  const improvementPct = (firstHalfAvg - secondHalfAvg) / firstHalfAvg; // positiv = hurtigere
+  return improvementPct < 0.01;
+}
+
+function suggestNextWorkout(){
+  const todayStr = new Date().toISOString().slice(0,10);
+  if(aState().notFeeling100 && aState().notFeeling100[todayStr]){
+    return {
+      type:'Let løb', title:'Lyt til kroppen',
+      desc:'Du har markeret at du ikke er 100% i dag. Kør kort og let i Zone 1, eller tag helt fri — ingen grund til at presse en kvalitetsøkt i dag.',
+      reason:'"Ikke 100%" er slået til for i dag.'
+    };
+  }
+
+  const info = currentPhaseInfo();
+  const wk = info.week;
+
+  if(aState().runs.length===0){
+    return {
+      type:'Let løb', title:'Etablér baseline',
+      desc:'Du har ikke logget løbeture endnu. Start med et let løb i et tempo hvor du sagtens kan tale — det giver et udgangspunkt for zoner og form.',
+      reason:'Ingen data endnu.'
+    };
+  }
+
+  const runsSorted = [...aState().runs].sort((a,b)=> a.date.localeCompare(b.date));
+  const lastRun = runsSorted[runsSorted.length-1];
+  const daysSinceLast = Math.floor((new Date() - new Date(lastRun.date+'T00:00:00')) / 86400000);
+
+  if(daysSinceLast > 5){
+    return {
+      type:'Let løb', title:'Genstart let',
+      desc:'Kør et kort, let løb i Zone 1-2 for at komme i gang igen — spring ikke direkte til en kvalitetsøkt efter en pause.',
+      reason:`${daysSinceLast} dage siden sidste løbetur.`
+    };
+  }
+
+  if(info.isDeload){
+    return {
+      type:'Let løb', title:'Deload-uge',
+      desc:'Løb let i Zone 1-2, ca. 60% af din normale distance. Fokus er restitution, ikke fremgang denne uge.',
+      reason:`Uge ${wk} er en planlagt deload-uge (hver 4. uge).`
+    };
+  }
+
+  const secondLastRun = runsSorted[runsSorted.length-2];
+  if(isHardRun(lastRun) && isHardRun(secondLastRun)){
+    return {
+      type:'Restitution', title:'Restitutionsløb',
+      desc:'De sidste to løbeture har begge været hårde (høj puls, tung følelse eller kuperet terræn). Kør et kort, meget let løb eller hold helt fri.',
+      reason:'To hårde løbeture i træk uden restitution imellem.'
+    };
+  }
+
+  const {ctl, atl} = computeCtlAtlSeries();
+  const form = ctl - atl;
+  if(isFinite(form) && form < -15){
+    return {
+      type:'Restitution', title:'Restitutionsløb',
+      desc:'Kør et kort, meget let løb i Zone 1 — eller tag en hviledag helt. Din akutte belastning overstiger din kroniske markant lige nu.',
+      reason:`Form er ${form.toFixed(0)} — betydeligt i underskud.`
+    };
+  }
+
+  if(isHardRun(lastRun)){
+    let why = 'gns. puls i Zone 3+';
+    if(lastRun.feeling && lastRun.feeling<=2 && (!lastRun.avgHR || zoneForHR(lastRun.avgHR)<2)) why = 'du noterede en tung/udkørt følelse';
+    else if(lastRun.elev && lastRun.distanceKm>0 && (lastRun.elev/lastRun.distanceKm)>15 && (!lastRun.avgHR || zoneForHR(lastRun.avgHR)<2)) why = 'kuperet terræn med meget højdemeter';
+    return {
+      type:'Let løb', title:'Let løb / restitution',
+      desc:'Kør denne tur let i Zone 1-2, så kroppen når at restituere mellem kvalitetsøkter.',
+      reason:`Sidste løb var belastende (${why}).`
+    };
+  }
+
+  const recentWithHR = runsSorted.filter(r=>r.avgHR).slice(-10);
+  let z3heavy = false;
+  if(recentWithHR.length >= 4){
+    const z3count = recentWithHR.filter(r=> zoneForHR(r.avgHR)===2).length;
+    z3heavy = (z3count/recentWithHR.length) > 0.4;
+  }
+
+  const plateaued = (info.phase==='Base' || info.phase==='Build') && detectPlateau(runsSorted);
+  if(plateaued){
+    const variants = [
+      'Tilføj 6-8 x 20 sek strides (let acceleration, fuld restitution imellem) i slutningen af et let løb.',
+      'Kør en bakke-session: 8 x 45 sek op ad bakke i høj indsats, jog ned som pause.',
+      'Kør et fartlek-løb: skift frit mellem 2 min hurtigere og 3 min let i 25-30 min.'
+    ];
+    return {
+      type:'Kvalitet', title:'Stimulusskifte',
+      desc: variants[wk % variants.length],
+      reason:'Din pace i lette løb er ikke rykket sig i mindst 3 uger, selvom du har trænet. Et nyt stimulus kan bryde et plateau frem for endnu en tur i samme mønster.'
+    };
+  }
+
+  if(info.posInBlock === 10){
+    return {
+      type:'Test', title:'20-min tempotest',
+      desc:'Løb 20 min for fuld, jævn indsats (så hårdt du kan holde konstant hele vejen). Log distancen som en almindelig løbetur — det opdaterer dit VDOT-mål med et rent sammenligneligt datapunkt ved starten af Peak-fasen.',
+      reason:'Uge 10 markerer starten på Peak-fasen i din 12-ugers cyklus — det faste tidspunkt for at gentest og opdatere målfremgangen.'
+    };
+  }
+
+  if(info.phase === 'Base'){
+    return {
+      type:'Kvalitet', title:'Lang, jævn tur',
+      desc:'Forlæng din normale distance med 10-20%, og hold hele vejen i Zone 2. Formålet er at udvide det aerobe fundament — ikke fart.',
+      reason:'Base-fase: fokus er volumen i lav intensitet.'
+    };
+  }
+
+  if(info.phase === 'Build'){
+    if(z3heavy){
+      const variants = [
+        '6 x 800 m i Zone 4-5 med 2-3 min let jog som pause.',
+        '4 x 1000 m i Zone 4 med 2 min pause.',
+        '8 x 400 m i Zone 5 med 90 sek pause.'
+      ];
+      return {
+        type:'Kvalitet', title:'Intervaller (Zone 4-5)',
+        desc: variants[wk % variants.length] + ' Varm op 10-15 min i Zone 1-2 først.',
+        reason:'For meget Zone 3 i dine seneste løb — skift til skarpere intervaller frem for endnu et tempoløb for at polarisere mere.'
+      };
+    }
+    const variants = [
+      '20 min i Zone 3-4 tempo, efter 10 min opvarmning i Zone 1-2.',
+      '3 x 10 min i Zone 3 med 3 min let jog imellem.',
+      '15 min stigende fra Zone 3 til Zone 4.'
+    ];
+    return {
+      type:'Kvalitet', title:'Tempoløb',
+      desc: variants[wk % variants.length],
+      reason:'Build-fase: introducér tempoarbejde i Zone 3-4.'
+    };
+  }
+
+  // Peak
+  const variants = [
+    '5 x 1000 m i race-pace (Zone 5) med 2 min pause.',
+    '3 x 1600 m i race-pace med 3 min pause.',
+    '2 x 3000 m i Zone 4-5 med 4 min pause.'
+  ];
+  return {
+    type:'Kvalitet', title:'Race-pace intervaller',
+    desc: variants[wk % variants.length] + ' Hold volumen lavere denne uge — kvalitet frem for mængde.',
+    reason:'Peak-fase: skarphed mod dit mål.'
+  };
+}
+
+function renderSuggestion(){
+  const s = suggestNextWorkout();
+  document.getElementById('sug-type').textContent = s.type;
+  document.getElementById('sug-body').innerHTML =
+    `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${s.title}</div>
+     <div class="note">${s.desc}</div>
+     <div class="note" style="margin-top:6px;"><i>${s.reason}</i></div>`;
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  const isOn = !!(aState().notFeeling100 && aState().notFeeling100[todayStr]);
+  const btn = document.getElementById('not100-btn');
+  btn.textContent = isOn ? '✓ Ikke 100% i dag — tryk for at fjerne' : 'Ikke 100% i dag?';
+  btn.style.borderColor = isOn ? 'var(--accent)' : '';
+  btn.style.color = isOn ? 'var(--accent)' : '';
+}
+
+function toggleNotFeeling100(){
+  const todayStr = new Date().toISOString().slice(0,10);
+  const as = aState();
+  if(!as.notFeeling100) as.notFeeling100 = {};
+  as.notFeeling100[todayStr] = !as.notFeeling100[todayStr];
+  saveState();
+  renderSuggestion();
+}
+
+/* ================= PLAN-JUSTERING (Runna-lignende "Plan Adjustment") ===== */
+// Opdager huller i træningen og tilbyder at skubbe sæson-planen tilsvarende,
+// så fase/uge-beregningen ikke bare marcherer videre mens du var væk.
+const GAP_THRESHOLD_DAYS = 4;
+
+function detectPlanGap(){
+  const as = aState();
+  if(!as.runs.length) return null;
+  const sorted = [...as.runs].sort((a,b)=> b.date.localeCompare(a.date));
+  const lastRun = sorted[0];
+  const daysSince = Math.floor((new Date() - new Date(lastRun.date+'T00:00:00')) / 86400000);
+  if(daysSince < GAP_THRESHOLD_DAYS) return null;
+  if(as.profile.dismissedGapFor === lastRun.date) return null;
+  return { daysSince, lastRunDate: lastRun.date };
+}
+
+function applyPlanAdjustment(){
+  const gap = detectPlanGap();
+  if(!gap) return;
+  const as = aState();
+  const d = new Date(as.profile.seasonStart+'T00:00:00');
+  d.setDate(d.getDate() + gap.daysSince);
+  as.profile.seasonStart = d.toISOString().slice(0,10);
+  as.profile.dismissedGapFor = null; // ny plan, intet at ignorere længere
+  saveState();
+  renderAll();
+}
+
+function dismissPlanAdjustment(){
+  const gap = detectPlanGap();
+  if(!gap) return;
+  aState().profile.dismissedGapFor = gap.lastRunDate;
+  saveState();
+  renderAll();
+}
+
+function renderPlanAdjustment(){
+  const el = document.getElementById('plan-adjustment-banner');
+  const gap = detectPlanGap();
+  if(!gap){ el.innerHTML=''; return; }
+  el.innerHTML = `<div class="warn-box" style="margin-bottom:12px;">
+    <b>${gap.daysSince} dage siden sidste løbetur.</b> Din plan er stadig regnet ud fra den oprindelige sæson-start, så uge/fase kan være rykket videre uden dig.
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="small" style="flex:1;margin-top:0;" onclick="applyPlanAdjustment()">Skub planen ${gap.daysSince} dage</button>
+      <button class="small secondary" style="flex:1;margin-top:0;" onclick="dismissPlanAdjustment()">Behold som den er</button>
+    </div>
+  </div>`;
+}
+
+/* ================= UI: TABS ================= */
+function switchTab(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const view = document.getElementById('view-'+name);
+  if(view) view.classList.add('active');
+  const tab = document.querySelector('.tab[data-view="'+name+'"]');
+  if(tab) tab.classList.add('active');
+  renderAll();
+}
+
+/* ================= ONBOARDING ================= */
+function saveOnboarding(){
+  const navn = document.getElementById('ob-navn').value.trim();
+  const maxHR = Number(document.getElementById('ob-maxhr').value);
+  const restHR = Number(document.getElementById('ob-resthr').value);
+  const vaegt = Number(document.getElementById('ob-vaegt').value);
+  const testKm = Number(document.getElementById('ob-testkm').value)||null;
+  const thrHR = Number(document.getElementById('ob-thrhr').value)||null;
+  const startdato = document.getElementById('ob-startdato').value || new Date().toISOString().slice(0,10);
+
+  if(!maxHR || !restHR){
+    alert('Udfyld mindst maxpuls og hvilepuls for at fortsætte.');
+    return;
+  }
+  const baselineVdot = testKm ? vdotFromDistanceTime(testKm, 20) : null;
+  aState().profile = {
+    navn, maxHR, restHR, vaegt: vaegt||null,
+    thresholdHR: thrHR, testKm: testKm,
+    seasonStart: startdato, onboarded:true,
+    goalBaselineVDOT: baselineVdot, goalBaselineDate: baselineVdot? startdato : null,
+    goalTargetPct: 8
+  };
+  saveState();
+  document.getElementById('view-onboarding').classList.remove('active');
+  document.querySelectorAll('.tabs .tab').forEach(t=>t.style.display='');
+  switchTab('log');
+}
+
+/* ================= LOG ================= */
+function calcPacePreview(){
+  const dist = Number(document.getElementById('lg-dist').value);
+  const tidSec = parseTidToSec(document.getElementById('lg-tid').value);
+  if(dist>0 && tidSec>0){
+    document.getElementById('lg-pace-preview').value = fmtPace(tidSec/dist);
+  } else {
+    document.getElementById('lg-pace-preview').value = '';
+  }
+}
+
+function saveRun(){
+  const dato = document.getElementById('lg-dato').value || new Date().toISOString().slice(0,10);
+  const dist = Number(document.getElementById('lg-dist').value);
+  const tidSec = parseTidToSec(document.getElementById('lg-tid').value);
+  const avgHR = Number(document.getElementById('lg-avghr').value)||null;
+  const maxHR = Number(document.getElementById('lg-maxhr').value)||null;
+  const elev = Number(document.getElementById('lg-elev').value)||0;
+  const feelingRaw = Number(document.getElementById('lg-feeling').value);
+  const feeling = (feelingRaw>=1 && feelingRaw<=5) ? feelingRaw : null;
+  const notat = document.getElementById('lg-notat').value.trim();
+
+  if(!dist || dist<=0){ alert('Indtast en distance større end 0.'); return; }
+  if(!tidSec || tidSec<=0){ alert('Indtast en gyldig tid (mm:ss).'); return; }
+
+  aState().runs.push({
+    id: uid(), date: dato, distanceKm: dist, durationSec: tidSec,
+    avgHR, maxHR, elev, feeling, notat, source:'manual'
+  });
+  aState().runs.sort((a,b)=> a.date.localeCompare(b.date));
+  saveState();
+
+  ['lg-dist','lg-tid','lg-pace-preview','lg-avghr','lg-maxhr','lg-elev','lg-feeling','lg-notat'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+  renderAll();
+}
+
+function deleteRun(id){
+  if(!confirm('Slet denne løbetur?')) return;
+  aState().runs = aState().runs.filter(r=>r.id!==id);
+  saveState();
+  renderAll();
+}
+
+function renderRunList(){
+  const el = document.getElementById('run-list');
+  if(aState().runs.length===0){
+    el.innerHTML = '<div class="empty">Ingen løbeture endnu. Tilføj din første ovenfor.</div>';
+    return;
+  }
+  const sorted = [...aState().runs].sort((a,b)=> b.date.localeCompare(a.date));
+  el.innerHTML = sorted.map(r=>{
+    const pace = fmtPace(r.durationSec/r.distanceKm);
+    const min = Math.floor(r.durationSec/60), sec = r.durationSec%60;
+    return `<div class="run-item" onclick="deleteRun('${r.id}')">
+      <div class="rd">
+        <div class="date">${fmtDate(r.date)}</div>
+        <div class="main">${r.distanceKm.toFixed(2)} km · ${min}:${String(sec).padStart(2,'0')}</div>
+      </div>
+      <div class="rp">
+        <div class="pace">${pace}</div>
+        <div style="font-size:11px;color:var(--text-dim);">${r.avgHR? r.avgHR+' bpm':'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderWeekCard(){
+  const wkRuns = currentWeekRuns();
+  const km = wkRuns.reduce((s,r)=>s+r.distanceKm,0);
+  document.getElementById('log-week-km').textContent = km.toFixed(1);
+  document.getElementById('log-week-runs').textContent = wkRuns.length;
+
+  const info = currentPhaseInfo();
+  document.getElementById('log-week-phase').textContent = info.isDeload? '(Deload)' : '';
+
+  // 10% rule check
+  const totals = weekKmTotals();
+  const thisWeekStart = getWeekStart(new Date().toISOString().slice(0,10));
+  const prevWeekStart = new Date(thisWeekStart+'T00:00:00');
+  prevWeekStart.setDate(prevWeekStart.getDate()-7);
+  const prevKey = prevWeekStart.toISOString().slice(0,10);
+  const prevKm = totals[prevKey]||0;
+  const warnEl = document.getElementById('log-progression-warn');
+  if(prevKm>0 && !info.isDeload && km > prevKm*1.10 + 0.05){
+    const pct = (((km-prevKm)/prevKm)*100).toFixed(0);
+    warnEl.innerHTML = `<div class="warn-box">10%-reglen brudt: denne uges volumen er ${pct}% højere end sidste uge (${prevKm.toFixed(1)} km → ${km.toFixed(1)} km). Overvej at holde igen resten af ugen.</div>`;
+  } else if(prevKm>0){
+    warnEl.innerHTML = `<div class="ok-box">Volumen ift. sidste uge (${prevKm.toFixed(1)} km) er inden for 10%-reglen.</div>`;
+  } else {
+    warnEl.innerHTML = '';
+  }
+}
+
+/* ================= ANALYSE ================= */
+function renderAnalyse(){
+  const vo2hr = vo2FromHR();
+  document.getElementById('an-vo2-hr').textContent = vo2hr? vo2hr.toFixed(1) : '—';
+  const vdot = computeVDOT();
+  document.getElementById('an-vo2-vdot').textContent = vdot? vdot.toFixed(1) : '—';
+  renderGoal();
+
+  const {series, ctl, atl} = computeCtlAtlSeries();
+  document.getElementById('an-ctl').textContent = ctl.toFixed(0);
+  document.getElementById('an-atl').textContent = atl.toFixed(0);
+  const form = ctl-atl;
+  document.getElementById('an-form').textContent = form.toFixed(0);
+  const noteEl = document.getElementById('an-form-note');
+  if(aState().runs.length===0){
+    noteEl.textContent='Log løbeture for at se din form udvikle sig.';
+  } else if(form > 5){
+    noteEl.textContent='Positiv form: du er relativt frisk ift. din kroniske belastning. Plads til at skrue op.';
+  } else if(form < -10){
+    noteEl.textContent='Negativ form: akut belastning overstiger det kroniske niveau markant. Overvej en let uge.';
+  } else {
+    noteEl.textContent='Form er i et normalt, balanceret leje.';
+  }
+  drawFormChart(series);
+  drawPaceChart();
+  renderZoneSummary();
+}
+
+function drawFormChart(series){
+  const canvas = document.getElementById('chart-form');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.clientWidth;
+  const h = canvas.height = 140;
+  ctx.clearRect(0,0,w,h);
+  if(series.length<2){
+    ctx.fillStyle='#9098a8'; ctx.font='12px Barlow'; ctx.fillText('Ikke nok data endnu', 10, h/2);
+    return;
+  }
+  const recent = series.slice(-90);
+  const allVals = recent.flatMap(s=>[s.ctl,s.atl]);
+  const max = Math.max(...allVals, 1), min = Math.min(...allVals,0);
+  const pad=8;
+  function y(v){ return h-pad - ((v-min)/(max-min||1))*(h-2*pad); }
+  function x(i){ return pad + (i/(recent.length-1))*(w-2*pad); }
+
+  ctx.lineWidth=2;
+  ctx.strokeStyle='#d4a843';
+  ctx.beginPath();
+  recent.forEach((s,i)=>{ i===0? ctx.moveTo(x(i),y(s.ctl)) : ctx.lineTo(x(i),y(s.ctl)); });
+  ctx.stroke();
+
+  ctx.strokeStyle='#c85450';
+  ctx.beginPath();
+  recent.forEach((s,i)=>{ i===0? ctx.moveTo(x(i),y(s.atl)) : ctx.lineTo(x(i),y(s.atl)); });
+  ctx.stroke();
+
+  ctx.fillStyle='#d4a843'; ctx.font='10px Barlow'; ctx.fillText('CTL', w-40, 12);
+  ctx.fillStyle='#c85450'; ctx.fillText('ATL', w-40, 24);
+}
+
+function drawPaceChart(){
+  const canvas = document.getElementById('chart-pace');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.clientWidth;
+  const h = canvas.height = 140;
+  ctx.clearRect(0,0,w,h);
+  const runs = aState().runs.filter(r=>r.distanceKm>=2).sort((a,b)=>a.date.localeCompare(b.date));
+  if(runs.length<2){
+    ctx.fillStyle='#9098a8'; ctx.font='12px Barlow'; ctx.fillText('Ikke nok data endnu (min. 2 løb ≥2km)', 10, h/2);
+    return;
+  }
+  const paces = runs.map(r=>r.durationSec/r.distanceKm);
+  const max = Math.max(...paces), min = Math.min(...paces);
+  const pad=8;
+  function y(v){ return h-pad - ((max-v)/(max-min||1))*(h-2*pad); } // lower pace (faster) = higher on chart
+  function x(i){ return pad + (i/(paces.length-1))*(w-2*pad); }
+  ctx.strokeStyle='#d4a843'; ctx.lineWidth=2;
+  ctx.beginPath();
+  paces.forEach((p,i)=>{ i===0? ctx.moveTo(x(i),y(p)) : ctx.lineTo(x(i),y(p)); });
+  ctx.stroke();
+  ctx.fillStyle='#d4a843';
+  paces.forEach((p,i)=>{ ctx.beginPath(); ctx.arc(x(i),y(p),2.5,0,Math.PI*2); ctx.fill(); });
+}
+
+function renderGoal(){
+  const el = document.getElementById('goal-body');
+  const g = getGoalStatus();
+  if(!g){
+    el.innerHTML = '<div class="empty">Log et løb på mindst 15 min for at få sat en VDOT-baseline og starte din målcyklus.</div>';
+    return;
+  }
+  const pct = Math.min(100, g.progressPct);
+  const doneColor = g.progressPct>=100 ? 'var(--green)' : 'var(--accent)';
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="val">${g.baseline.toFixed(1)}</div><div class="lbl">Baseline VDOT</div></div>
+      <div class="stat"><div class="val">${g.current.toFixed(1)}</div><div class="lbl">Nu</div></div>
+    </div>
+    <div class="stat" style="margin-top:8px;"><div class="val">${g.target.toFixed(1)}</div><div class="lbl">Mål (+${g.targetPct}% over 12 uger)</div></div>
+    <div class="zone-bar" style="margin-top:10px;"><div style="width:${pct}%;background:${doneColor};"></div><div style="width:${100-pct}%;background:var(--surface2);"></div></div>
+    <div class="note">${g.progressPct.toFixed(0)}% af vejen mod målet. ${g.weeksLeft>0 ? g.weeksLeft+' uger tilbage af den 12-ugers cyklus.' : 'Cyklussen er ovre — overvej at starte en ny med "Start ny målcyklus" i Opsætning.'}</div>
+  `;
+}
+
+function renderZoneSummary(){
+  const el = document.getElementById('an-zone-summary');
+  const recentRuns = [...aState().runs].filter(r=>r.avgHR).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  if(recentRuns.length===0){
+    el.innerHTML = '<div class="empty">Log gns. puls på dine løbeture for at se zonefordeling.</div>';
+    return;
+  }
+  const counts=[0,0,0,0,0];
+  recentRuns.forEach(r=>{ counts[zoneForHR(r.avgHR)]++; });
+  const total = counts.reduce((a,b)=>a+b,0) || 1;
+  const zones = getZoneBounds();
+  const colors=['var(--z1)','var(--z2)','var(--z3)','var(--z4)','var(--z5)'];
+  const bar = counts.map((c,i)=> `<div style="width:${(c/total*100)}%;background:${colors[i]};"></div>`).join('');
+  const legend = counts.map((c,i)=> `<span><span class="dot" style="background:${colors[i]};"></span>Z${i+1}: ${Math.round(c/total*100)}%</span>`).join('');
+  const z3pct = counts[2]/total*100;
+  let noManLand = '';
+  if(z3pct > 40){
+    noManLand = `<div class="warn-box">${z3pct.toFixed(0)}% af dine seneste løb ligger i Zone 3 ("no man's land"). Overvej at polarisere mere mod Zone 1-2 (base) eller Zone 4-5 (kvalitet).</div>`;
+  }
+  el.innerHTML = `<div class="zone-bar">${bar}</div><div class="zone-legend">${legend}</div>${noManLand}`;
+}
+
+/* ================= PERIODISERING ================= */
+function renderPeriode(){
+  const info = currentPhaseInfo();
+  document.getElementById('pe-uge').textContent = info.week;
+  const badgeEl = document.getElementById('pe-fase-badge');
+  badgeEl.textContent = info.isDeload? 'Deload' : info.phase;
+
+  const descs = {
+    Base:'Fokus: aerob kapacitet. Høj volumen i Zone 1-2, lav intensitet. Byg fundamentet før tempoarbejde introduceres.',
+    Build:'Fokus: tempoarbejde. Zone 3-4 intervaller kommer ind, volumen stabiliseres.',
+    Peak:'Fokus: konkurrenceforberedelse. Reduceret volumen, høj kvalitet i Zone 4-5.'
+  };
+  document.getElementById('pe-fase-desc').textContent = info.isDeload
+    ? 'Denne uge er en deload-uge: reducér volumen med ca. 40% ift. sidste uge, men hold intensiteten. Formålet er restitution, ikke stilstand i formen.'
+    : descs[info.phase];
+
+  document.getElementById('pe-deload-note').textContent =
+    `Næste deload-uge: uge ${Math.ceil(info.week/4)*4}.`;
+}
+
+/* ================= OPSÆTNING ================= */
+function renderSettingsForm(){
+  renderStravaStatus();
+  document.getElementById('st-maxhr').value = aState().profile.maxHR||'';
+  document.getElementById('st-resthr').value = aState().profile.restHR||'';
+  document.getElementById('st-vaegt').value = aState().profile.vaegt||'';
+  document.getElementById('st-thrhr').value = aState().profile.thresholdHR||'';
+  document.getElementById('st-testkm').value = aState().profile.testKm||'';
+  document.getElementById('st-goalpct').value = aState().profile.goalTargetPct||8;
+
+  const zones = getZoneBounds();
+  document.getElementById('zone-table').innerHTML = zones.map((z,i)=>
+    `<div class="run-item" style="cursor:default;">
+      <div class="rd"><div class="main"><span class="dot" style="background:${z.color};"></span> Zone ${i+1}</div></div>
+      <div class="rp"><div class="pace">${Math.round(z.lo)}–${Math.round(z.hi)} bpm</div></div>
+    </div>`
+  ).join('');
+}
+
+function saveSettings(){
+  aState().profile.maxHR = Number(document.getElementById('st-maxhr').value)||aState().profile.maxHR;
+  aState().profile.restHR = Number(document.getElementById('st-resthr').value)||aState().profile.restHR;
+  aState().profile.vaegt = Number(document.getElementById('st-vaegt').value)||null;
+  aState().profile.thresholdHR = Number(document.getElementById('st-thrhr').value)||null;
+  aState().profile.testKm = Number(document.getElementById('st-testkm').value)||null;
+  const goalPct = Number(document.getElementById('st-goalpct').value);
+  aState().profile.goalTargetPct = (goalPct>0) ? goalPct : (aState().profile.goalTargetPct||8);
+  saveState();
+  renderAll();
+  alert('Gemt.');
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify(aState(),null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='lobetraening-data.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function resetSeason(){
+  if(!confirm('Start en ny sæson? Dette nulstiller kun sæson-start-datoen, ikke din løbelog.')) return;
+  aState().profile.seasonStart = new Date().toISOString().slice(0,10);
+  saveState();
+  renderAll();
+}
+
+function wipeAll(){
+  if(!confirm('Dette sletter ALT data permanent for denne profil. Er du sikker?')) return;
+  if(!confirm('Sidste bekræftelse: alt data (profil + log) for denne profil slettes nu.')) return;
+  if(activeProfile==='partner'){
+    partnerState = defaultState();
+    try{ localStorage.removeItem(STORE_KEY_PARTNER); }catch(e){ console.log('Kunne ikke rydde localStorage:', e); }
+  } else {
+    state = defaultState();
+    try{ localStorage.removeItem(STORE_KEY); }catch(e){ console.log('Kunne ikke rydde localStorage:', e); }
+  }
+  try{
+    location.reload();
+  }catch(e){
+    renderAll();
+  }
+}
+
+/* ================= IMPORT ================= */
+function handleImport(){
+  const fileInput = document.getElementById('import-file');
+  const file = fileInput.files[0];
+  const resultEl = document.getElementById('import-result');
+  if(!file){ resultEl.innerHTML = '<div class="warn-box">Vælg en fil først.</div>'; return; }
+
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const text = e.target.result;
+      let imported = [];
+      if(file.name.toLowerCase().endsWith('.csv')){
+        imported = parseCSV(text);
+      } else if(file.name.toLowerCase().endsWith('.gpx')){
+        imported = parseGPX(text);
+      } else if(file.name.toLowerCase().endsWith('.tcx')){
+        imported = parseTCX(text);
+      } else {
+        resultEl.innerHTML = '<div class="warn-box">Filtype ikke genkendt.</div>';
+        return;
+      }
+      if(imported.length===0){
+        resultEl.innerHTML = '<div class="warn-box">Ingen løbeture fundet i filen.</div>';
+        return;
+      }
+      imported.forEach(r=> aState().runs.push(r));
+      aState().runs.sort((a,b)=>a.date.localeCompare(b.date));
+      saveState();
+      resultEl.innerHTML = `<div class="ok-box">${imported.length} løbetur(e) importeret.</div>`;
+      renderAll();
+    }catch(err){
+      console.error(err);
+      resultEl.innerHTML = '<div class="warn-box">Kunne ikke læse filen. Tjek formatet.</div>';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
+  const idx = {
+    dato: header.indexOf('dato'),
+    dist: header.indexOf('distance_km'),
+    tid: header.indexOf('tid_min'),
+    avg: header.indexOf('gns_puls'),
+    max: header.indexOf('max_puls'),
+    elev: header.indexOf('højdemeter')
+  };
+  if(idx.dato===-1 || idx.dist===-1 || idx.tid===-1){
+    throw new Error('CSV mangler påkrævede kolonner');
+  }
+  const out=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const cols = lines[i].split(',');
+    const dist = Number(cols[idx.dist]);
+    const tidMin = Number(cols[idx.tid]);
+    if(!dist || !tidMin) continue;
+    out.push({
+      id: uid(), date: cols[idx.dato].trim(), distanceKm: dist,
+      durationSec: Math.round(tidMin*60),
+      avgHR: idx.avg>-1? Number(cols[idx.avg])||null : null,
+      maxHR: idx.max>-1? Number(cols[idx.max])||null : null,
+      elev: idx.elev>-1? Number(cols[idx.elev])||0 : 0,
+      notat:'', source:'import-csv'
+    });
+  }
+  return out;
+}
+
+function parseGPX(text){
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, 'application/xml');
+  const trkpts = Array.from(xml.getElementsByTagName('trkpt'));
+  if(trkpts.length===0) return [];
+  let totalDist=0, hrSum=0, hrCount=0, maxHrVal=0, elevGain=0;
+  let prevLat=null, prevLon=null, prevEle=null;
+  const times = [];
+  trkpts.forEach(pt=>{
+    const lat = parseFloat(pt.getAttribute('lat'));
+    const lon = parseFloat(pt.getAttribute('lon'));
+    const timeEl = pt.getElementsByTagName('time')[0];
+    if(timeEl) times.push(new Date(timeEl.textContent));
+    const eleEl = pt.getElementsByTagName('ele')[0];
+    const ele = eleEl? parseFloat(eleEl.textContent) : null;
+    const hrEl = pt.getElementsByTagName('gpxtpx:hr')[0] || pt.getElementsByTagName('hr')[0];
+    if(hrEl){ const hr=parseFloat(hrEl.textContent); hrSum+=hr; hrCount++; if(hr>maxHrVal) maxHrVal=hr; }
+
+    if(prevLat!==null){
+      totalDist += haversine(prevLat,prevLon,lat,lon);
+      if(prevEle!==null && ele!==null && ele>prevEle) elevGain += (ele-prevEle);
+    }
+    prevLat=lat; prevLon=lon; prevEle=ele;
+  });
+  if(totalDist<=0 || times.length<2) return [];
+  const durationSec = Math.round((times[times.length-1]-times[0])/1000);
+  const date = times[0].toISOString().slice(0,10);
+  return [{
+    id: uid(), date, distanceKm: totalDist, durationSec,
+    avgHR: hrCount? Math.round(hrSum/hrCount) : null,
+    maxHR: maxHrVal||null, elev: Math.round(elevGain),
+    notat:'Importeret fra GPX', source:'import-gpx'
+  }];
+}
+
+function parseTCX(text){
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, 'application/xml');
+  const laps = Array.from(xml.getElementsByTagName('Lap'));
+  if(laps.length===0) return [];
+  let totalDist=0, totalTime=0, hrSum=0, hrCount=0, maxHrVal=0;
+  let dateStr = null;
+  laps.forEach(lap=>{
+    if(!dateStr){ dateStr = lap.getAttribute('StartTime'); }
+    const distEl = lap.getElementsByTagName('DistanceMeters')[0];
+    const timeEl = lap.getElementsByTagName('TotalTimeSeconds')[0];
+    if(distEl) totalDist += parseFloat(distEl.textContent);
+    if(timeEl) totalTime += parseFloat(timeEl.textContent);
+    const avgHrEl = lap.getElementsByTagName('AverageHeartRateBpm')[0];
+    const maxHrEl = lap.getElementsByTagName('MaximumHeartRateBpm')[0];
+    if(avgHrEl){ const v = avgHrEl.getElementsByTagName('Value')[0]; if(v){ hrSum+=parseFloat(v.textContent); hrCount++; } }
+    if(maxHrEl){ const v = maxHrEl.getElementsByTagName('Value')[0]; if(v){ const hr=parseFloat(v.textContent); if(hr>maxHrVal) maxHrVal=hr; } }
+  });
+  if(totalDist<=0 || totalTime<=0) return [];
+  const date = dateStr? new Date(dateStr).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+  return [{
+    id: uid(), date, distanceKm: totalDist/1000, durationSec: Math.round(totalTime),
+    avgHR: hrCount? Math.round(hrSum/hrCount) : null,
+    maxHR: maxHrVal||null, elev: 0,
+    notat:'Importeret fra TCX', source:'import-tcx'
+  }];
+}
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371; // km
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+/* ================= RENDER ALL ================= */
+function renderAll(){
+  document.getElementById('headerSub').textContent = aState().profile.navn
+    ? aState().profile.navn+' · Sæson-uge '+seasonWeekNumber()
+    : 'Løbetræning';
+  renderPlanAdjustment();
+  renderSuggestion();
+  renderRunList();
+  renderWeekCard();
+  renderAnalyse();
+  renderPeriode();
+  renderSettingsForm();
+}
+
+/* ================= INIT ================= */
+async function init(){
+  handleStravaRedirectParams();
+  await syncPull(STORE_KEY);
+  await syncPull(STORE_KEY_PARTNER);
+  state = loadState(STORE_KEY);
+  partnerState = loadState(STORE_KEY_PARTNER);
+  activeProfile = localStorage.getItem('lob_active_profile') || 'main';
+  document.getElementById('btn-main').classList.toggle('active', activeProfile==='main');
+  document.getElementById('btn-partner').classList.toggle('active', activeProfile==='partner');
+
+  if(!document.getElementById('lg-dato').value){
+    document.getElementById('lg-dato').value = new Date().toISOString().slice(0,10);
+  }
+  if(!aState().profile.onboarded){
+    document.getElementById('view-onboarding').classList.add('active');
+    document.querySelectorAll('.tabs .tab').forEach(t=>t.style.display='none');
+  } else {
+    switchTab('log');
+  }
+
+  if('serviceWorker' in navigator){
+    try{
+      navigator.serviceWorker.register('sw.js').catch(function(e){ console.log('SW ikke registreret:', e); });
+    }catch(e){
+      console.log('SW kunne ikke tilgås (fx sandbox-preview):', e);
+    }
+  }
+}
+init().catch(function(e){
+  console.log('Init-fejl:', e);
+  document.body.innerHTML = '<div style="padding:24px;color:#e8e9ec;font-family:Barlow,sans-serif;">Der opstod en fejl ved opstart. Prøv at genindlæse siden, eller upload filen til GitHub Pages og åbn den derfra i stedet for direkte i browseren.</div>';
+});
+</script>
+</body>
+</html>

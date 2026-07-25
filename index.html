@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Træning">
+<meta name="theme-color" content="#111318">
+<link rel="manifest" href="manifest.json">
+<title>Træning — Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#111318; --surface:#1a1d24; --surface2:#22262f; --border:#2e3240;
+  --text:#f0ece4; --muted:#6b7280; --gold:#d4a843; --gold-dim:#9a7830;
+  --sq:#4a90d9; --bp:#d4a843; --dl:#e05c4a; --green:#3db87a; --red:#e05c4a;
+  --radius:14px; --safe-bottom:env(safe-area-inset-bottom,0px); --safe-top:env(safe-area-inset-top,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100%;overscroll-behavior:none;}
+h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;}
+
+.topbar{
+  position:sticky; top:0; z-index:10;
+  background:rgba(17,19,24,0.92); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:calc(16px + var(--safe-top)) 18px 14px;
+}
+.topbar-title{font-size:22px;font-weight:900;letter-spacing:1px;text-transform:uppercase;}
+.topbar-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+
+.profile-switch{
+  display:flex; gap:8px; margin-top:14px;
+}
+.profile-btn{
+  flex:1; padding:10px 4px; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface2); color:var(--muted); font-family:'Barlow Condensed',sans-serif;
+  font-size:14px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+  cursor:pointer; transition:all .15s;
+}
+.profile-btn.active{ background:var(--gold); color:#111318; border-color:var(--gold); }
+
+main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin:0 auto; }
+
+/* ── RESPONSIVE: DESKTOP/TABLET ── */
+@media (min-width:760px){
+  .topbar{ padding-left:calc((100vw - 720px)/2 + 18px); padding-right:calc((100vw - 720px)/2 + 18px); }
+  main{
+    max-width:720px;
+    display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:start;
+  }
+  .section-label{ grid-column:1 / -1; margin-top:26px; }
+  .section-label:first-child{ margin-top:6px; }
+  #slot-primary, #slot-secondary{ grid-column:span 1; }
+  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
+  #slot-attempts:empty, #slot-block-progression:empty, #slot-weekly-verdict:empty{ display:none; }
+}
+@media (min-width:1080px){
+  .topbar{ padding-left:calc((100vw - 1040px)/2 + 18px); padding-right:calc((100vw - 1040px)/2 + 18px); }
+  main{ max-width:1040px; grid-template-columns:1fr 1fr 1fr; }
+  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
+}
+
+.section-label{
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin:22px 4px 8px;
+}
+.section-label:first-child{ margin-top:4px; }
+
+/* ── PRIMARY CARD ── */
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  overflow:hidden;
+}
+.card.primary{ border-color:var(--gold-dim); }
+.card-head{
+  padding:18px 18px 14px; display:flex; justify-content:space-between; align-items:flex-start;
+  border-bottom:1px solid var(--border);
+}
+.card.secondary .card-head{ padding:14px 16px 10px; }
+.disc-name{ font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; line-height:1; }
+.card.secondary .disc-name{ font-size:18px; }
+.disc-icon{ font-size:22px; margin-right:6px; }
+.week-pill{
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:1px; text-transform:uppercase; padding:5px 12px; border-radius:20px;
+  border:1px solid var(--border); color:var(--gold); white-space:nowrap;
+}
+.card.secondary .week-pill{ font-size:10px; padding:3px 9px; color:var(--muted); }
+
+.card-body{ padding:16px 18px 18px; }
+.card.secondary .card-body{ padding:12px 16px 14px; }
+
+.next-label{ font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+.next-day{ font-size:20px; font-weight:700; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; }
+.card.secondary .next-day{ font-size:16px; }
+.next-desc{ font-size:13px; color:var(--muted); margin-top:6px; line-height:1.5; font-weight:300; }
+.card.secondary .next-desc{ font-size:12px; }
+
+.progress-wrap{ margin-top:14px; }
+.progress-bar{ height:6px; background:var(--surface2); border-radius:4px; overflow:hidden; }
+.progress-fill{ height:100%; background:var(--gold); border-radius:4px; }
+.progress-label{ font-size:11px; color:var(--muted); margin-top:5px; }
+
+.secondary-note{
+  margin-top:10px; font-size:11px; color:var(--muted); font-style:italic;
+  padding:8px 10px; background:var(--surface2); border-radius:8px; line-height:1.4;
+}
+
+.open-btn{
+  display:block; text-align:center; margin-top:16px; padding:12px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+  color:var(--text); text-decoration:none; font-family:'Barlow Condensed',sans-serif;
+  font-size:14px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+}
+.card.primary .open-btn{ background:var(--gold); color:#111318; border-color:var(--gold); }
+.card.secondary .open-btn{ margin-top:12px; padding:9px; font-size:12px; }
+
+.rest-note{
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--green);
+  margin-top:4px;
+}
+
+.empty-card{
+  background:var(--surface); border:1px dashed var(--border); border-radius:var(--radius);
+  padding:20px 18px; text-align:center;
+}
+.empty-card .disc-name{ color:var(--muted); }
+.empty-card p{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5; font-weight:300; }
+
+/* ── EXAMPLE-DATA BADGE ── */
+.example-badge{
+  display:inline-block; font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+  color:var(--muted); border:1px dashed var(--border); border-radius:20px; padding:2px 8px; margin-left:8px;
+  vertical-align:middle;
+}
+.section-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 16px 18px; margin-bottom:10px;
+}
+.section-card.example{ border-style:dashed; }
+.section-card h3{
+  font-size:15px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;
+}
+
+/* ── OVERSIGT STAT GRID ── */
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stat-box{ background:var(--surface2); border-radius:10px; padding:10px 12px; }
+.stat-box .v{ font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1.1; }
+.stat-box .l{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:3px; }
+.stat-box .trend-up{ color:var(--green); } .stat-box .trend-down{ color:var(--dl); }
+
+/* ── LIFT CARDS ── */
+.lift-row{ display:flex; gap:8px; margin-bottom:10px; }
+.lift-box{ flex:1; background:var(--surface2); border-radius:10px; padding:10px 8px; text-align:center; }
+.lift-box .name{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+.lift-box .e1rm{ font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; color:var(--gold); margin-top:2px; }
+.lift-box .sub{ font-size:10px; color:var(--muted); margin-top:2px; }
+.lift-box .pr-tag{ font-size:9px; color:var(--green); margin-top:3px; }
+
+/* ── MUSCLE HEATMAP ── */
+.heat-grid{ display:flex; flex-direction:column; gap:6px; }
+.heat-row{ display:flex; align-items:center; gap:8px; }
+.heat-label{ font-size:11px; color:var(--muted); width:78px; flex-shrink:0; }
+.heat-bar-bg{ flex:1; height:14px; background:var(--surface2); border-radius:7px; overflow:hidden; position:relative; }
+.heat-bar-fill{ height:100%; border-radius:7px; }
+.heat-count{ font-size:11px; color:var(--text); width:34px; text-align:right; flex-shrink:0; }
+
+/* ── RECOVERY GAUGE ── */
+.readiness-wrap{ display:flex; align-items:center; gap:14px; }
+.readiness-circle{
+  width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; flex-shrink:0; border:3px solid;
+}
+.readiness-detail{ font-size:12px; color:var(--muted); line-height:1.6; }
+.readiness-detail b{ color:var(--text); }
+
+/* ── PR LIST / GOALS ── */
+.pr-list, .goal-list{ display:flex; flex-direction:column; gap:8px; }
+.pr-row, .goal-row{
+  display:flex; justify-content:space-between; align-items:center; background:var(--surface2);
+  border-radius:8px; padding:9px 12px;
+}
+.pr-row .lbl, .goal-row .lbl{ font-size:12px; color:var(--muted); }
+.pr-row .val{ font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; color:var(--gold); }
+.goal-bar-bg{ flex:1; height:8px; background:var(--surface); border-radius:4px; margin:0 10px; overflow:hidden; }
+.goal-bar-fill{ height:100%; background:var(--gold); border-radius:4px; }
+.goal-nums{ font-size:11px; color:var(--muted); white-space:nowrap; }
+
+/* ── INSIGHTS ── */
+.insight-item{
+  display:flex; gap:8px; font-size:12px; color:var(--text); line-height:1.5; margin-bottom:8px;
+  font-weight:300;
+}
+.insight-item:last-child{ margin-bottom:0; }
+.insight-dot{ color:var(--gold); flex-shrink:0; }
+
+/* ── DEFERRED LIST ── */
+.deferred-note{
+  font-size:11px; color:var(--muted); line-height:1.6; margin-top:6px;
+}
+
+/* ── UGESKEMA ── */
+.week-grid{ display:flex; flex-direction:column; gap:6px; }
+
+/* ── KALENDER ── */
+.cal-nav{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.cal-nav-btn{
+  width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--surface2);
+  color:var(--text); font-size:16px; cursor:pointer; font-family:'Barlow Condensed',sans-serif;
+}
+.cal-title{ font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; text-transform:uppercase; }
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.cal-dow{ font-size:9px; color:var(--muted); text-align:center; text-transform:uppercase; padding-bottom:4px; }
+.cal-cell{
+  aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:var(--surface2); border-radius:6px;
+}
+.cal-cell.empty{ background:transparent; }
+.cal-cell.today{ border:1px solid var(--gold-dim); }
+.cal-daynum{ font-size:10px; color:var(--muted); }
+.cal-cell.today .cal-daynum{ color:var(--gold); font-weight:700; }
+.cal-dots{ display:flex; gap:2px; margin-top:2px; min-height:6px; }
+.cal-dot{ width:5px; height:5px; border-radius:50%; }
+.cal-dot.sbd{ background:var(--sq); }
+.cal-dot.lob{ background:#5ea472; }
+.cal-legend{ display:flex; gap:16px; margin-top:12px; font-size:11px; color:var(--muted); align-items:center; }
+.cal-legend span{ display:inline-flex; align-items:center; gap:5px; }
+.week-day-row{
+  display:flex; align-items:center; gap:10px; background:var(--surface2); border-radius:10px;
+  padding:9px 12px;
+}
+.week-day-row.today{ border:1px solid var(--gold-dim); background:rgba(212,168,67,0.08); }
+.week-day-name{ width:36px; flex-shrink:0; font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; text-transform:uppercase; color:var(--muted); }
+.week-day-row.today .week-day-name{ color:var(--gold); }
+.week-day-content{ flex:1; min-width:0; }
+.week-day-badge{ font-size:12px; font-weight:600; }
+.week-day-sub{ font-size:10px; color:var(--muted); margin-top:1px; }
+.week-day-tag{
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  padding:2px 6px; border-radius:8px; flex-shrink:0;
+}
+.tag-done{ background:rgba(61,184,122,0.15); color:var(--green); }
+.tag-planned{ background:rgba(212,168,67,0.12); color:var(--gold); }
+.tag-rest{ background:var(--surface); color:var(--muted); }
+
+.schedule-settings{ margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+.schedule-settings-label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+.day-picker{ display:flex; gap:5px; margin-bottom:10px; }
+.day-picker-btn{
+  flex:1; padding:7px 0; border-radius:8px; border:1px solid var(--border); background:var(--surface2);
+  color:var(--muted); font-size:11px; font-weight:700; cursor:pointer; font-family:'Barlow Condensed',sans-serif;
+}
+.day-picker-btn.on.sbd{ background:var(--sq); color:#0d1420; border-color:var(--sq); }
+.day-picker-btn.on.lob{ background:#5ea472; color:#0d1a12; border-color:#5ea472; }
+
+/* ── ATTEMPT CALCULATOR ── */
+.attempt-row{ display:flex; justify-content:space-between; align-items:center; background:var(--surface2); border-radius:8px; padding:9px 12px; margin-bottom:8px; }
+.attempt-row:last-child{ margin-bottom:0; }
+.attempt-label{ font-size:12px; color:var(--muted); }
+.attempt-kg{ font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; color:var(--gold); }
+.attempt-note{ font-size:10px; color:var(--muted); }
+
+/* ── BLOCK PROGRESSION ── */
+.block-row{ margin-bottom:14px; }
+.block-row:last-child{ margin-bottom:0; }
+.block-row-head{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; }
+.block-bars{ display:flex; gap:4px; }
+.block-bar-item{ flex:1; text-align:center; }
+.block-bar-bg{ height:50px; background:var(--surface2); border-radius:6px; position:relative; display:flex; align-items:flex-end; overflow:hidden; }
+.block-bar-fill{ width:100%; background:var(--gold); border-radius:6px 6px 0 0; }
+.block-bar-lbl{ font-size:9px; color:var(--muted); margin-top:3px; }
+.block-bar-val{ font-size:10px; color:var(--text); margin-top:1px; font-weight:600; }
+
+/* ── VERDICT ── */
+.verdict-box{
+  display:flex; gap:8px; font-size:12px; color:var(--text); line-height:1.5; font-style:italic;
+  padding-top:10px; margin-top:10px; border-top:1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Træning</div>
+  <div class="topbar-sub" id="topbar-sub">Uge­overblik — SBD &amp; Løb</div>
+  <div class="profile-switch">
+    <button class="profile-btn" id="btn-oliver" onclick="setProfile('oliver')">Oliver</button>
+    <button class="profile-btn" id="btn-ellen" onclick="setProfile('ellen')">Ellen</button>
+  </div>
+</div>
+
+<main>
+  <div class="section-label" id="label-primary">Primær</div>
+  <div id="slot-primary"></div>
+
+  <div class="section-label" id="label-secondary">Sekundær</div>
+  <div id="slot-secondary"></div>
+
+  <div class="section-label">Denne uge</div>
+  <div id="slot-schedule"></div>
+
+  <div class="section-label">Kalender</div>
+  <div id="slot-calendar"></div>
+
+  <div class="section-label">Oversigt</div>
+  <div id="slot-oversigt"></div>
+
+  <div class="section-label">Powerbuilding</div>
+  <div id="slot-attempts"></div>
+  <div id="slot-styrke"></div>
+  <div id="slot-volumen"></div>
+  <div id="slot-heatmap"></div>
+  <div id="slot-block-progression"></div>
+  <div id="slot-weekly-verdict"></div>
+
+  <div class="section-label">Løb</div>
+  <div id="slot-lob-uge"></div>
+  <div id="slot-lob-kondition"></div>
+  <div id="slot-lob-rekorder"></div>
+
+  <div class="section-label">Recovery</div>
+  <div id="slot-recovery"></div>
+
+  <div class="section-label">Kropsudvikling</div>
+  <div id="slot-krop"></div>
+
+  <div class="section-label">Belastning</div>
+  <div id="slot-belastning"></div>
+
+  <div class="section-label">Mål</div>
+  <div id="slot-mal"></div>
+
+  <div class="section-label">Personlige rekorder</div>
+  <div id="slot-pr"></div>
+
+  <div class="section-label">AI-analyse</div>
+  <div id="slot-insights"></div>
+</main>
+
+<script>
+// ─── SBD cycle/peak structure ──────────────────────────────────────────────
+// Duplikeret fra sbd/index.html's CYCLE/PEAK_WEEK arrays.
+// OBS: hvis rækkefølgen eller navnene ændres i selve SBD-trackeren,
+// skal de opdateres her også — dette er kun til visning, ikke beregning.
+const SBD_CYCLE = [
+  { id:'cst1',  short:'CST',   name:'Chest, Skulder & Tricep', type:'workout', desc:'Bænkpres (primær) + backdown + accessories' },
+  { id:'low1',  short:'Lower', name:'Lower',                   type:'workout', desc:'Squat (primær) + backdown + accessories' },
+  { id:'rest1', short:'Pause', name:'Pause',                   type:'rest' },
+  { id:'bb1',   short:'B&B',   name:'Ryg & Bicep',             type:'workout', desc:'Deadlift conv. (primær) + accessories' },
+  { id:'cst2',  short:'CST',   name:'Chest, Skulder & Tricep', type:'workout', desc:'Pause Bench (primær) + accessories' },
+  { id:'rest2', short:'Pause', name:'Pause',                   type:'rest' },
+  { id:'low2',  short:'Lower', name:'Lower',                   type:'workout', desc:'Box Squat (primær) + accessories' },
+  { id:'bb2',   short:'B&B',   name:'Ryg & Bicep',             type:'workout', desc:'Deficit Deadlift (primær) + accessories' },
+];
+const SBD_PEAK = [
+  { short:'SQ MAX', name:'Squat — Solo Max',    type:'workout' },
+  { short:'Pause',  name:'Pause',               type:'rest' },
+  { short:'DL MAX', name:'Deadlift — Solo Max', type:'workout' },
+  { short:'Pause',  name:'Pause',               type:'rest' },
+  { short:'BP MAX', name:'Bench — Solo Max',    type:'workout' },
+  { short:'Pause',  name:'Pause',               type:'rest' },
+  { short:'SBD',    name:'SBD — Konkurrence',   type:'workout' },
+];
+
+function readSbd(which){
+  const key = which === 'main' ? 'sbd_state' : 'sbd_partner';
+  let s;
+  try { s = JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
+  if (!s) return null;
+  const totalDays = s.totalDays || 0;
+  const week = Math.min(12, Math.floor(totalDays/7)+1);
+  const block = week<=4 ? 1 : (week<=8 ? 2 : 3);
+  const isTest = week===12;
+  let day;
+  if (isTest){
+    const dayInWeek = Math.min(6, Math.max(0, totalDays - 11*7));
+    day = SBD_PEAK[dayInWeek];
+  } else {
+    day = SBD_CYCLE[totalDays % 8];
+  }
+  const deload = week===4 || week===8 || (s.deloadWeeks && s.deloadWeeks.includes(week));
+  return { discipline:'sbd', week, totalWeeks:12, block, isTest, deload, day, completed:(s.completedDays||[]).length };
+}
+
+// ─── Løb ────────────────────────────────────────────────────────────────────
+// Læser 'lob_state' (Oliver) / 'lob_partner' (Ellen) — samme rå format som
+// lob/index.html selv gemmer. Uge/fase beregnes her live ud fra profile.seasonStart,
+// så det aldrig bliver en forældet snapshot, uanset hvornår appen sidst blev åbnet.
+function lobSeasonWeek(seasonStart){
+  const start = new Date(seasonStart+'T00:00:00');
+  const diffDays = Math.floor((new Date()-start)/86400000);
+  return Math.max(1, Math.floor(diffDays/7)+1);
+}
+function lobPhaseInfo(seasonStart){
+  const wk = lobSeasonWeek(seasonStart);
+  const isDeload = wk % 4 === 0;
+  const posInBlock = ((wk-1) % 12)+1;
+  let phase = posInBlock<=5 ? 'Base' : (posInBlock<=9 ? 'Build' : 'Peak');
+  return { week:wk, posInBlock, phase, isDeload };
+}
+const LOB_PHASE_DESC = {
+  Base:  'Rolige km i Zone 1-2 — åbn appen for dagens konkrete forslag.',
+  Build: 'Tempoarbejde i Zone 3-4 — åbn appen for dagens konkrete forslag.',
+  Peak:  'Skarpe intervaller mod målet — åbn appen for dagens konkrete forslag.',
+};
+function readLob(which){
+  const key = which === 'main' ? 'lob_state' : 'lob_partner';
+  let s;
+  try { s = JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
+  if (!s || !s.profile || !s.profile.onboarded) return null;
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  if (s.notFeeling100 && s.notFeeling100[todayStr]) {
+    return {
+      discipline:'lob', week:0, totalWeeks:12, block:null, isTest:false, deload:false,
+      day: { short:'Ikke 100%', type:'workout', desc:'Du har markeret dig selv som ikke 100% i dag — kør kort/let eller hold fri.' },
+      completed:(s.runs||[]).length,
+    };
+  }
+
+  const info = lobPhaseInfo(s.profile.seasonStart);
+  const badge = info.isDeload ? 'Deload' : info.phase;
+  return {
+    discipline:'lob', week: info.posInBlock, totalWeeks: 12, block: null, isTest:false,
+    deload: info.isDeload,
+    day: { short: badge, type:'workout', desc: info.isDeload ? 'Let uge — ca. 60% volumen, fokus på restitution.' : LOB_PHASE_DESC[info.phase] },
+    completed: (s.runs||[]).length
+  };
+}
+
+// ── Plan-gap — matcher lob/index.html's "Plan Adjustment"-funktion ────────
+const LOB_GAP_THRESHOLD_DAYS = 4;
+function lobPlanGap(sRaw){
+  if(!sRaw || !(sRaw.runs||[]).length) return null;
+  const sorted=[...sRaw.runs].sort((a,b)=>b.date.localeCompare(a.date));
+  const lastRun=sorted[0];
+  const daysSince=Math.floor((new Date()-new Date(lastRun.date+'T00:00:00'))/86400000);
+  if(daysSince<LOB_GAP_THRESHOLD_DAYS) return null;
+  if(sRaw.profile && sRaw.profile.dismissedGapFor===lastRun.date) return null;
+  return { daysSince };
+}
+
+const DISC_META = {
+  sbd: { label:'SBD — Styrke', icon:'🏋️', url:'./sbd/index.html' },
+  lob: { label:'Løb — Kondition', icon:'🏃', url:'./lob/index.html' },
+};
+
+const STRETCH_SUGGESTIONS = {
+  'CST':   'Dørkarm-stræk for bryst/skuldre, 2×30 sek pr. side.',
+  'Lower': 'Hoftebøjer- og hamstring-stræk, 2×30 sek pr. side.',
+  'B&B':   'Hængende lat-stræk + cat-cow, 2×30 sek.',
+  'SQ MAX':'Hoftebøjer- og hamstring-stræk, 2×30 sek pr. side.',
+  'DL MAX':'Hængende lat-stræk + cat-cow, 2×30 sek.',
+  'BP MAX':'Dørkarm-stræk for bryst/skuldre, 2×30 sek pr. side.',
+  'SBD':   'Fuldkrops-stræk: bryst, hofte, lat — 20 sek hver.',
+};
+const LOB_STRETCH = 'Læg- og hamstring-stræk efter løbeturen, 2×20 sek pr. side.';
+
+function renderCard(status, discipline, kind){
+  const meta = DISC_META[discipline];
+  if (!status){
+    return `<div class="empty-card">
+      <div class="disc-name">${meta.icon} ${meta.label}</div>
+      <p>${discipline==='lob'
+        ? 'Løbe-trackeren er ikke sat op endnu på denne enhed. Dashboardet forbinder automatisk, når lob/index.html begynder at gemme data.'
+        : 'Ingen data fundet endnu — åbn trackeren og log din første session.'}</p>
+      <a class="open-btn" href="${meta.url}">Åbn ${discipline==='lob'?'løb':'SBD'}</a>
+    </div>`;
+  }
+  const pct = Math.round((status.week-1)/status.totalWeeks*100);
+  const badge = status.deload ? 'Deload-uge' : (status.isTest ? 'Test/peak-uge' : `Blok ${status.block||''}`);
+  const isRest = status.day.type === 'rest';
+  const desc = status.day.desc || (isRest ? 'Aktiv restitution / hviledag' : '');
+  const note = kind==='secondary'
+    ? `<div class="secondary-note">Sekundær prioritet — pres dig ikke. Reducér intensitet hvis primær kræver energien.</div>`
+    : '';
+  const stretch = isRest ? '' : (discipline==='lob' ? LOB_STRETCH : (STRETCH_SUGGESTIONS[status.day.short] || ''));
+  const stretchHtml = stretch ? `<div class="deferred-note" style="margin-top:8px;">🧘 ${stretch}</div>` : '';
+  return `<div class="card ${kind}">
+    <div class="card-head">
+      <div><div class="disc-name"><span class="disc-icon">${meta.icon}</span>${meta.label}</div></div>
+      <div class="week-pill">Uge ${status.week}/${status.totalWeeks} · ${badge}</div>
+    </div>
+    <div class="card-body">
+      <div class="next-label">Næste træningsdag</div>
+      <div class="next-day">${status.day.short || status.day.name}</div>
+      ${isRest ? `<div class="rest-note">💤 Hviledag</div>` : `<div class="next-desc">${desc}</div>`}
+      ${stretchHtml}
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="progress-label">${status.completed} gennemførte sessioner · ${pct}% af programmet</div>
+      </div>
+      ${note}
+      <a class="open-btn" href="${meta.url}">Åbn ${discipline==='lob'?'løbe-tracker':'SBD-tracker'}</a>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// EKSTRA DASHBOARD-DATA — duplikerede, minimale beregninger fra rå gemte data
+// (samme princip som ovenfor: kun visning, ingen skrivning tilbage til apps)
+// ══════════════════════════════════════════════════════════════════════════
+
+function epley(kg, reps){ if(reps===1) return kg; return kg*(1+reps/30); }
+
+// Duplikeret fra sbd/index.html — muskelgruppe pr. øvelsesnavn
+const MUSCLE_MAP = {
+  'Bench Press':'Bryst', 'Bench Press — 1RM Forsøg':'Bryst', 'Pause Bench Press':'Bryst',
+  'Incline DB Press':'Bryst', 'Incline DB Press (variation)':'Bryst',
+  'Chest Fly (Machine)':'Bryst', 'DB Bench (variation)':'Bryst',
+  'OHP':'Skulder', 'DB Skulder Press':'Skulder',
+  'Lateral Raise (Machine)':'Skulder', 'Rear Delt Reverse Fly (Machine)':'Skulder',
+  'Face Pull':'Skulder', 'Face Pull (Cable)':'Skulder',
+  'Overhead Triceps Ext. (Cable)':'Triceps', 'Triceps Extension (Cable)':'Triceps', 'Skull Crusher':'Triceps',
+  'Squat':'Quad', 'Squat — 1RM Forsøg':'Quad', 'Box Squat':'Quad',
+  'Hack Squat (Machine)':'Quad', 'Leg Extension (Machine)':'Quad',
+  'Deadlift (Conv.)':'Post. Chain', 'Deadlift — 1RM Forsøg':'Post. Chain', 'Deficit Deadlift (2 cm)':'Post. Chain',
+  'Romanian Deadlift':'Post. Chain', 'Hip Thrust (Barbell)':'Post. Chain',
+  'Seated Leg Curl (Machine)':'Post. Chain', 'Nordic Curl':'Post. Chain', 'Jefferson Curl':'Post. Chain',
+  'Smith Machine Row':'Ryg', 'Barbell Row':'Ryg', 'Lat Pulldown Wide Grip':'Ryg',
+  'Seated Cable Row (V-Grip)':'Ryg', 'Weighted Pull-up':'Ryg', 'Assisted Pull-up / Lat Pulldown':'Ryg',
+  'Chest Supported Row':'Ryg', 'Chest Supported Row (Machine)':'Ryg', 'Neutral Grip Pulldown':'Ryg',
+  'Preacher Curl (DB)':'Biceps', 'DB Curl':'Biceps', 'Hammer Curl':'Biceps', 'Hammer Curl (DB)':'Biceps',
+  'Reverse Curl (Cable)':'Biceps', 'Hip Adduction (Machine)':'Adduktor',
+  'Cable Crunch':'Core', 'Box Jump':'Core',
+  'Calf Raise (Machine)':'Lægge', 'Single Leg Calf Raise (BB)':'Lægge', 'Calf Raise':'Lægge',
+};
+const VOLUME_TARGETS = {
+  'Bryst':{min:10,max:20}, 'Skulder':{min:10,max:20}, 'Triceps':{min:8,max:18},
+  'Quad':{min:12,max:20}, 'Post. Chain':{min:10,max:20}, 'Ryg':{min:12,max:22},
+  'Biceps':{min:8,max:18}, 'Adduktor':{min:6,max:12}, 'Lægge':{min:8,max:16}, 'Core':{min:6,max:14},
+};
+const MAIN_LIFT_MAP = {
+  'Squat':'sq', 'Box Squat':'sq', 'Squat — 1RM Forsøg':'sq',
+  'Bench Press':'bp', 'Pause Bench Press':'bp', 'Bench Press — 1RM Forsøg':'bp',
+  'Deadlift (Conv.)':'dl', 'Deficit Deadlift (2 cm)':'dl', 'Deadlift — 1RM Forsøg':'dl',
+};
+const LIFT_LABEL = { sq:'Squat', bp:'Bench', dl:'Deadlift' };
+const LIFT_PR_NAMES = {
+  sq:['Squat','Squat — 1RM Forsøg','Box Squat'],
+  bp:['Bench Press','Bench Press — 1RM Forsøg','Pause Bench Press'],
+  dl:['Deadlift (Conv.)','Deadlift — 1RM Forsøg','Deficit Deadlift (2 cm)'],
+};
+
+// Duplikeret fra lob/index.html — VDOT (Daniels-Gilbert)
+function vdotFromDistanceTime(distanceKm, minutes){
+  if(!distanceKm || !minutes) return null;
+  const v=(distanceKm*1000)/minutes, t=minutes;
+  const vo2=-4.60+0.182258*v+0.000104*v*v;
+  const pct=0.8+0.1894393*Math.exp(-0.012778*t)+0.2989558*Math.exp(-0.1932605*t);
+  const vdot=vo2/pct;
+  return isFinite(vdot)?vdot:null;
+}
+function zoneBoundsFor(maxHR){
+  return [0.50,0.60,0.70,0.80,0.90].map((lo,i)=>({lo:lo*maxHR, hi:(i<4?[0.60,0.70,0.80,0.90][i]:1.05)*maxHR}));
+}
+function zoneIndexFor(hr, maxHR){
+  const z=zoneBoundsFor(maxHR);
+  for(let i=0;i<z.length;i++){ if(hr>=z[i].lo && hr<z[i].hi) return i; }
+  return hr<z[0].lo ? 0 : z.length-1;
+}
+function weekStartOf(dateStr){
+  const d=new Date(dateStr+'T00:00:00'); const day=d.getDay(); const diff=(day===0?-6:1-day);
+  d.setDate(d.getDate()+diff); return d.toISOString().slice(0,10);
+}
+function fmtClock(sec){
+  if(sec==null || !isFinite(sec)) return '—';
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=Math.round(sec%60);
+  return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+}
+function fmtPaceMinKm(secPerKm){
+  if(!isFinite(secPerKm)||secPerKm<=0) return '—';
+  const m=Math.floor(secPerKm/60), s=Math.round(secPerKm%60);
+  return `${m}:${String(s).padStart(2,'0')}/km`;
+}
+
+// ── SBD rå-læsere ────────────────────────────────────────────────────────
+function readSbdRaw(which){
+  try{ return JSON.parse(localStorage.getItem(which==='main'?'sbd_state':'sbd_partner')); }catch(e){ return null; }
+}
+function sbdWeekWindow(s){
+  const totalDays=s.totalDays||0, week=Math.min(12,Math.floor(totalDays/7)+1);
+  return { week, weekStart:(week-1)*7, weekEnd:week*7 };
+}
+function sbdWeekStats(s){
+  const {week,weekStart,weekEnd}=sbdWeekWindow(s);
+  const days=(s.completedDays||[]).filter(d=>d>=weekStart&&d<weekEnd);
+  let tonnage=0,sets=0,reps=0,intSum=0,intCnt=0;
+  const muscleSets={};
+  days.forEach(d=>{
+    const log=(s.logs||{})['day'+d]; if(!log) return;
+    (log.exercises||[]).forEach(ex=>{
+      const muscle=MUSCLE_MAP[ex.name];
+      const liftKey=MAIN_LIFT_MAP[ex.name];
+      (ex.sets||[]).forEach(st=>{
+        if(!st.done) return;
+        const kg=parseFloat(st.kg), rp=parseInt(st.reps);
+        if(kg>0 && rp>0){
+          tonnage+=kg*rp; sets++; reps+=rp;
+          if(muscle) muscleSets[muscle]=(muscleSets[muscle]||0)+1;
+          if(liftKey && s.oneRM && s.oneRM[liftKey]){ intSum+=(kg/s.oneRM[liftKey])*100; intCnt++; }
+        }
+      });
+    });
+  });
+  return { week, days:days.length, tonnage, sets, reps, muscleSets, avgIntensity: intCnt? intSum/intCnt : null };
+}
+function sbdBodyweightStats(s){
+  const bw=s.bodyweight||{}, st=s.sessionTimes||{};
+  const entries=Object.keys(bw).map(dayIdx=>{
+    const t=st['day'+dayIdx]; const ts=t?(t.end||t.start):null;
+    return { kg:bw[dayIdx], ts };
+  }).filter(e=>e.ts && e.kg>0).sort((a,b)=>a.ts-b.ts);
+  if(!entries.length) return null;
+  const today=entries[entries.length-1].kg;
+  const weekAgo=Date.now()-7*86400000, twoWeeksAgo=weekAgo-7*86400000;
+  const last7=entries.filter(e=>e.ts>=weekAgo);
+  const prev7=entries.filter(e=>e.ts>=twoWeeksAgo&&e.ts<weekAgo);
+  const avg7=last7.length? last7.reduce((a,e)=>a+e.kg,0)/last7.length : today;
+  const prevAvg=prev7.length? prev7.reduce((a,e)=>a+e.kg,0)/prev7.length : null;
+  return { today, avg7, trend: prevAvg!=null ? avg7-prevAvg : null };
+}
+function sbdMainLifts(s){
+  const pr=s.pr||{}, oneRM=s.oneRM||{}, start=s.programStart1RM||oneRM;
+  function findPR(names){ for(const n of names){ if(pr[n]&&pr[n].e1rm) return pr[n].e1rm; } return null; }
+  return ['sq','bp','dl'].map(k=>({
+    key:k, label:LIFT_LABEL[k], current:oneRM[k]||null,
+    pr: findPR(LIFT_PR_NAMES[k]) || oneRM[k] || null,
+    target: start[k] ? start[k]*1.0625 : null,
+  }));
+}
+function sbdLoadRatio(s){
+  const {week}=sbdWeekWindow(s);
+  const from=Math.max(1,week-3);
+  let thisWeekSets=0, totalSets=0, weeksCounted=0;
+  for(let w=from; w<=week; w++){
+    const ws=(w-1)*7, we=w*7;
+    const days=(s.completedDays||[]).filter(d=>d>=ws&&d<we);
+    let sets=0;
+    days.forEach(d=>{
+      const log=(s.logs||{})['day'+d]; if(!log) return;
+      (log.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ if(st.done&&parseFloat(st.kg)>0) sets++; }));
+    });
+    if(w===week) thisWeekSets=sets;
+    totalSets+=sets; weeksCounted++;
+  }
+  const avg=totalSets/weeksCounted;
+  if(!avg) return null;
+  return { ratio:thisWeekSets/avg, thisWeekSets, avg };
+}
+
+// ── Løb rå-læsere ────────────────────────────────────────────────────────
+function readLobRaw(which){
+  try{ return JSON.parse(localStorage.getItem(which==='main'?'lob_state':'lob_partner')); }catch(e){ return null; }
+}
+function lobWeekStats(s){
+  const runs=s.runs||[];
+  const todayKey=weekStartOf(new Date().toISOString().slice(0,10));
+  const wk=runs.filter(r=>weekStartOf(r.date)===todayKey);
+  const km=wk.reduce((a,r)=>a+r.distanceKm,0);
+  const sec=wk.reduce((a,r)=>a+r.durationSec,0);
+  const hrs=wk.filter(r=>r.avgHR).map(r=>r.avgHR);
+  return {
+    km, sec, runs:wk.length,
+    avgHR: hrs.length? Math.round(hrs.reduce((a,b)=>a+b,0)/hrs.length) : null,
+    avgPace: km>0 ? sec/km : null,
+  };
+}
+function lobVO2(s){
+  const maxHR=Number(s.profile?.maxHR), restHR=Number(s.profile?.restHR);
+  const hrMethod=(maxHR&&restHR)? 15.3*(maxHR/restHR) : null;
+  const candidates=(s.runs||[]).filter(r=>r.durationSec>=15*60 && r.distanceKm>=2);
+  let vdot=null;
+  candidates.forEach(r=>{ const v=vdotFromDistanceTime(r.distanceKm, r.durationSec/60); if(v && (vdot===null||v>vdot)) vdot=v; });
+  return { hrMethod, vdot };
+}
+function lobZones(s){
+  const maxHR=Number(s.profile?.maxHR); if(!maxHR) return null;
+  const recent=[...(s.runs||[])].filter(r=>r.avgHR).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  if(!recent.length) return null;
+  const counts=[0,0,0,0,0];
+  recent.forEach(r=>counts[zoneIndexFor(r.avgHR,maxHR)]++);
+  return counts;
+}
+const DIST_BUCKETS=[
+  {label:'1 km', km:1, tol:0.05}, {label:'5 km', km:5, tol:0.15}, {label:'10 km', km:10, tol:0.3},
+  {label:'Halvmarathon', km:21.1, tol:0.5}, {label:'Marathon', km:42.2, tol:1.0},
+];
+function lobDistancePRs(s){
+  const runs=s.runs||[];
+  return DIST_BUCKETS.map(b=>{
+    const matches=runs.filter(r=>Math.abs(r.distanceKm-b.km)<=b.tol);
+    if(!matches.length) return { label:b.label, time:null };
+    const best=matches.reduce((a,r)=>r.durationSec<a.durationSec?r:a);
+    return { label:b.label, time:best.durationSec };
+  });
+}
+function lobGoal(s){
+  const baseline=s.profile?.goalBaselineVDOT, targetPct=s.profile?.goalTargetPct||8;
+  if(!baseline) return null;
+  const {vdot}=lobVO2(s); if(!vdot) return null;
+  const target=baseline*(1+targetPct/100);
+  const progressPct=Math.max(0,Math.min(150,((vdot-baseline)/(target-baseline))*100));
+  const baselineDate=new Date((s.profile.goalBaselineDate||s.profile.seasonStart)+'T00:00:00');
+  const weeksElapsed=Math.max(0, Math.floor((new Date()-baselineDate)/(7*86400000)));
+  const weeksLeft=Math.max(0, 12-weeksElapsed);
+  return { baseline, current:vdot, target, progressPct, targetPct, weeksLeft };
+}
+function lobExtraPRs(s){
+  const runs=s.runs||[]; if(!runs.length) return null;
+  const longest=runs.reduce((a,r)=>r.distanceKm>a.distanceKm?r:a);
+  const totals={};
+  runs.forEach(r=>{ const w=weekStartOf(r.date); totals[w]=(totals[w]||0)+r.distanceKm; });
+  const highestWeek=Math.max(...Object.values(totals));
+  const longestDuration=runs.reduce((a,r)=>r.durationSec>a.durationSec?r:a);
+  return { longestKm:longest.distanceKm, highestWeekKm:highestWeek, longestDurationSec:longestDuration.durationSec };
+}
+function lobLoadRatio(s){
+  const runs=s.runs||[]; if(!runs.length) return null;
+  const totals={};
+  runs.forEach(r=>{ const w=weekStartOf(r.date); totals[w]=(totals[w]||0)+r.distanceKm; });
+  const thisWeekKey=weekStartOf(new Date().toISOString().slice(0,10));
+  const thisWeekKm=totals[thisWeekKey]||0;
+  const priorKeys=Object.keys(totals).filter(k=>k<thisWeekKey).sort().slice(-4);
+  if(!priorKeys.length) return null;
+  const avg=priorKeys.reduce((a,k)=>a+totals[k],0)/priorKeys.length;
+  if(!avg) return null;
+  return { ratio:thisWeekKm/avg, thisWeekKm, avg };
+}
+
+// ── Readiness (fra restScore 1-5 + energyScore 0-100, seneste kendte) ─────
+function sbdReadiness(s){
+  function latestOf(obj){
+    if(!obj) return null;
+    const keys=Object.keys(obj).map(Number).sort((a,b)=>b-a);
+    return keys.length? obj[keys[0]] : null;
+  }
+  const rest=latestOf(s.restScore), energy=latestOf(s.sleepLog);
+  if(rest==null && energy==null) return null;
+  const restPart=rest!=null? (rest/5)*100 : 60;
+  const energyPart=energy!=null? energy : 60;
+  return { score:Math.round(restPart*0.5+energyPart*0.5), rest, energy };
+}
+
+// ── Eksempeldata — vises KUN når rigtig data mangler, gemmes aldrig ───────
+const DUMMY = {
+  sbd: {
+    lifts: [
+      { key:'sq', label:'Squat',   current:140, pr:150, target:155.3 },
+      { key:'bp', label:'Bench',   current:90,  pr:95,  target:98.6 },
+      { key:'dl', label:'Deadlift',current:180, pr:195, target:199.4 },
+    ],
+    week:{ tonnage:8420, sets:42, reps:268, days:3, avgIntensity:78 },
+    muscle:{ Bryst:14, Ryg:16, Skulder:11, Biceps:8, Triceps:9, Quad:15, 'Post. Chain':12, Adduktor:5, Lægge:7, Core:4 },
+    loadRatio:{ ratio:1.08 },
+  },
+  lob: {
+    week:{ km:18.4, sec:5580, runs:3, avgPace:303, avgHR:152 },
+    vo2:{ hrMethod:46.8, vdot:41.2 },
+    zones:[2,4,2,1,1],
+    dists:[ {label:'1 km',time:245}, {label:'5 km',time:1490}, {label:'10 km',time:3120}, {label:'Halvmarathon',time:null}, {label:'Marathon',time:null} ],
+    goal:{ baseline:39.0, current:41.2, target:42.1, progressPct:71, targetPct:8, weeksLeft:4 },
+    extra:{ longestKm:14.2, highestWeekKm:22.6, longestDurationSec:5040 },
+    loadRatio:{ ratio:0.94 },
+  },
+  readiness:{ score:78, rest:4, energy:74 },
+  bodyweight:{ today:112.4, avg7:112.9, trend:-0.6 },
+};
+
+// ── Regelbaserede AI-indsigter (kun ægte data) ────────────────────────────
+function buildInsights(sRaw, lRaw){
+  const out=[];
+  if(sRaw && (sRaw.completedDays||[]).length){
+    const lifts=sbdMainLifts(sRaw);
+    lifts.forEach(l=>{
+      if(l.current && l.target){
+        const pct=((l.current-l.target/1.0625)/(l.target/1.0625)*100);
+        if(Math.abs(pct)>=3){
+          out.push(`Din ${l.label} er ${pct>0?'steget':'faldet'} ${Math.abs(pct).toFixed(1)}% siden programstart.`);
+        }
+      }
+    });
+    const load=sbdLoadRatio(sRaw);
+    if(load && load.ratio>=1.15) out.push(`Denne uges styrke-volumen er ${Math.round((load.ratio-1)*100)}% over dit 4-ugers snit — hold øje med restitution.`);
+  }
+  if(lRaw && (lRaw.runs||[]).length){
+    const load=lobLoadRatio(lRaw);
+    if(load) out.push(`Du løber ${Math.round((load.ratio-1)*100)}% ${load.ratio>=1?'mere':'mindre'} end dit 4-ugers snit denne uge.`);
+    const goal=lobGoal(lRaw);
+    if(goal) out.push(`VDOT-mål: ${Math.round(goal.progressPct)}% af vejen mod +${goal.targetPct}%.`);
+  }
+  if(out.length===0) out.push('Log flere sessioner for at få automatiske indsigter her — kræver mindst et par uger med data.');
+  return out.slice(0,4);
+}
+
+// ── Render-helpers til de nye sektioner ───────────────────────────────────
+function heatColor(pct){
+  if(pct<70) return '#e05c4a';
+  if(pct<=110) return '#3db87a';
+  return '#d4a843';
+}
+function renderStyrke(sRaw){
+  const isDummy = !sRaw || !(sRaw.completedDays||[]).length;
+  const lifts = isDummy ? DUMMY.sbd.lifts : sbdMainLifts(sRaw);
+  const rows = lifts.map(l=>{
+    const target = isDummy ? l.target : l.target;
+    return `<div class="lift-box">
+      <div class="name">${l.label}</div>
+      <div class="e1rm">${l.current? l.current.toFixed(1) : '—'}</div>
+      <div class="sub">e1RM (kg)</div>
+      ${l.pr ? `<div class="pr-tag">PR ${l.pr.toFixed(1)}</div>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('slot-styrke').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Styrke ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="lift-row">${rows}</div>
+    </div>`;
+}
+function renderVolumen(sRaw){
+  const isDummy = !sRaw || !(sRaw.completedDays||[]).length;
+  const w = isDummy ? DUMMY.sbd.week : sbdWeekStats(sRaw);
+  document.getElementById('slot-volumen').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Volumen denne uge ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v">${Math.round(w.tonnage).toLocaleString('da-DK')} kg</div><div class="l">Total tonnage</div></div>
+        <div class="stat-box"><div class="v">${w.sets}</div><div class="l">Sæt</div></div>
+        <div class="stat-box"><div class="v">${w.reps}</div><div class="l">Reps</div></div>
+        <div class="stat-box"><div class="v">${w.avgIntensity? Math.round(w.avgIntensity)+'%' : '—'}</div><div class="l">Gns. intensitet (1RM)</div></div>
+      </div>
+    </div>`;
+}
+function renderHeatmap(sRaw){
+  const isDummy = !sRaw || !(sRaw.completedDays||[]).length;
+  const muscle = isDummy ? DUMMY.sbd.muscle : sbdWeekStats(sRaw).muscleSets;
+  const rows = Object.keys(VOLUME_TARGETS).map(m=>{
+    const count = muscle[m]||0;
+    const target = VOLUME_TARGETS[m];
+    const pct = Math.round((count/target.min)*100);
+    const w = Math.min(100, Math.round((count/(target.max*1.2))*100));
+    return `<div class="heat-row">
+      <div class="heat-label">${m}</div>
+      <div class="heat-bar-bg"><div class="heat-bar-fill" style="width:${w}%;background:${heatColor(pct)};"></div></div>
+      <div class="heat-count">${count}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('slot-heatmap').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Muskelgruppe-heatmap ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="heat-grid">${rows}</div>
+      <div class="deferred-note">Sæt denne uge pr. muskelgruppe. Rød = under anbefalet minimum, grøn = i mål, guld = over.</div>
+    </div>`;
+}
+function renderLobUge(lRaw){
+  const isDummy = !lRaw || !(lRaw.runs||[]).length;
+  const w = isDummy ? DUMMY.lob.week : lobWeekStats(lRaw);
+  document.getElementById('slot-lob-uge').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Denne uge ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v">${w.km.toFixed(1)} km</div><div class="l">Distance</div></div>
+        <div class="stat-box"><div class="v">${fmtClock(w.sec)}</div><div class="l">Tid</div></div>
+        <div class="stat-box"><div class="v">${w.runs}</div><div class="l">Løbeture</div></div>
+        <div class="stat-box"><div class="v">${fmtPaceMinKm(w.avgPace)}</div><div class="l">Gns. pace</div></div>
+      </div>
+    </div>`;
+}
+function renderLobKondition(lRaw){
+  const isDummy = !lRaw || !(lRaw.runs||[]).length;
+  const vo2 = isDummy ? DUMMY.lob.vo2 : lobVO2(lRaw);
+  const zones = isDummy ? DUMMY.lob.zones : lobZones(lRaw);
+  const zTotal = zones ? zones.reduce((a,b)=>a+b,0) : 0;
+  const zColors=['#4a90d9','#3db87a','#d4a843','#d97b3a','#e05c4a'];
+  const zoneBar = zones && zTotal ? zones.map((c,i)=>`<div style="width:${c/zTotal*100}%;background:${zColors[i]};height:100%;display:inline-block;"></div>`).join('') : '';
+  document.getElementById('slot-lob-kondition').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Kondition ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v">${vo2.hrMethod? vo2.hrMethod.toFixed(1):'—'}</div><div class="l">VO2max (HR-metode)</div></div>
+        <div class="stat-box"><div class="v">${vo2.vdot? vo2.vdot.toFixed(1):'—'}</div><div class="l">VDOT</div></div>
+      </div>
+      ${zoneBar ? `<div style="margin-top:12px;display:flex;height:14px;border-radius:7px;overflow:hidden;">${zoneBar}</div><div class="deferred-note">Zonefordeling, seneste 10 løb (Z1→Z5)</div>` : ''}
+    </div>`;
+}
+function renderLobRekorder(lRaw){
+  const isDummy = !lRaw || !(lRaw.runs||[]).length;
+  const dists = isDummy ? DUMMY.lob.dists : lobDistancePRs(lRaw);
+  const rows = dists.map(d=>`<div class="pr-row"><div class="lbl">${d.label}</div><div class="val">${d.time? fmtClock(d.time) : '—'}</div></div>`).join('');
+  document.getElementById('slot-lob-rekorder').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Rekorder pr. distance ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="pr-list">${rows}</div>
+    </div>`;
+}
+function renderOversigt(sRaw, lRaw){
+  const sDummy = !sRaw || !(sRaw.completedDays||[]).length;
+  const lDummy = !lRaw || !(lRaw.runs||[]).length;
+  const bw = sDummy ? DUMMY.bodyweight : (sbdBodyweightStats(sRaw) || DUMMY.bodyweight);
+  const bwIsDummy = sDummy || !sbdBodyweightStats(sRaw);
+  const sWeek = sDummy ? DUMMY.sbd.week : sbdWeekStats(sRaw);
+  const lWeek = lDummy ? DUMMY.lob.week : lobWeekStats(lRaw);
+  const readiness = sDummy ? DUMMY.readiness : (sbdReadiness(sRaw) || DUMMY.readiness);
+  const readinessIsDummy = sDummy || !sbdReadiness(sRaw);
+  const trainDays = (sDummy?DUMMY.sbd.week.days:sWeek.days) + (lDummy?DUMMY.lob.week.runs:lWeek.runs);
+  const anyDummy = sDummy || lDummy || bwIsDummy || readinessIsDummy;
+  document.getElementById('slot-oversigt').innerHTML = `
+    <div class="section-card ${anyDummy?'example':''}">
+      <h3>Din oversigt ${anyDummy?'<span class="example-badge">Delvist eksempel</span>':''}</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v">${bw.today.toFixed(1)} kg</div><div class="l">Vægt i dag${bw.trend!=null?` <span class="${bw.trend<0?'trend-down':'trend-up'}">${bw.trend>0?'+':''}${bw.trend.toFixed(1)}</span>`:''}</div></div>
+        <div class="stat-box"><div class="v">${trainDays}</div><div class="l">Træningsdage denne uge</div></div>
+        <div class="stat-box"><div class="v">${(lDummy?DUMMY.lob.week.km:lWeek.km).toFixed(1)} km</div><div class="l">Løb denne uge</div></div>
+        <div class="stat-box"><div class="v">${Math.round(sDummy?DUMMY.sbd.week.tonnage:sWeek.tonnage).toLocaleString('da-DK')} kg</div><div class="l">Styrke-volumen</div></div>
+        <div class="stat-box"><div class="v">${readiness.score}</div><div class="l">Readiness (0-100)</div></div>
+        <div class="stat-box"><div class="v">${bw.avg7.toFixed(1)} kg</div><div class="l">7-dages snit vægt</div></div>
+      </div>
+    </div>`;
+}
+function renderRecovery(sRaw){
+  const isDummy = !sRaw || !sbdReadiness(sRaw);
+  const r = isDummy ? DUMMY.readiness : sbdReadiness(sRaw);
+  const color = r.score>=70 ? 'var(--green)' : (r.score>=45 ? 'var(--gold)' : 'var(--red)');
+  const label = r.score>=70 ? '🟢 Klar' : (r.score>=45 ? '🟡 Pas på' : '🔴 Tag en rolig dag');
+  document.getElementById('slot-recovery').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Recovery ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="readiness-wrap">
+        <div class="readiness-circle" style="border-color:${color};color:${color};">${r.score}</div>
+        <div class="readiness-detail">
+          ${label}<br>
+          Restitution: <b>${r.rest!=null? r.rest+'/5' : '—'}</b> · Søvn-score: <b>${r.energy!=null? r.energy : '—'}</b>
+        </div>
+      </div>
+      <div class="deferred-note">HRV, hvilepuls, stress og muskelømhed er ikke sporet endnu.</div>
+    </div>`;
+}
+function renderKrop(sRaw){
+  const real = sRaw && sbdBodyweightStats(sRaw);
+  const isDummy = !real;
+  const bw = isDummy ? DUMMY.bodyweight : real;
+  document.getElementById('slot-krop').innerHTML = `
+    <div class="section-card ${isDummy?'example':''}">
+      <h3>Vægt ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v">${bw.today.toFixed(1)} kg</div><div class="l">I dag</div></div>
+        <div class="stat-box"><div class="v">${bw.avg7.toFixed(1)} kg</div><div class="l">7-dages snit</div></div>
+      </div>
+      <div class="deferred-note">Taljemål, fedtprocent, muskelmasse og månedlige billeder er ikke sporet endnu.</div>
+    </div>`;
+}
+function renderBelastning(sRaw, lRaw){
+  const sLoad = sRaw ? sbdLoadRatio(sRaw) : null;
+  const lLoad = lRaw ? lobLoadRatio(lRaw) : null;
+  const sDummy = !sLoad, lDummy = !lLoad;
+  const sVal = sDummy ? DUMMY.sbd.loadRatio.ratio : sLoad.ratio;
+  const lVal = lDummy ? DUMMY.lob.loadRatio.ratio : lLoad.ratio;
+  function ratioColor(r){ return r>1.3 ? 'var(--red)' : (r<0.7 ? 'var(--gold)' : 'var(--green)'); }
+  document.getElementById('slot-belastning').innerHTML = `
+    <div class="section-card ${(sDummy||lDummy)?'example':''}">
+      <h3>Akut : Kronisk-ratio ${(sDummy||lDummy)?'<span class="example-badge">Delvist eksempel</span>':''}</h3>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v" style="color:${ratioColor(sVal)}">${sVal.toFixed(2)}</div><div class="l">Styrke (denne uge / 4-ugers snit)</div></div>
+        <div class="stat-box"><div class="v" style="color:${ratioColor(lVal)}">${lVal.toFixed(2)}</div><div class="l">Løb (denne uge / 4-ugers snit)</div></div>
+      </div>
+      <div class="deferred-note">Under 0.8 = muligvis for lidt, 0.8–1.3 = sund zone, over 1.3 = risiko for overbelastning.</div>
+    </div>`;
+}
+function renderMal(sRaw, lRaw){
+  const sDummy = !sRaw || !(sRaw.completedDays||[]).length;
+  const lDummy = !lRaw || !lobGoal(lRaw);
+  const lifts = sDummy ? DUMMY.sbd.lifts : sbdMainLifts(sRaw);
+  const goal = lDummy ? DUMMY.lob.goal : lobGoal(lRaw);
+  const liftRows = lifts.map(l=>{
+    const cur = l.current||0, tgt = l.target||1;
+    const pct = Math.min(100, Math.round(cur/tgt*100));
+    return `<div class="goal-row">
+      <div class="lbl" style="width:60px;">${l.label}</div>
+      <div class="goal-bar-bg"><div class="goal-bar-fill" style="width:${pct}%;"></div></div>
+      <div class="goal-nums">${cur? cur.toFixed(0):'—'}/${tgt.toFixed(0)} kg</div>
+    </div>`;
+  }).join('');
+  const goalPct = goal ? Math.min(100, Math.round(goal.progressPct)) : 0;
+  const sbdWeek = sDummy ? 3 : Math.min(12, Math.floor((sRaw.totalDays||0)/7)+1);
+  const sbdWeeksLeft = Math.max(0, 12-sbdWeek);
+  const countdownParts=[];
+  if(sRaw || sDummy) countdownParts.push(`${sbdWeeksLeft===0?'Test-uge er nu!':`${sbdWeeksLeft} ${sbdWeeksLeft===1?'uge':'uger'} til test-uge`}`);
+  if(goal) countdownParts.push(`${goal.weeksLeft===0?'VDOT-cyklus er slut':`${goal.weeksLeft} ${goal.weeksLeft===1?'uge':'uger'} til VDOT-mål`}`);
+  document.getElementById('slot-mal').innerHTML = `
+    <div class="section-card ${(sDummy||lDummy)?'example':''}">
+      <h3>Mål ${(sDummy||lDummy)?'<span class="example-badge">Delvist eksempel</span>':''}</h3>
+      ${countdownParts.length ? `<div class="deferred-note" style="color:var(--gold);margin-bottom:10px;">⏳ ${countdownParts.join(' · ')}</div>` : ''}
+      <div class="goal-list">
+        ${liftRows}
+        ${goal ? `<div class="goal-row"><div class="lbl" style="width:60px;">VDOT</div><div class="goal-bar-bg"><div class="goal-bar-fill" style="width:${goalPct}%;"></div></div><div class="goal-nums">${goal.current.toFixed(1)}/${goal.target.toFixed(1)}</div></div>` : ''}
+      </div>
+      <div class="deferred-note">Styrke-mål er programmets +6,25% over 12 uger. Løb-mål er din indstillede VDOT-forbedring.</div>
+    </div>`;
+}
+function renderPR(sRaw, lRaw){
+  const sDummy = !sRaw || !(sRaw.completedDays||[]).length;
+  const lDummy = !lRaw || !(lRaw.runs||[]).length;
+  const lifts = sDummy ? DUMMY.sbd.lifts : sbdMainLifts(sRaw);
+  const lobExtra = lDummy ? DUMMY.lob.extra : lobExtraPRs(lRaw);
+  const rows = [];
+  lifts.forEach(l=>{ if(l.pr) rows.push({ lbl:`Tungeste ${l.label}`, val:`${l.pr.toFixed(1)} kg` }); });
+  if(lobExtra){
+    rows.push({ lbl:'Længste løbetur', val:`${lobExtra.longestKm.toFixed(1)} km` });
+    rows.push({ lbl:'Højeste ugentlige km', val:`${lobExtra.highestWeekKm.toFixed(1)} km` });
+    rows.push({ lbl:'Længste træningstime', val: fmtClock(lobExtra.longestDurationSec) });
+  }
+  document.getElementById('slot-pr').innerHTML = `
+    <div class="section-card ${(sDummy||lDummy)?'example':''}">
+      <h3>Personlige rekorder ${(sDummy||lDummy)?'<span class="example-badge">Delvist eksempel</span>':''}</h3>
+      <div class="pr-list">${rows.map(r=>`<div class="pr-row"><div class="lbl">${r.lbl}</div><div class="val">${r.val}</div></div>`).join('')}</div>
+    </div>`;
+}
+function renderInsights(sRaw, lRaw){
+  const hasReal = (sRaw && (sRaw.completedDays||[]).length) || (lRaw && (lRaw.runs||[]).length);
+  const insights = hasReal ? buildInsights(sRaw, lRaw) : ['Log et par ugers træning i SBD- og løbe-trackeren for at få automatiske indsigter her.'];
+  document.getElementById('slot-insights').innerHTML = `
+    <div class="section-card">
+      <h3>Indsigter</h3>
+      ${insights.map(i=>`<div class="insight-item"><span class="insight-dot">●</span>${i}</div>`).join('')}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// NYE SEKTIONER: Åbningsforsøg, Blok-progression, Ugentlig verdict, Ugeskema
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Ugentlig fatigue (duplikeret fra getWeeklyFatigue) ────────────────────
+function sbdWeeklyFatigue(s){
+  const totalDays=s.totalDays||0, lookback=14;
+  const recentDays=(s.completedDays||[]).filter(d=>d>=totalDays-lookback && d<totalDays);
+  let rpeSum=0, rpeCount=0;
+  recentDays.forEach(d=>{
+    const log=(s.logs||{})['day'+d]; if(!log) return;
+    (log.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ if(st.done&&st.rpe){ rpeSum+=parseFloat(st.rpe); rpeCount++; } }));
+  });
+  return rpeCount<5 ? null : rpeSum/rpeCount;
+}
+
+// ── Ugentlig opsummering + verdict (duplikeret fra renderWeeklySummary) ───
+function sbdWeeklyVerdict(s){
+  const {week}=sbdWeekWindow(s);
+  const prevWeek=week-1;
+  if(prevWeek<1) return null;
+  const prevStart=(prevWeek-1)*7, prevEnd=prevWeek*7;
+  const prevDays=(s.completedDays||[]).filter(d=>d>=prevStart&&d<prevEnd);
+  if(!prevDays.length) return null;
+  const workouts=prevDays.filter(d=>SBD_CYCLE[d%8].type==='workout').length;
+  let rpeSum=0,rpeCount=0;
+  prevDays.forEach(d=>{
+    const log=(s.logs||{})['day'+d]; if(!log) return;
+    (log.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ if(st.done&&st.rpe){ rpeSum+=parseFloat(st.rpe); rpeCount++; } }));
+  });
+  const avgRPE=rpeCount>0? rpeSum/rpeCount : null;
+  let sleepSum=0, sleepCount=0;
+  for(let d=prevStart; d<prevEnd; d++){ const h=(s.sleepLog||{})[d]; if(h){ sleepSum+=h; sleepCount++; } }
+  const avgEnergy=sleepCount>0? Math.round(sleepSum/sleepCount) : null;
+  const fatigueHigh=avgRPE!=null && avgRPE>=8.5;
+  const sleepLow=avgEnergy!=null && avgEnergy<61;
+  let verdict;
+  if(fatigueHigh && sleepLow) verdict='😮\u200d💨 Høj træthed og lav Energy Score — overvej deload eller ekstra hviledag.';
+  else if(fatigueHigh) verdict='💪 Hård uge — god indsats. Hold øje med restitution denne uge.';
+  else if(sleepLow) verdict='😴 Lav Energy Score sidst — prioriter søvn og restitution.';
+  else if(workouts>=5) verdict='✅ Stærk uge — god konsistens og kontrolleret belastning.';
+  else verdict='📈 Solid uge. Fortsæt som planlagt.';
+  return { prevWeek, workouts, avgRPE, avgEnergy, verdict };
+}
+
+// ── Blok-progression (duplikeret fra renderBlockProgression) ──────────────
+function sbdBlockProgression(s){
+  const start=s.programStart1RM || s.oneRM || {};
+  const lifts=[{key:'sq',dayId:'low1',label:'Squat'},{key:'bp',dayId:'cst1',label:'Bench'},{key:'dl',dayId:'bb1',label:'Deadlift'}];
+  const BLOCK_TARGETS={1:0.825,2:0.875,3:0.925};
+  const blocks=[{b:1,weekStart:1,weekEnd:4},{b:2,weekStart:5,weekEnd:8},{b:3,weekStart:9,weekEnd:12}];
+  function bestE1RM(dayId,weekStart,weekEnd){
+    const dayStart=(weekStart-1)*7, dayEnd=weekEnd*7;
+    let best=0;
+    (s.completedDays||[]).filter(d=>SBD_CYCLE[d%8].id===dayId && d>=dayStart && d<dayEnd).forEach(d=>{
+      const sets=(s.logs||{})['day'+d]?.exercises?.[0]?.sets?.filter(st=>st.done&&parseFloat(st.kg)>0&&parseInt(st.reps)>0)||[];
+      sets.forEach(st=>{ const e=epley(parseFloat(st.kg),parseInt(st.reps)); if(e>best) best=e; });
+    });
+    return best>0 ? Math.round(best*10)/10 : null;
+  }
+  return lifts.map(lift=>{
+    const startRM=start[lift.key]||0;
+    const vals=blocks.map(b=>({
+      b:b.b, actual:bestE1RM(lift.dayId,b.weekStart,b.weekEnd),
+      target:Math.round(startRM*BLOCK_TARGETS[b.b]*(1+(b.b*0.035))*10)/10
+    }));
+    return { ...lift, startRM, blocks:vals, hasData:vals.some(v=>v.actual!==null) };
+  });
+}
+
+// ── Åbningsforsøg / attempt-calculator (duplikeret fra calcAttempts) ──────
+function calcAttemptsFor(oneRM){
+  if(!oneRM) return null;
+  const r=v=>Math.round(v*2)/2;
+  return [ r(oneRM*0.90), r(oneRM*0.97), r(oneRM*1.03) ];
+}
+
+const DAY_NAMES=['Søn','Man','Tir','Ons','Tor','Fre','Lør'];
+
+// ── Fælles skema-model: hver dag kan have sbd (med cycleId) OG/ELLER lob ────
+// (ikke længere gensidigt udelukkende — Ellen løber og styrketræner ofte
+// samme dag).
+// 9 dage: 3 par af 2 SBD-dage i træk, hver adskilt af en løbedag — også ved
+// selve cyklus-overgangen (BB2 → CST1), ellers bliver det 4 SBD-dage i træk
+// der hvor cyklussen gentager. De to løb-slots der ligger op til/efter en
+// bendag er markeret lette; det tredje (mellem BB2 og CST1) rammer ingen
+// bendag og kan køres som en normal/hårdere tur.
+const OLIVER_PATTERN = [
+  { sbd:{cycleId:'cst1'}, lob:null },
+  { sbd:{cycleId:'low1'}, lob:null },
+  { sbd:null, lob:{easy:true} },
+  { sbd:{cycleId:'bb1'},  lob:null },
+  { sbd:{cycleId:'cst2'}, lob:null },
+  { sbd:null, lob:{easy:true} },
+  { sbd:{cycleId:'low2'}, lob:null },
+  { sbd:{cycleId:'bb2'},  lob:null },
+  { sbd:null, lob:{easy:false} },
+];
+// Ellens mønster: samme dage som Oliver (hun matcher hans SBD-dage), men SBD
+// er markeret valgfri (hun springer over når hun er for træt), og hun løber
+// praktisk talt hver dag — også på Olivers SBD-dage, da de to ofte
+// kombineres samme dag i virkeligheden. Ingen tvungen "ren" hviledag her,
+// da det ikke matcher hvad hun faktisk gør.
+const ELLEN_PATTERN = OLIVER_PATTERN.map(o => ({
+  sbd: o.sbd ? { cycleId:o.sbd.cycleId, optional:true } : null,
+  lob: null, // løb er ikke cyklus-baseret for Ellen — se ELLEN_LOB_WEEKDAYS
+}));
+// Ellen har krævet faste løbedage, uafhængigt af den rullende cyklus:
+// Tirsdag, Torsdag, Fredag, Søndag. JS Date.getDay(): 0=søn,1=man,2=tir,
+// 3=ons,4=tor,5=fre,6=lør.
+const ELLEN_LOB_WEEKDAYS = new Set([2,4,5,0]);
+function patternForPerson(personKey){ return personKey==='ellen' ? ELLEN_PATTERN : OLIVER_PATTERN; }
+
+const SCHEDULE_ANCHOR_KEY='dash_schedule_anchor';
+function getScheduleAnchor(){
+  let anchor=localStorage.getItem(SCHEDULE_ANCHOR_KEY);
+  if(!anchor){
+    anchor=new Date().toISOString().slice(0,10);
+    localStorage.setItem(SCHEDULE_ANCHOR_KEY, anchor);
+  }
+  return anchor;
+}
+function resetScheduleAnchor(){
+  localStorage.setItem(SCHEDULE_ANCHOR_KEY, new Date().toISOString().slice(0,10));
+  render();
+}
+
+// ── PWA + påmindelser på planlagte dage ────────────────────────────────────
+function registerSW(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('./sw.js').catch(e=>console.log('SW ikke registreret:', e));
+}
+function getNotificationPermission(){
+  if(!('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+function notificationButtonHtml(){
+  const perm=getNotificationPermission();
+  if(perm==='unsupported') return '';
+  if(perm==='granted') return `<div class="deferred-note" style="margin-top:4px;">🔔 Påmindelser er slået til — du får besked kl. 7 dagen før en planlagt træningsdag.</div>`;
+  if(perm==='denied') return `<div class="deferred-note" style="margin-top:4px;">Påmindelser er blokeret i browseren — slå dem til i browserens indstillinger for denne side.</div>`;
+  return `<button class="day-picker-btn" style="width:100%;margin-top:4px;" onclick="requestNotificationPermission()">Aktivér påmindelser</button>`;
+}
+async function requestNotificationPermission(){
+  if(!('Notification' in window)) return;
+  const perm=await Notification.requestPermission();
+  if(perm==='granted') scheduleTomorrowReminder();
+  render();
+}
+function scheduleTomorrowReminder(){
+  if(getNotificationPermission()!=='granted') return;
+  if(!('serviceWorker' in navigator)) return;
+  const active=localStorage.getItem('dash_profile')||'oliver';
+  const anchor=getScheduleAnchor();
+  const now=new Date();
+  const notifTime=new Date();
+  notifTime.setDate(notifTime.getDate()+1);
+  notifTime.setHours(7,0,0,0);
+  const dateStr=notifTime.toISOString().slice(0,10);
+  const slot=patternForPerson(active)[cyclePositionForDate(dateStr, anchor, patternForPerson(active).length, active)];
+  const lobPlan = active==='ellen'
+    ? (ELLEN_LOB_WEEKDAYS.has(notifTime.getDay()) ? { easy: !!slot.sbd } : null)
+    : slot.lob;
+  const parts=[];
+  if(slot.sbd) parts.push(slot.sbd.optional ? '🏋️ SBD (valgfri)' : '🏋️ SBD');
+  if(lobPlan) parts.push(lobPlan.easy ? '🏃 let løb' : '🏃 løb');
+  const title = parts.length ? parts.join(' + ')+' i morgen' : '😴 Hviledag i morgen';
+  const body = parts.length
+    ? (slot.sbd && slot.sbd.optional ? 'SBD er valgfri i morgen — spring over hvis du er for træt.' : 'Dit mønster siger '+parts.join(' + ')+' i morgen.')
+    : 'Ingen planlagt træning i morgen — nyd hviledagen.';
+  const delayMs=notifTime-now;
+  if(delayMs<=0) return;
+  navigator.serviceWorker.ready.then(sw=>{
+    sw.active?.postMessage({ type:'SCHEDULE_NOTIFICATION', title, body, delayMs });
+  }).catch(e=>console.log('Kunne ikke planlægge påmindelse:', e));
+}
+
+// ── "Ikke mulig i dag" — skub en enkelt dag videre til i morgen ───────────
+// Bruges fx når centeret har lukket inden fyraften i weekender du arbejder.
+// Gemmes pr. profil, så det ikke påvirker den anden persons skema.
+function blockedDatesKey(personKey){ return `dash_blocked_dates_${personKey}`; }
+function getBlockedDates(personKey){
+  try{
+    const raw=JSON.parse(localStorage.getItem(blockedDatesKey(personKey)));
+    return Array.isArray(raw) ? raw : [];
+  }catch(e){ return []; }
+}
+function toggleBlockedDate(personKey, dateStr){
+  const blocked=getBlockedDates(personKey);
+  const i=blocked.indexOf(dateStr);
+  if(i>=0) blocked.splice(i,1); else blocked.push(dateStr);
+  localStorage.setItem(blockedDatesKey(personKey), JSON.stringify(blocked));
+  render();
+}
+// Antal blokerede dage strengt FØR dateStr — de tæller ikke med i cyklussens
+// fremdrift, så den dag der kommer efter en blokeret dag overtager det
+// indhold den blokerede dag skulle have haft.
+function blockedDaysBefore(personKey, anchor, dateStr){
+  return getBlockedDates(personKey).filter(d=>d>=anchor && d<dateStr).length;
+}
+
+function cyclePositionForDate(dateStr, anchor, length, personKey){
+  const d1=new Date(anchor+'T00:00:00'), d2=new Date(dateStr+'T00:00:00');
+  let diffDays=Math.round((d2-d1)/86400000);
+  if(personKey) diffDays -= blockedDaysBefore(personKey, anchor, dateStr);
+  return ((diffDays%length)+length)%length;
+}
+
+let scheduleWeekOffset = 0;
+function scheduleShiftWeek(delta){
+  scheduleWeekOffset += delta;
+  render();
+}
+function computeWeekDates(offset){
+  const off = offset||0;
+  const base=new Date(weekStartOf(new Date().toISOString().slice(0,10))+'T00:00:00');
+  base.setDate(base.getDate() + off*7);
+  const dates=[];
+  for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(base.getDate()+i); dates.push(d.toISOString().slice(0,10)); }
+  return dates; // Man..Søn
+}
+function sbdCompletedByDate(sRaw){
+  const map={};
+  if(!sRaw) return map;
+  const st=sRaw.sessionTimes||{};
+  (sRaw.completedDays||[]).forEach(d=>{
+    const t=st['day'+d]; const ts=t?(t.end||t.start):null; if(!ts) return;
+    map[new Date(ts).toISOString().slice(0,10)]=SBD_CYCLE[d%8];
+  });
+  return map;
+}
+function lobCompletedByDate(lRaw){
+  const map={};
+  if(!lRaw) return map;
+  (lRaw.runs||[]).forEach(r=>{ if(!map[r.date]) map[r.date]=[]; map[r.date].push(r); });
+  return map;
+}
+function renderSchedule(sRaw, lRaw, personKey){
+  const anchor=getScheduleAnchor();
+  const dates=computeWeekDates(scheduleWeekOffset);
+  const jsWeekdayForIndex=i=>[1,2,3,4,5,6,0][i];
+  const todayStr=new Date().toISOString().slice(0,10);
+  const sbdDone=sbdCompletedByDate(sRaw);
+  const lobDone=lobCompletedByDate(lRaw);
+  const pattern=patternForPerson(personKey);
+  const isTestWeek = sRaw ? (Math.min(12,Math.floor((sRaw.totalDays||0)/7)+1)===12) : false;
+  let sbdCursor = sRaw ? (sRaw.totalDays||0) : 0; // bruges kun for slots uden fast cycleId
+
+  let rows='';
+  dates.forEach((dateStr,i)=>{
+    const weekdayIdx=jsWeekdayForIndex(i);
+    const isToday=dateStr===todayStr;
+    const isFuture=dateStr>todayStr;
+    const dayLabel=DAY_NAMES[weekdayIdx];
+    const slot=pattern[cyclePositionForDate(dateStr,anchor,pattern.length,personKey)];
+    const isBlocked=getBlockedDates(personKey).includes(dateStr);
+    // Ellen: løb er faste ugedage (hendes krav), uafhængigt af den rullende
+    // cyklus. Let løb hvis det falder sammen med en SBD-dag (kombi), ellers
+    // kvalitet/tempo.
+    const lobPlan = personKey==='ellen'
+      ? (ELLEN_LOB_WEEKDAYS.has(weekdayIdx) ? { easy: !!slot.sbd } : null)
+      : slot.lob;
+
+    let sbdCell;
+    if(sbdDone[dateStr]){
+      const c=sbdDone[dateStr];
+      sbdCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏋️ ${c.short}</div><div class="week-day-sub">${c.type==='rest'?'Hviledag':(c.desc||'')}</div>`;
+    } else if((isFuture||isToday) && isBlocked){
+      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Rykket til i morgen</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Fortryd</button>`;
+    } else if((isFuture||isToday) && slot.sbd && !isTestWeek && sRaw){
+      let proj;
+      if(slot.sbd.cycleId){
+        proj = SBD_CYCLE.find(c=>c.id===slot.sbd.cycleId) || SBD_CYCLE[0];
+      } else {
+        // Ingen fast cycleId — følg det faktiske fremskridt i den ægte cyklus,
+        // og spring pause-slots over (de er løb i dette mønster).
+        do { proj = SBD_CYCLE[sbdCursor % 8]; sbdCursor++; } while(proj.type==='rest');
+      }
+      const tag = slot.sbd.optional ? 'Valgfri' : (isToday?'I dag':'Planlagt');
+      const optNote = slot.sbd.optional ? '<div class="week-day-sub">Spring over hvis du er for træt</div>' : (proj.desc?`<div class="week-day-sub">${proj.desc}</div>`:'');
+      sbdCell=`<span class="week-day-tag tag-planned">${tag}</span> <div class="week-day-badge">🏋️ ${proj.short}</div>${optNote}<button class="day-picker-btn" style="margin-top:6px;width:100%;font-size:9px;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Ikke mulig — ryk til i morgen</button>`;
+    } else if((isFuture||isToday) && !slot.sbd && !lobPlan){
+      sbdCell=`<span class="week-day-tag tag-rest">😴 Hviledag</span>`;
+    } else {
+      sbdCell=`<span class="week-day-tag tag-rest">—</span>`;
+    }
+
+    let lobCell;
+    const lobRuns=lobDone[dateStr];
+    if(lobRuns && lobRuns.length){
+      const totalKm=lobRuns.reduce((a,r)=>a+r.distanceKm,0);
+      lobCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏃 ${totalKm.toFixed(1)} km</div>`;
+    } else if((isFuture||isToday) && lobPlan && lRaw && lRaw.profile && lRaw.profile.onboarded){
+      const info=lobPhaseInfo(lRaw.profile.seasonStart);
+      const badge=lobPlan.easy ? 'Let' : (info.isDeload?'Deload':info.phase);
+      const sub=lobPlan.easy ? '<div class="week-day-sub">Zone 1-2 — ligger tæt på en bendag</div>' : '';
+      lobCell=`<span class="week-day-tag tag-planned">${isToday?'I dag':'Planlagt'}</span> <div class="week-day-badge">🏃 ${badge}</div>${sub}`;
+    } else {
+      lobCell=`<span class="week-day-tag tag-rest">—</span>`;
+    }
+
+    rows+=`<div class="week-day-row ${isToday?'today':''}">
+      <div class="week-day-name">${dayLabel}</div>
+      <div class="week-day-content">${sbdCell}</div>
+      <div class="week-day-content">${lobCell}</div>
+    </div>`;
+  });
+
+  const gap = lobPlanGap(lRaw);
+  const gapNote = gap
+    ? `<div class="deferred-note" style="color:var(--dl);margin-bottom:10px;">⚠️ ${gap.daysSince} dage siden sidste løbetur — din løbe-plan er ikke justeret for pausen endnu. Åbn løbe-trackeren for at skubbe planen eller beholde den som den er.</div>`
+    : '';
+
+  const rangeFmt = d => new Date(d+'T00:00:00').toLocaleDateString('da-DK',{day:'numeric',month:'short'});
+  const weekLabel = scheduleWeekOffset===0 ? 'Denne uge' : (scheduleWeekOffset===1 ? 'Næste uge' : (scheduleWeekOffset===-1 ? 'Sidste uge' : `${rangeFmt(dates[0])} – ${rangeFmt(dates[6])}`));
+
+  document.getElementById('slot-schedule').innerHTML=`
+    <div class="section-card">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="scheduleShiftWeek(-1)">‹</button>
+        <div class="cal-title">${weekLabel}<div style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;">${rangeFmt(dates[0])} – ${rangeFmt(dates[6])}</div></div>
+        <button class="cal-nav-btn" onclick="scheduleShiftWeek(1)">›</button>
+      </div>
+      ${gapNote}
+      <div class="week-grid">${rows}</div>
+      <div class="schedule-settings">
+        <div class="schedule-settings-label">Rytme: 9-dages mønster (2 SBD-dage i træk, 1 løbedag, gentaget 3×). ${personKey==='ellen'?'Løb er faste dage for hende: tirsdag, torsdag, fredag, søndag — SBD er valgfri på de dage der falder sammen med Olivers SBD-dage.':'6 SBD-dage, 3 løbeture — de to der ligger op til en bendag er lette.'}</div>
+        <button class="day-picker-btn" style="width:100%;margin-top:4px;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
+        ${notificationButtonHtml()}
+        <div class="deferred-note">"Planlagt" er en projektion ud fra jeres delte rytme — det faktiske indhold afhænger af den rækkefølge I reelt træner i, ikke datoen. Nulstil cyklussen hvis I holder en uplanlagt pause og vil starte forfra fra i dag.</div>
+      </div>
+    </div>`;
+}
+
+// ── Render: Åbningsforsøg (kun i test/peak-uge) ────────────────────────────
+function renderAttempts(sRaw){
+  const wrap=document.getElementById('slot-attempts');
+  if(!sRaw){ wrap.innerHTML=''; return; }
+  const week=Math.min(12, Math.floor((sRaw.totalDays||0)/7)+1);
+  if(week!==12){ wrap.innerHTML=''; return; }
+  const oneRM=sRaw.oneRM||{};
+  const lifts=[{key:'sq',label:'Squat'},{key:'bp',label:'Bench'},{key:'dl',label:'Deadlift'}];
+  const notes=['skal sidde','mål-vægt','PR-forsøg'];
+  const rows=lifts.map(l=>{
+    const a=calcAttemptsFor(oneRM[l.key]);
+    if(!a) return '';
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">${l.label}</div>
+      ${a.map((kg,i)=>`<div class="attempt-row"><div class="attempt-label">${i+1}. forsøg <span class="attempt-note">${notes[i]}</span></div><div class="attempt-kg">${kg} kg</div></div>`).join('')}
+    </div>`;
+  }).join('');
+  if(!rows){ wrap.innerHTML=''; return; }
+  wrap.innerHTML=`<div class="section-card"><h3>Åbningsforsøg — test-uge</h3>${rows}</div>`;
+}
+
+// ── Render: Blok-progression ────────────────────────────────────────────
+function renderBlockProgressionSection(sRaw){
+  const wrap=document.getElementById('slot-block-progression');
+  if(!sRaw || !(sRaw.completedDays||[]).length){ wrap.innerHTML=''; return; }
+  const data=sbdBlockProgression(sRaw).filter(l=>l.hasData);
+  if(!data.length){ wrap.innerHTML=''; return; }
+  const rows=data.map(l=>{
+    const maxVal=Math.max(...l.blocks.map(b=>Math.max(b.actual||0,b.target)), 1);
+    const bars=l.blocks.map(b=>{
+      const h=b.actual? Math.round((b.actual/maxVal)*100) : 0;
+      return `<div class="block-bar-item">
+        <div class="block-bar-bg"><div class="block-bar-fill" style="height:${h}%;"></div></div>
+        <div class="block-bar-lbl">Blok ${b.b}</div>
+        <div class="block-bar-val">${b.actual?b.actual.toFixed(1):'—'}</div>
+      </div>`;
+    }).join('');
+    return `<div class="block-row"><div class="block-row-head"><span>${l.label}</span><span style="color:var(--muted);">fra ${l.startRM} kg</span></div><div class="block-bars">${bars}</div></div>`;
+  }).join('');
+  wrap.innerHTML=`<div class="section-card"><h3>Progression per blok</h3>${rows}</div>`;
+}
+
+// ── Render: Ugentlig verdict ─────────────────────────────────────────────
+function renderWeeklyVerdictSection(sRaw){
+  const wrap=document.getElementById('slot-weekly-verdict');
+  if(!sRaw){ wrap.innerHTML=''; return; }
+  const v=sbdWeeklyVerdict(sRaw);
+  if(!v){ wrap.innerHTML=''; return; }
+  const fatigue=sbdWeeklyFatigue(sRaw);
+  wrap.innerHTML=`<div class="section-card">
+    <h3>Uge ${v.prevWeek} — opsummering</h3>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="v">${v.workouts}</div><div class="l">Træninger</div></div>
+      <div class="stat-box"><div class="v">${v.avgRPE!=null?v.avgRPE.toFixed(1):'—'}</div><div class="l">Gns. RPE</div></div>
+      <div class="stat-box"><div class="v">${v.avgEnergy!=null?v.avgEnergy:'—'}</div><div class="l">Gns. Energy Score</div></div>
+      <div class="stat-box"><div class="v">${fatigue!=null?fatigue.toFixed(1):'—'}</div><div class="l">Fatigue (14d gns. RPE)</div></div>
+    </div>
+    <div class="verdict-box">${v.verdict}</div>
+  </div>`;
+}
+
+// ── Kalender — månedsoverblik over gennemførte SBD-/løbe-dage ─────────────
+let calendarMonthOffset = 0;
+const MONTH_NAMES=['Januar','Februar','Marts','April','Maj','Juni','Juli','August','September','Oktober','November','December'];
+
+function calendarShiftMonth(delta){
+  calendarMonthOffset += delta;
+  render();
+}
+
+function getCalendarMonthDates(offset){
+  const now=new Date();
+  const target=new Date(now.getFullYear(), now.getMonth()+offset, 1);
+  const year=target.getFullYear(), month=target.getMonth();
+  const firstOfMonth=new Date(year, month, 1);
+  const daysInMonth=new Date(year, month+1, 0).getDate();
+  const firstWeekday=firstOfMonth.getDay(); // 0=søn
+  const leadingBlanks=(firstWeekday===0) ? 6 : firstWeekday-1;
+  const cells=[];
+  for(let i=0;i<leadingBlanks;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++){
+    cells.push(`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  }
+  return { cells, year, month };
+}
+
+function renderCalendar(sRaw, lRaw){
+  const { cells, year, month } = getCalendarMonthDates(calendarMonthOffset);
+  const sbdDone = sbdCompletedByDate(sRaw);
+  const lobDone = lobCompletedByDate(lRaw);
+  const todayStr = new Date().toISOString().slice(0,10);
+  const dowHeaders=['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+
+  let grid = dowHeaders.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  cells.forEach(dateStr=>{
+    if(!dateStr){ grid += `<div class="cal-cell empty"></div>`; return; }
+    const isToday = dateStr===todayStr;
+    const hasSbd = !!sbdDone[dateStr];
+    const hasLob = !!(lobDone[dateStr] && lobDone[dateStr].length);
+    const dayNum = parseInt(dateStr.slice(-2));
+    let dots='';
+    if(hasSbd) dots += `<span class="cal-dot sbd"></span>`;
+    if(hasLob) dots += `<span class="cal-dot lob"></span>`;
+    grid += `<div class="cal-cell ${isToday?'today':''}"><div class="cal-daynum">${dayNum}</div><div class="cal-dots">${dots}</div></div>`;
+  });
+
+  const monthPrefix=`${year}-${String(month+1).padStart(2,'0')}`;
+  const sbdCount=Object.keys(sbdDone).filter(d=>d.startsWith(monthPrefix)).length;
+  const lobCount=Object.keys(lobDone).filter(d=>d.startsWith(monthPrefix) && lobDone[d].length).length;
+
+  document.getElementById('slot-calendar').innerHTML = `
+    <div class="section-card">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calendarShiftMonth(-1)">‹</button>
+        <div class="cal-title">${MONTH_NAMES[month]} ${year}</div>
+        <button class="cal-nav-btn" onclick="calendarShiftMonth(1)">›</button>
+      </div>
+      <div class="cal-grid">${grid}</div>
+      <div class="cal-legend">
+        <span><span class="cal-dot sbd"></span>SBD (${sbdCount})</span>
+        <span><span class="cal-dot lob"></span>Løb (${lobCount})</span>
+      </div>
+    </div>`;
+}
+
+const PROFILES = {
+  oliver: { label:'Oliver', primary:['sbd','main'], secondary:['lob','main'] },
+  ellen:  { label:'Ellen',  primary:['lob','partner'], secondary:['sbd','partner'] },
+};
+
+function readStatus(discipline, who){
+  return discipline === 'sbd' ? readSbd(who) : readLob(who);
+}
+
+function render(){
+  const active = localStorage.getItem('dash_profile') || 'oliver';
+  document.getElementById('btn-oliver').classList.toggle('active', active==='oliver');
+  document.getElementById('btn-ellen').classList.toggle('active', active==='ellen');
+  document.getElementById('topbar-sub').textContent = 'Dit program';
+
+  const p = PROFILES[active];
+  const primaryStatus = readStatus(p.primary[0], p.primary[1]);
+  const secondaryStatus = readStatus(p.secondary[0], p.secondary[1]);
+
+  document.getElementById('label-primary').textContent = `Primær — ${DISC_META[p.primary[0]].label}`;
+  document.getElementById('label-secondary').textContent = `Sekundær — ${DISC_META[p.secondary[0]].label}`;
+
+  document.getElementById('slot-primary').innerHTML = renderCard(primaryStatus, p.primary[0], 'primary');
+  document.getElementById('slot-secondary').innerHTML = renderCard(secondaryStatus, p.secondary[0], 'secondary');
+
+  // Rå data for denne person, uanset hvilken disciplin der er primær/sekundær
+  const sbdWho = p.primary[0]==='sbd' ? p.primary[1] : p.secondary[1];
+  const lobWho = p.primary[0]==='lob' ? p.primary[1] : p.secondary[1];
+  const sRaw = readSbdRaw(sbdWho);
+  const lRaw = readLobRaw(lobWho);
+
+  renderOversigt(sRaw, lRaw);
+  renderSchedule(sRaw, lRaw, active);
+  renderCalendar(sRaw, lRaw);
+  renderAttempts(sRaw);
+  renderStyrke(sRaw);
+  renderVolumen(sRaw);
+  renderHeatmap(sRaw);
+  renderBlockProgressionSection(sRaw);
+  renderWeeklyVerdictSection(sRaw);
+  renderLobUge(lRaw);
+  renderLobKondition(lRaw);
+  renderLobRekorder(lRaw);
+  renderRecovery(sRaw);
+  renderKrop(sRaw);
+  renderBelastning(sRaw, lRaw);
+  renderMal(sRaw, lRaw);
+  renderPR(sRaw, lRaw);
+  renderInsights(sRaw, lRaw);
+}
+
+function setProfile(name){
+  localStorage.setItem('dash_profile', name);
+  render();
+}
+
+// ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) — kun læsning ─────────────
+// Dashboardet skriver aldrig til sbd_state/sbd_partner/lob_state/lob_partner,
+// så det henter blot seneste version — presser aldrig noget op.
+// Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
+// URL her efter deploy (se sync-worker/DEPLOY.md).
+const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
+
+function syncEnabled(){
+  return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
+}
+
+async function syncPull(key){
+  if(!syncEnabled()) return false;
+  try{
+    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store' });
+    if(!res.ok) return false;
+    const data = await res.json();
+    if(data.value == null) return false;
+    const localUpdatedAt = parseInt(localStorage.getItem(key+'__updatedAt') || '0');
+    if(data.updatedAt > localUpdatedAt){
+      localStorage.setItem(key, JSON.stringify(data.value));
+      localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
+      return true;
+    }
+    return false;
+  }catch(e){
+    console.log('Sync-pull fejlede (offline?):', e);
+    return false;
+  }
+}
+
+async function boot(){
+  registerSW();
+  render(); // vis lokale data med det samme
+  if(getNotificationPermission()==='granted') scheduleTomorrowReminder();
+  const results = await Promise.all([
+    syncPull('sbd_state'), syncPull('sbd_partner'),
+    syncPull('lob_state'), syncPull('lob_partner'),
+  ]);
+  if(results.some(Boolean)) render(); // gen-render hvis noget blev opdateret
+}
+boot();
+</script>
+</body>
+</html>

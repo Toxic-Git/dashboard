@@ -1,0 +1,18 @@
+{
+  "name": "Løbe Tracker",
+  "short_name": "Løb",
+  "description": "Personlig løbetræning-tracker med periodisering, zoner og formanalyse",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#111318",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
