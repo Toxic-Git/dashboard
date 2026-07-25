@@ -45,26 +45,25 @@ h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;}
 main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin:0 auto; }
 
 /* ── RESPONSIVE: DESKTOP/TABLET ──
-   Masonry via CSS-kolonner: kortene flyder og udfylder pladsen, så sektioner
-   med kun ét kort ikke efterlader tomme kolonner. Brede widgets (Denne uge,
-   Kalender, Oversigt) spænder over alle kolonner via column-span. */
+   Hver sektion (label + kort) pakkes i en .dash-sec af et lille script efter
+   <main>. Sektionerne flyder som ubrydelige blokke i to kolonner, så labels
+   aldrig skilles fra deres kort, og der ikke opstår tomme kolonner. Brede
+   widgets (Denne uge, Kalender, Oversigt) spænder over hele bredden. */
 @media (min-width:760px){
-  .topbar{ padding-left:calc((100vw - 720px)/2 + 18px); padding-right:calc((100vw - 720px)/2 + 18px); }
-  main{ max-width:720px; columns:2; column-gap:16px; }
-  main > div{ break-inside:avoid; margin-bottom:12px; }
-  .section-label{ break-inside:avoid; break-after:avoid; margin-top:14px; margin-bottom:8px; }
-  .section-label:first-child{ margin-top:6px; }
-  /* Brede widgets + deres labels fylder hele bredden */
-  #slot-schedule, #slot-calendar, #slot-oversigt{ column-span:all; }
-  .section-label:has(+ #slot-schedule),
-  .section-label:has(+ #slot-calendar),
-  .section-label:has(+ #slot-oversigt){ column-span:all; }
+  .topbar{ padding-left:calc((100vw - 760px)/2 + 18px); padding-right:calc((100vw - 760px)/2 + 18px); }
+  main{ max-width:760px; columns:2; column-gap:16px; }
+  .dash-sec{ break-inside:avoid; }
+  .dash-sec:has(#slot-schedule),
+  .dash-sec:has(#slot-calendar),
+  .dash-sec:has(#slot-oversigt){ column-span:all; }
   /* Tomme slots skal ikke optage plads i flowet */
-  main > div:empty{ display:none; margin:0; }
+  .dash-sec > div:empty{ display:none; }
+  .section-label{ margin-top:16px; }
+  .dash-sec:first-child .section-label{ margin-top:6px; }
 }
 @media (min-width:1080px){
   .topbar{ padding-left:calc((100vw - 1040px)/2 + 18px); padding-right:calc((100vw - 1040px)/2 + 18px); }
-  main{ max-width:1040px; columns:3; }
+  main{ max-width:1040px; column-gap:20px; }
 }
 
 .section-label{
@@ -344,6 +343,24 @@ main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin
   <div class="section-label">AI-analyse</div>
   <div id="slot-insights"></div>
 </main>
+<script>
+// Pak hver sektion (label + tilhørende slots) i en .dash-sec-wrapper, så
+// desktop-layoutet kan flyde sektionerne som ubrydelige blokke i kolonner.
+// Al app-logik bruger id'er, så DOM-omstruktureringen er ufarlig.
+(function(){
+  const main = document.querySelector('main');
+  const kids = Array.from(main.children);
+  let wrap = null;
+  kids.forEach(el => {
+    if (el.classList.contains('section-label')) {
+      wrap = document.createElement('div');
+      wrap.className = 'dash-sec';
+      main.insertBefore(wrap, el);
+    }
+    if (wrap) wrap.appendChild(el);
+  });
+})();
+</script>
 
 <script>
 // ─── SBD cycle/peak structure ──────────────────────────────────────────────
