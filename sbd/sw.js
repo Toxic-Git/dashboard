@@ -24,10 +24,15 @@ self.addEventListener('activate', function(event){
 
 self.addEventListener('fetch', function(event){
   if (event.request.method !== 'GET') return;
+  // Netværk først (så opdateringer slår igennem), cache som offline-fallback
   event.respondWith(
-    caches.match(event.request).then(function(cached){
-      return cached || fetch(event.request).catch(function(){
-        return caches.match('./index.html');
+    fetch(event.request).then(function(res){
+      const copy = res.clone();
+      caches.open(CACHE_NAME).then(function(cache){ cache.put(event.request, copy); });
+      return res;
+    }).catch(function(){
+      return caches.match(event.request).then(function(cached){
+        return cached || caches.match('./index.html');
       });
     })
   );
