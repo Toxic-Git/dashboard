@@ -362,7 +362,7 @@ let activeProfile = 'main';
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md).
-const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
+const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 let _syncPushTimers = {};
 
 function syncEnabled(){

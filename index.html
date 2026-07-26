@@ -1594,7 +1594,7 @@ function setProfile(name){
 // så det henter blot seneste version — presser aldrig noget op.
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md).
-const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
+const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 
 function syncEnabled(){
   return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
