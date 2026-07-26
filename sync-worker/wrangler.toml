@@ -6,4 +6,4 @@ compatibility_date = "2026-07-01"
 #   wrangler kv namespace create TRAINING_KV
 [[kv_namespaces]]
 binding = "KV"
-id = "INDSAET-KV-NAMESPACE-ID-HER"
+id = "9926c1f35de548c8931cbd5ef3324a1c"

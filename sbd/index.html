@@ -1445,7 +1445,7 @@ if (!state.dayOverrides) state.dayOverrides = {};
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md). Skal stå FØR første
 // saveState()-kald nedenfor, ellers fejler det med en TDZ-fejl.
-const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
+const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 let _syncPushTimers = {};
 
 function syncEnabled() {
