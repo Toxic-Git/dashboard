@@ -98,7 +98,7 @@ sig automatisk til en bredere skærm.
 2. **Løb:** vælg profil, gennemfør onboarding (maxpuls, hvilepuls, evt.
    20-min-test).
 3. **Dashboard:** vælg profil, tjek at "Denne uge" og "Oversigt" viser data.
-4. (Valgfrit) Aktivér push-påmindelser i dashboardets "Denne uge"-kort.
+4. (Valgfrit) Aktivér push-påmindelser i dashboardets "Indstillinger"-sektion.
 
 ---
 
