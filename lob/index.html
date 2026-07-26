@@ -335,11 +335,6 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
     </div>
 
     <div class="card">
-      <h2>Strava</h2>
-      <div id="strava-status"></div>
-    </div>
-
-    <div class="card">
       <h2>Data</h2>
       <button class="secondary" onclick="exportData()">Eksportér alt data (JSON)</button>
       <button class="danger" onclick="resetSeason()">Nulstil sæson (ny sæson-start)</button>
@@ -413,90 +408,6 @@ function syncPush(key){
       console.log('Sync-push fejlede (offline?):', e);
     }
   }, 1500);
-}
-
-// ── Strava — forbind, status, manuel sync ───────────────────────────────
-// Selve auto-pull'et sker på Worker'en (Cron Trigger hver 3. time) og
-// skriver direkte ind i den samme sync-nøgle som almindelig localStorage-sync
-// — så nye løbeture dukker op helt af sig selv via syncPull() ovenfor.
-// Klienten skal derfor kun håndtere: forbind-knap, status, og en valgfri
-// "synkroniser nu"-knap til at trigge det manuelt.
-function stravaProfileKey(){ return activeProfile==='partner' ? 'partner' : 'main'; }
-
-function connectStrava(){
-  if(!syncEnabled()){ alert('Sæt din Worker-URL i SYNC_BASE_URL først.'); return; }
-  window.location.href = `${SYNC_BASE_URL}/strava/connect?profile=${stravaProfileKey()}`;
-}
-
-async function disconnectStrava(){
-  if(!syncEnabled()) return;
-  if(!confirm('Afbryd Strava-forbindelsen for denne profil?')) return;
-  try{
-    await fetch(`${SYNC_BASE_URL}/strava/disconnect?profile=${stravaProfileKey()}`);
-  }catch(e){ console.log('Kunne ikke afbryde Strava:', e); }
-  renderStravaStatus();
-}
-
-async function syncStravaNow(){
-  if(!syncEnabled()) return;
-  const el=document.getElementById('strava-status');
-  const btn=document.getElementById('strava-sync-btn');
-  if(btn){ btn.disabled=true; btn.textContent='Synkroniserer…'; }
-  try{
-    const res=await fetch(`${SYNC_BASE_URL}/strava/sync?profile=${stravaProfileKey()}`);
-    const data=await res.json();
-    if(data.imported > 0){
-      await syncPull(activeProfile==='partner' ? STORE_KEY_PARTNER : STORE_KEY);
-      if(activeProfile==='partner'){ partnerState=loadState(STORE_KEY_PARTNER); } else { state=loadState(STORE_KEY); }
-      renderAll();
-    }
-    alert(data.imported!=null ? `${data.imported} nye løbeture importeret fra Strava.` : 'Synkronisering fejlede — prøv igen.');
-  }catch(e){
-    console.log('Strava-sync fejlede:', e);
-    alert('Kunne ikke synkronisere med Strava lige nu.');
-  }
-  renderStravaStatus();
-}
-
-async function renderStravaStatus(){
-  const el=document.getElementById('strava-status');
-  if(!el) return;
-  if(!syncEnabled()){
-    el.innerHTML=`<div class="note">Kræver at cross-device sync er sat op først (se sync-worker/DEPLOY.md).</div>`;
-    return;
-  }
-  el.innerHTML=`<div class="note">Henter status…</div>`;
-  try{
-    const res=await fetch(`${SYNC_BASE_URL}/strava/status?profile=${stravaProfileKey()}`);
-    const data=await res.json();
-    if(data.connected){
-      const last=data.lastSyncAt ? new Date(data.lastSyncAt*1000).toLocaleString('da-DK') : 'endnu ikke';
-      el.innerHTML=`
-        <div class="ok-box">Forbundet til Strava.</div>
-        <div class="note" style="margin-top:6px;">Sidst synkroniseret: ${last}. Auto-henter hver 3. time.</div>
-        <button id="strava-sync-btn" class="secondary" onclick="syncStravaNow()">Synkroniser nu</button>
-        <button class="danger" onclick="disconnectStrava()">Afbryd forbindelse</button>`;
-    } else {
-      el.innerHTML=`
-        <div class="note">Ikke forbundet endnu. Løbeture importeres automatisk hver 3. time når forbundet.</div>
-        <button onclick="connectStrava()">Forbind med Strava</button>`;
-    }
-  }catch(e){
-    el.innerHTML=`<div class="warn-box">Kunne ikke hente Strava-status (offline?).</div>`;
-  }
-}
-
-// Håndter redirect tilbage fra Strava-godkendelse
-function handleStravaRedirectParams(){
-  const params=new URLSearchParams(window.location.search);
-  const connected=params.get('strava_connected');
-  const error=params.get('strava_error');
-  if(connected || error){
-    if(connected) alert('Strava forbundet! Løbeture hentes automatisk fremover.');
-    if(error) alert('Strava-godkendelse fejlede: '+error);
-    const cleanUrl=window.location.origin+window.location.pathname;
-    window.history.replaceState({}, '', cleanUrl);
-  }
 }
 
 function defaultState(){
@@ -1263,7 +1174,6 @@ function renderPeriode(){
 
 /* ================= OPSÆTNING ================= */
 function renderSettingsForm(){
-  renderStravaStatus();
   document.getElementById('st-maxhr').value = aState().profile.maxHR||'';
   document.getElementById('st-resthr').value = aState().profile.restHR||'';
   document.getElementById('st-vaegt').value = aState().profile.vaegt||'';
@@ -1486,7 +1396,6 @@ function renderAll(){
 
 /* ================= INIT ================= */
 async function init(){
-  handleStravaRedirectParams();
   await syncPull(STORE_KEY);
   await syncPull(STORE_KEY_PARTNER);
   state = loadState(STORE_KEY);

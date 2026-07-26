@@ -2,22 +2,8 @@ name = "oliver-training-sync"
 main = "worker.js"
 compatibility_date = "2026-07-01"
 
-# Auto-import fra Strava hver 3. time
-[triggers]
-crons = ["0 */3 * * *"]
-
 # Opret et KV-namespace og indsæt dets ID her:
 #   wrangler kv namespace create TRAINING_KV
 [[kv_namespaces]]
 binding = "KV"
 id = "INDSAET-KV-NAMESPACE-ID-HER"
-
-[vars]
-# Fuld URL til løbe-trackeren — bruges til redirect efter Strava-godkendelse.
-# Ret til din rigtige GitHub Pages-adresse, fx:
-#   https://dit-brugernavn.github.io/traening/lob/index.html
-LOB_APP_URL = "https://REPLACE-ME.github.io/traening/lob/index.html"
-
-# Secrets (sættes med wrangler, IKKE her):
-#   wrangler secret put STRAVA_CLIENT_ID
-#   wrangler secret put STRAVA_CLIENT_SECRET
