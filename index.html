@@ -1529,6 +1529,9 @@ function renderCalendar(sRaw, lRaw){
         <span><span class="cal-dot sbd"></span>SBD (${sbdCount})</span>
         <span><span class="cal-dot lob"></span>Løb (${lobCount})</span>
       </div>
+      ${Object.keys(sbdDone).length===0 && Object.keys(lobDone).length===0
+        ? `<div class="deferred-note" style="margin-top:8px;">Kalenderen viser gennemført træning — der kommer prikker på dagene, efterhånden som I logger SBD-sessioner og løbeture. Den planlagte rytme ser du under "Denne uge".</div>`
+        : ''}
     </div>`;
 }
 
