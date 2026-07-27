@@ -40,8 +40,16 @@ header{
 }
 header h1{font-size:22px; color:var(--accent); text-transform:uppercase;}
 header .sub{font-size:12px; color:var(--text-dim); margin-top:2px;}
+header .title-row{display:flex; align-items:center; gap:10px;}
+.topbar-back{
+  display:flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:8px; flex-shrink:0;
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--text-dim); text-decoration:none; font-size:16px;
+}
 main{padding:14px 12px 20px; max-width:640px; margin:0 auto;}
 
+/* ── COMPUTER/DESKTOP: hold header og bundmenu i samme kolonne som main ── */
 /* ── COMPUTER/DESKTOP ── */
 @media (min-width:760px){
   main{ max-width:720px; padding:20px 16px 100px; }
@@ -143,7 +151,10 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
 <body>
 
 <header>
-  <h1>Løbe Tracker</h1>
+  <div class="title-row">
+    <a href="../index.html" class="topbar-back" title="Tilbage til dashboard">←</a>
+    <h1>Løbe Tracker</h1>
+  </div>
   <div class="sub" id="headerSub">Indlæser…</div>
   <div class="profile-switch" id="profile-switch-bar">
     <button class="profile-btn" id="btn-main" onclick="switchProfile('main')">Oliver</button>
@@ -165,15 +176,11 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
         <div><label>Hvilepuls (bpm)</label><input type="number" id="ob-resthr" placeholder="55"></div>
       </div>
       <div class="note">Kender du ikke din maxpuls? Brug 220-alder som groft udgangspunkt — juster senere når du har rigtige data.</div>
-      <label>Vægt (kg)</label>
-      <input type="number" id="ob-vaegt" placeholder="113">
 
-      <label style="margin-top:16px;">20-min tempotest (tærskelværdi)</label>
-      <div class="note">Løb 20 min for fuld tryk (så hårdt du kan holde konstant). Indtast distancen du nåede. Dette bruges til tærskelpuls/-pace i TRIMP og zoner. Har du ikke lavet testen endnu, kan du springe over og udfylde senere under Opsætning.</div>
-      <div class="row">
-        <div><label>Distance (km)</label><input type="number" step="0.01" id="ob-testkm" placeholder="4.2"></div>
-        <div><label>Tærskelpuls (bpm)</label><input type="number" id="ob-thrhr" placeholder="172"></div>
-      </div>
+      <label style="margin-top:16px;">20-min tempotest</label>
+      <div class="note">Løb 20 min for fuld tryk (så hårdt du kan holde konstant). Indtast distancen du nåede — bruges til at sætte din VDOT-baseline for målcyklussen. Har du ikke lavet testen endnu, kan du springe over og udfylde senere under Opsætning.</div>
+      <label>Distance (km)</label>
+      <input type="number" step="0.01" id="ob-testkm" placeholder="4.2">
 
       <label style="margin-top:16px;">Sæson-start</label>
       <input type="date" id="ob-startdato">
@@ -304,10 +311,6 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
         <div><label>Maxpuls</label><input type="number" id="st-maxhr"></div>
         <div><label>Hvilepuls</label><input type="number" id="st-resthr"></div>
       </div>
-      <div class="row">
-        <div><label>Vægt (kg)</label><input type="number" id="st-vaegt"></div>
-        <div><label>Tærskelpuls</label><input type="number" id="st-thrhr"></div>
-      </div>
       <label>20-min test distance (km)</label>
       <input type="number" step="0.01" id="st-testkm">
       <button onclick="saveSettings()">Gem ændringer</button>
@@ -362,6 +365,9 @@ let activeProfile = 'main';
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md).
+// Lokal dato som YYYY-MM-DD — toISOString() giver UTC-datoen og kan
+// forskyde datoer i dansk tid.
+function localISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 let _syncPushTimers = {};
 
@@ -413,9 +419,9 @@ function syncPush(key){
 function defaultState(){
   return {
     profile:{
-      navn:'', maxHR:null, restHR:null, vaegt:null,
-      thresholdHR:null, testKm:null,
-      seasonStart: new Date().toISOString().slice(0,10),
+      navn:'', maxHR:null, restHR:null,
+      testKm:null,
+      seasonStart: localISO(new Date()),
       onboarded:false,
       goalBaselineVDOT:null, goalBaselineDate:null, goalTargetPct:8,
       dismissedGapFor:null // dato for sidste løb da bruger valgte "behold planen" ved et hul
@@ -543,7 +549,7 @@ function getGoalStatus(){
   const vdotNow = computeVDOT();
   if(!aState().profile.goalBaselineVDOT && vdotNow){
     aState().profile.goalBaselineVDOT = vdotNow;
-    aState().profile.goalBaselineDate = new Date().toISOString().slice(0,10);
+    aState().profile.goalBaselineDate = localISO(new Date());
     saveState();
   }
   const baseline = aState().profile.goalBaselineVDOT;
@@ -565,7 +571,7 @@ function startNewGoalCycle(){
   }
   if(!confirm('Start en ny 12-ugers målcyklus med din nuværende VDOT ('+vdotNow.toFixed(1)+') som ny baseline?')) return;
   aState().profile.goalBaselineVDOT = vdotNow;
-  aState().profile.goalBaselineDate = new Date().toISOString().slice(0,10);
+  aState().profile.goalBaselineDate = localISO(new Date());
   saveState();
   renderAll();
 }
@@ -600,7 +606,7 @@ function computeCtlAtlSeries(){
   let ctl=0, atl=0;
   const series=[];
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
-    const key = d.toISOString().slice(0,10);
+    const key = localISO(d);
     const load = map[key]||0;
     ctl = ctl + (load-ctl)/CTL_TAU;
     atl = atl + (load-atl)/ATL_TAU;
@@ -615,10 +621,10 @@ function getWeekStart(dateStr){
   const day = d.getDay(); // 0=søn
   const diff = (day===0? -6 : 1-day); // mandag som start
   d.setDate(d.getDate()+diff);
-  return d.toISOString().slice(0,10);
+  return localISO(d);
 }
 function currentWeekRuns(){
-  const todayWeekStart = getWeekStart(new Date().toISOString().slice(0,10));
+  const todayWeekStart = getWeekStart(localISO(new Date()));
   return aState().runs.filter(r => getWeekStart(r.date)===todayWeekStart);
 }
 function weekKmTotals(){
@@ -673,7 +679,7 @@ function detectPlateau(runsSorted){
 }
 
 function suggestNextWorkout(){
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = localISO(new Date());
   if(aState().notFeeling100 && aState().notFeeling100[todayStr]){
     return {
       type:'Let løb', title:'Lyt til kroppen',
@@ -826,7 +832,7 @@ function renderSuggestion(){
      <div class="note">${s.desc}</div>
      <div class="note" style="margin-top:6px;"><i>${s.reason}</i></div>`;
 
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = localISO(new Date());
   const isOn = !!(aState().notFeeling100 && aState().notFeeling100[todayStr]);
   const btn = document.getElementById('not100-btn');
   btn.textContent = isOn ? '✓ Ikke 100% i dag — tryk for at fjerne' : 'Ikke 100% i dag?';
@@ -835,7 +841,7 @@ function renderSuggestion(){
 }
 
 function toggleNotFeeling100(){
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = localISO(new Date());
   const as = aState();
   if(!as.notFeeling100) as.notFeeling100 = {};
   as.notFeeling100[todayStr] = !as.notFeeling100[todayStr];
@@ -865,7 +871,7 @@ function applyPlanAdjustment(){
   const as = aState();
   const d = new Date(as.profile.seasonStart+'T00:00:00');
   d.setDate(d.getDate() + gap.daysSince);
-  as.profile.seasonStart = d.toISOString().slice(0,10);
+  as.profile.seasonStart = localISO(d);
   as.profile.dismissedGapFor = null; // ny plan, intet at ignorere længere
   saveState();
   renderAll();
@@ -908,10 +914,8 @@ function saveOnboarding(){
   const navn = document.getElementById('ob-navn').value.trim();
   const maxHR = Number(document.getElementById('ob-maxhr').value);
   const restHR = Number(document.getElementById('ob-resthr').value);
-  const vaegt = Number(document.getElementById('ob-vaegt').value);
   const testKm = Number(document.getElementById('ob-testkm').value)||null;
-  const thrHR = Number(document.getElementById('ob-thrhr').value)||null;
-  const startdato = document.getElementById('ob-startdato').value || new Date().toISOString().slice(0,10);
+  const startdato = document.getElementById('ob-startdato').value || localISO(new Date());
 
   if(!maxHR || !restHR){
     alert('Udfyld mindst maxpuls og hvilepuls for at fortsætte.');
@@ -919,8 +923,8 @@ function saveOnboarding(){
   }
   const baselineVdot = testKm ? vdotFromDistanceTime(testKm, 20) : null;
   aState().profile = {
-    navn, maxHR, restHR, vaegt: vaegt||null,
-    thresholdHR: thrHR, testKm: testKm,
+    navn, maxHR, restHR,
+    testKm: testKm,
     seasonStart: startdato, onboarded:true,
     goalBaselineVDOT: baselineVdot, goalBaselineDate: baselineVdot? startdato : null,
     goalTargetPct: 8
@@ -943,7 +947,7 @@ function calcPacePreview(){
 }
 
 function saveRun(){
-  const dato = document.getElementById('lg-dato').value || new Date().toISOString().slice(0,10);
+  const dato = document.getElementById('lg-dato').value || localISO(new Date());
   const dist = Number(document.getElementById('lg-dist').value);
   const tidSec = parseTidToSec(document.getElementById('lg-tid').value);
   const avgHR = Number(document.getElementById('lg-avghr').value)||null;
@@ -1010,10 +1014,10 @@ function renderWeekCard(){
 
   // 10% rule check
   const totals = weekKmTotals();
-  const thisWeekStart = getWeekStart(new Date().toISOString().slice(0,10));
+  const thisWeekStart = getWeekStart(localISO(new Date()));
   const prevWeekStart = new Date(thisWeekStart+'T00:00:00');
   prevWeekStart.setDate(prevWeekStart.getDate()-7);
-  const prevKey = prevWeekStart.toISOString().slice(0,10);
+  const prevKey = localISO(prevWeekStart);
   const prevKm = totals[prevKey]||0;
   const warnEl = document.getElementById('log-progression-warn');
   if(prevKm>0 && !info.isDeload && km > prevKm*1.10 + 0.05){
@@ -1176,8 +1180,6 @@ function renderPeriode(){
 function renderSettingsForm(){
   document.getElementById('st-maxhr').value = aState().profile.maxHR||'';
   document.getElementById('st-resthr').value = aState().profile.restHR||'';
-  document.getElementById('st-vaegt').value = aState().profile.vaegt||'';
-  document.getElementById('st-thrhr').value = aState().profile.thresholdHR||'';
   document.getElementById('st-testkm').value = aState().profile.testKm||'';
   document.getElementById('st-goalpct').value = aState().profile.goalTargetPct||8;
 
@@ -1193,8 +1195,6 @@ function renderSettingsForm(){
 function saveSettings(){
   aState().profile.maxHR = Number(document.getElementById('st-maxhr').value)||aState().profile.maxHR;
   aState().profile.restHR = Number(document.getElementById('st-resthr').value)||aState().profile.restHR;
-  aState().profile.vaegt = Number(document.getElementById('st-vaegt').value)||null;
-  aState().profile.thresholdHR = Number(document.getElementById('st-thrhr').value)||null;
   aState().profile.testKm = Number(document.getElementById('st-testkm').value)||null;
   const goalPct = Number(document.getElementById('st-goalpct').value);
   aState().profile.goalTargetPct = (goalPct>0) ? goalPct : (aState().profile.goalTargetPct||8);
@@ -1214,7 +1214,7 @@ function exportData(){
 
 function resetSeason(){
   if(!confirm('Start en ny sæson? Dette nulstiller kun sæson-start-datoen, ikke din løbelog.')) return;
-  aState().profile.seasonStart = new Date().toISOString().slice(0,10);
+  aState().profile.seasonStart = localISO(new Date());
   saveState();
   renderAll();
 }
@@ -1334,7 +1334,7 @@ function parseGPX(text){
   });
   if(totalDist<=0 || times.length<2) return [];
   const durationSec = Math.round((times[times.length-1]-times[0])/1000);
-  const date = times[0].toISOString().slice(0,10);
+  const date = localISO(times[0]);
   return [{
     id: uid(), date, distanceKm: totalDist, durationSec,
     avgHR: hrCount? Math.round(hrSum/hrCount) : null,
@@ -1362,7 +1362,7 @@ function parseTCX(text){
     if(maxHrEl){ const v = maxHrEl.getElementsByTagName('Value')[0]; if(v){ const hr=parseFloat(v.textContent); if(hr>maxHrVal) maxHrVal=hr; } }
   });
   if(totalDist<=0 || totalTime<=0) return [];
-  const date = dateStr? new Date(dateStr).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+  const date = dateStr? localISO(new Date(dateStr)) : localISO(new Date());
   return [{
     id: uid(), date, distanceKm: totalDist/1000, durationSec: Math.round(totalTime),
     avgHR: hrCount? Math.round(hrSum/hrCount) : null,
@@ -1405,7 +1405,7 @@ async function init(){
   document.getElementById('btn-partner').classList.toggle('active', activeProfile==='partner');
 
   if(!document.getElementById('lg-dato').value){
-    document.getElementById('lg-dato').value = new Date().toISOString().slice(0,10);
+    document.getElementById('lg-dato').value = localISO(new Date());
   }
   if(!aState().profile.onboarded){
     document.getElementById('view-onboarding').classList.add('active');

@@ -51,6 +51,7 @@ html, body {
 .view { display:none; min-height:100vh; padding-bottom:calc(80px + var(--safe-bottom)); }
 .view.active { display:block; }
 
+/* ── COMPUTER/DESKTOP: centrér indhold i en læsbar kolonne ── */
 /* ── COMPUTER/DESKTOP ── */
 @media (min-width:760px){
   .view{ padding-left:calc((100vw - 720px)/2); padding-right:calc((100vw - 720px)/2); padding-bottom:110px; }
@@ -96,6 +97,12 @@ html, body {
   font-family:'Barlow Condensed',sans-serif;
   font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
   padding:4px 10px; border-radius:4px; background:var(--surface2); color:var(--gold);
+}
+.topbar-back {
+  display:flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:8px; margin-right:10px;
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--muted); text-decoration:none; font-size:16px; flex-shrink:0;
 }
 
 /* ── NAV ── */
@@ -351,6 +358,7 @@ html, body {
   letter-spacing:2px; text-transform:uppercase; cursor:pointer;
   /* Larger touch target */
   min-height:56px;
+}
   transition:opacity .15s;
 }
 .finish-btn:active { opacity:0.8; }
@@ -538,7 +546,8 @@ html, body {
 <!-- TODAY -->
 <div class="view active" id="view-today">
   <div class="topbar">
-    <div>
+    <a href="../index.html" class="topbar-back" title="Tilbage til dashboard">←</a>
+    <div style="flex:1;">
       <div class="topbar-title" id="topbar-title">SBD Tracker</div>
       <div class="topbar-sub" id="today-date"></div>
     </div>
@@ -550,7 +559,8 @@ html, body {
 <!-- PROGRAM -->
 <div class="view" id="view-program">
   <div class="topbar">
-    <div>
+    <a href="../index.html" class="topbar-back" title="Tilbage til dashboard">←</a>
+    <div style="flex:1;">
       <div class="topbar-title">Program</div>
       <div class="topbar-sub">12 uger · 3 blokke</div>
     </div>
@@ -561,7 +571,8 @@ html, body {
 <!-- HISTORY + PROGRESS -->
 <div class="view" id="view-history">
   <div class="topbar">
-    <div>
+    <a href="../index.html" class="topbar-back" title="Tilbage til dashboard">←</a>
+    <div style="flex:1;">
       <div class="topbar-title">Fremskridt</div>
       <div class="topbar-sub" id="history-sub"></div>
     </div>
@@ -633,7 +644,8 @@ html, body {
 <!-- SETTINGS -->
 <div class="view" id="view-settings">
   <div class="topbar">
-    <div><div class="topbar-title">Indstillinger</div></div>
+    <a href="../index.html" class="topbar-back" title="Tilbage til dashboard">←</a>
+    <div style="flex:1;"><div class="topbar-title">Indstillinger</div></div>
   </div>
   <div class="settings-section">
     <div class="settings-label">Profil</div>
@@ -745,8 +757,8 @@ html, body {
       </div>
     </div>
 
-    <div class="settings-label sbd-only">1RM — Aktuelle tal</div>
-    <div class="settings-card sbd-only">
+    <div class="settings-label">1RM — Aktuelle tal</div>
+    <div class="settings-card">
       <div class="settings-row">
         <span class="settings-row-label">Squat</span>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -776,8 +788,8 @@ html, body {
       </div>
     </div>
 
-    <div class="settings-label sbd-only">Mål efter dette program</div>
-    <div class="settings-card sbd-only">
+    <div class="settings-label">Mål efter dette program</div>
+    <div class="settings-card">
       <div class="settings-row"><span class="settings-row-label">Squat</span><span class="settings-row-val" id="setting-sq-target" style="color:var(--sq)"></span></div>
       <div class="settings-row"><span class="settings-row-label">Bench</span><span class="settings-row-val" id="setting-bp-target" style="color:var(--bp)"></span></div>
       <div class="settings-row"><span class="settings-row-label">Deadlift</span><span class="settings-row-val" id="setting-dl-target" style="color:var(--dl)"></span></div>
@@ -855,9 +867,9 @@ function invalidateCache() {
 // These are read from state after init — see getSQ()/getBP()/getDL() below
 const STARTING_SQ = 117.02, STARTING_BP = 89.89, STARTING_DL = 178.19;
 
-function getSQ() { return state.oneRM?.sq || STARTING_SQ; }
-function getBP() { return state.oneRM?.bp || STARTING_BP; }
-function getDL() { return state.oneRM?.dl || STARTING_DL; }
+function getSQ() { return aState().oneRM?.sq || STARTING_SQ; }
+function getBP() { return aState().oneRM?.bp || STARTING_BP; }
+function getDL() { return aState().oneRM?.dl || STARTING_DL; }
 
 // Day types in 8-day cycle
 const CYCLE = [
@@ -1445,6 +1457,9 @@ if (!state.dayOverrides) state.dayOverrides = {};
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md). Skal stå FØR første
 // saveState()-kald nedenfor, ellers fejler det med en TDZ-fejl.
+// Lokal dato som YYYY-MM-DD — toISOString() giver UTC-datoen og kan
+// forskyde datoer i dansk tid.
+function localISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 let _syncPushTimers = {};
 
@@ -1503,7 +1518,7 @@ function syncPush(key) {
 if (!state.programStartDate) {
   const d = new Date();
   d.setDate(d.getDate() - state.totalDays);
-  state.programStartDate = d.toISOString().slice(0,10);
+  state.programStartDate = localISO(d);
   saveState();
 }
 if (!state.programStart1RM) {
@@ -1842,18 +1857,18 @@ function renderToday() {
         const workMins = t.workStart
           ? Math.round((nowMs - t.workStart) / 60000) : null;
         html += `<div style="margin:0 18px 12px;background:var(--surface);border-radius:10px;
-          padding:10px 14px;display:flex;gap:12px;align-items:center;">
+          padding:10px 14px;display:flex;gap:12px;align-items:center;" id="live-timing-block">
           <div style="flex:1;text-align:center;">
             <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Total</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--green);">${totalMins}m</div>
+            <div id="live-total-mins" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--green);">${totalMins}m</div>
           </div>
           ${warmupMins !== null ? `<div style="flex:1;text-align:center;border-left:1px solid var(--border);">
             <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Opvarmning</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;">${warmupMins}m</div>
+            <div id="live-warmup-mins" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;">${warmupMins}m</div>
           </div>` : ''}
           ${workMins !== null ? `<div style="flex:1;text-align:center;border-left:1px solid var(--border);">
             <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Arbejdssæt</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;">${workMins}m</div>
+            <div id="live-work-mins" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;">${workMins}m</div>
           </div>` : ''}
         </div>`;
       }
@@ -2141,6 +2156,7 @@ function renderToday() {
 
       let icon, cls, msg;
       if (actualReps > 0 && currentKg > 0) {
+
         const targetReps = actualReps < repFloor ? repFloor : repMid;
         const nextKg = calcNextKg(currentKg, actualReps, effectiveRPE, targetReps, expRPEMid, ex.name);
         const diff   = nextKg - currentKg;
@@ -2203,14 +2219,15 @@ function renderToday() {
         const maxReps = Math.max(...allReps);
 
         let icon, cls, msg;
+        const accStep = /\bDB\b|Dumbbell/i.test(ex.name || '') ? 2 : 2.5;
         if (minReps >= repCeil) {
           // All sets hit top or above — go up
-          const nextKg = r(currentKg + 2.5);
+          const nextKg = roundForExercise(currentKg + accStep, ex.name);
           icon = '🏆'; cls = 'autoreg-up';
           msg = `Alle sæt i top — <strong>gå op til ${nextKg} kg</strong> næste gang, start ved ${repFloor} reps`;
         } else if (maxReps < repFloor) {
           // All sets below floor — drop weight
-          const nextKg = r(currentKg - 2.5);
+          const nextKg = roundForExercise(currentKg - accStep, ex.name);
           icon = '📉'; cls = 'autoreg-down';
           msg = `Under rep-range på alle sæt — <strong>sæt ned til ${nextKg} kg</strong> og fokuser på teknik`;
         } else if (minReps >= repFloor && maxReps < repCeil) {
@@ -2255,6 +2272,11 @@ function renderToday() {
   </button>`;
 
   content.innerHTML = html;
+  if (document.getElementById('live-timing-block')) {
+    startLiveTimingUpdater();
+  } else {
+    stopLiveTimingUpdater();
+  }
 }
 
 function calcPlates(totalKg, barKg = 20) {
@@ -2795,7 +2817,7 @@ function finishProgram() {
 }
 
 function showResultScreen(newSQ, newBP, newDL) {
-  const startRM = state.programStart1RM || { sq: getSQ(), bp: getBP(), dl: getDL() };
+  const startRM = aState().programStart1RM || { sq: getSQ(), bp: getBP(), dl: getDL() };
 
   function diff(prev, next) {
     const d = next - prev;
@@ -2896,7 +2918,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   state.dayOverrides = {};
   state.sessionTimes = {};
   state.checkpointExported = {};
-  state.programStartDate = new Date().toISOString().slice(0,10); // today
+  state.programStartDate = localISO(new Date()); // today
 
   saveState();
   closeModal();
@@ -3415,7 +3437,7 @@ function renderHistory() {
 function update1RM(key, val) {
   const v = parseFloat(val);
   if (isNaN(v) || v <= 0) return;
-  state.oneRM[key] = v;
+  aState().oneRM[key] = v;
   saveState();
   // Refresh targets
   const targets = { sq: 'setting-sq-target', bp: 'setting-bp-target', dl: 'setting-dl-target' };
@@ -3634,18 +3656,12 @@ function renderSettings() {
     btn20.style.color = !is25 ? 'var(--bg)' : 'var(--muted)';
   }
 
-  // Hide SBD-specific sections for partner
-  const sbdSections = document.querySelectorAll('.sbd-only');
-  sbdSections.forEach(el => el.style.display = isPartner ? 'none' : '');
-
-  if (!isPartner) {
-    document.getElementById('input-sq').value = getSQ();
-    document.getElementById('input-bp').value = getBP();
-    document.getElementById('input-dl').value = getDL();
-    document.getElementById('setting-sq-target').textContent = (getSQ() * 1.0625).toFixed(2) + ' kg';
-    document.getElementById('setting-bp-target').textContent = (getBP() * 1.0625).toFixed(2) + ' kg';
-    document.getElementById('setting-dl-target').textContent = (getDL() * 1.0625).toFixed(2) + ' kg';
-  }
+  document.getElementById('input-sq').value = getSQ();
+  document.getElementById('input-bp').value = getBP();
+  document.getElementById('input-dl').value = getDL();
+  document.getElementById('setting-sq-target').textContent = (getSQ() * 1.0625).toFixed(2) + ' kg';
+  document.getElementById('setting-bp-target').textContent = (getBP() * 1.0625).toFixed(2) + ' kg';
+  document.getElementById('setting-dl-target').textContent = (getDL() * 1.0625).toFixed(2) + ' kg';
 
   // Program history (main only)
   const histSection = document.getElementById('setting-history-section');
@@ -4485,7 +4501,7 @@ function exportProgramData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sbd-program-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `sbd-program-${localISO(new Date())}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4557,6 +4573,16 @@ function getTrend(exName) {
   return avg; // positive = konsekvent for let, negative = konsekvent for tungt
 }
 
+// Runder til det interval udstyret reelt tilbyder — håndvægte springer typisk
+// i 2 kg, kabel/maskine og stang i 2,5 kg. Bruges kun til accessories/
+// autoreg-forslag, IKKE til primære løft (dem runder r() stadig til 2,5 kg,
+// som er korrekt for skivevægt på en stang).
+function roundForExercise(kg, exName) {
+  const isDumbbell = /\bDB\b|Dumbbell/i.test(exName || '');
+  const step = isDumbbell ? 2 : 2.5;
+  return Math.round(kg / step) * step;
+}
+
 // Beregn næste kg baseret på reps + RPE via RIR-formel
 function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exName) {
   if (!currentKg || currentKg <= 0) return currentKg;
@@ -4567,15 +4593,22 @@ function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exN
 
   // Beregn target kg fra mål-reps og mål-RPE
   const targetRIR = 10 - targetRPE;
-  const targetKg = r(e1rm / (1 + (targetRIR + targetReps - 1) / 30));
+  let targetKg = e1rm / (1 + (targetRIR + targetReps - 1) / 30);
 
   // Trend-korrektion: hvis konsekvent for let/tungt, forstærk justeringen
   const trend = getTrend(exName);
   let trendBonus = 0;
-  if (trend > 0.03 && targetKg > currentKg)  trendBonus =  r(currentKg * 0.025); // konsekvent for let
-  if (trend < -0.03 && targetKg < currentKg) trendBonus = -r(currentKg * 0.025); // konsekvent for tungt
+  if (trend > 0.03 && targetKg > currentKg)  trendBonus =  currentKg * 0.025; // konsekvent for let
+  if (trend < -0.03 && targetKg < currentKg) trendBonus = -currentKg * 0.025; // konsekvent for tungt
 
-  return r(targetKg + trendBonus);
+  let nextKg = targetKg + trendBonus;
+
+  // Dæmpning: én enkelt session (god eller dårlig) må maks flytte vægten
+  // ±7,5% ad gangen — undgår at ét udsving foreslår et urealistisk stort spring.
+  const maxSwing = currentKg * 0.075;
+  nextKg = Math.max(currentKg - maxSwing, Math.min(currentKg + maxSwing, nextKg));
+
+  return roundForExercise(nextKg, exName);
 }
 
 // Beregn pct-justering til intern brug
@@ -4878,9 +4911,38 @@ function showPRBadges(ei, si, prTypes) {
 
 // ─── REST TIMER ──────────────────────────────────────────────────────────────
 let timerInterval = null;
+let liveTimingInterval = null;
+
+// Opdaterer Total/Opvarmning/Arbejdssæt-tallene mens en økt er i gang, uden
+// at genoptegne hele siden (undgår scroll-hop). Bruger de faktiske
+// tidsstempler i state.sessionTimes, så tallene er altid korrekte — dette
+// får dem bare til også at TIKKE synligt, ikke kun opdatere ved næste
+// handling.
+function startLiveTimingUpdater() {
+  if (liveTimingInterval) clearInterval(liveTimingInterval);
+  liveTimingInterval = setInterval(() => {
+    const block = document.getElementById('live-timing-block');
+    if (!block) { clearInterval(liveTimingInterval); liveTimingInterval = null; return; }
+    const t = state.sessionTimes?.[logKey()];
+    if (!t?.sessionStart) { clearInterval(liveTimingInterval); liveTimingInterval = null; return; }
+    const nowMs = Date.now();
+    const totalEl = document.getElementById('live-total-mins');
+    if (totalEl) totalEl.textContent = Math.round((nowMs - t.sessionStart) / 60000) + 'm';
+    const warmupEl = document.getElementById('live-warmup-mins');
+    if (warmupEl && t.warmupStart) warmupEl.textContent = Math.round(((t.workStart || nowMs) - t.warmupStart) / 60000) + 'm';
+    const workEl = document.getElementById('live-work-mins');
+    if (workEl && t.workStart) workEl.textContent = Math.round((nowMs - t.workStart) / 60000) + 'm';
+  }, 30000);
+}
+function stopLiveTimingUpdater() {
+  if (liveTimingInterval) { clearInterval(liveTimingInterval); liveTimingInterval = null; }
+}
+
 let timerRemaining = 0;
 let timerTotal = 0;
+let timerEndAt = null; // Date.now()-tidsstempel timeren reelt slutter ved
 const CIRCUMFERENCE = 2 * Math.PI * 98; // r=98
+
 
 function fmtTime(s) {
   const m = Math.floor(s / 60);
@@ -4888,10 +4950,14 @@ function fmtTime(s) {
   return `${m}:${sec.toString().padStart(2,'0')}`;
 }
 
+let timerLiftName = '';
+
 function startTimer(duration, liftName) {
   if (timerInterval) clearInterval(timerInterval);
-  timerRemaining = duration;
   timerTotal = duration;
+  timerEndAt = Date.now() + duration * 1000;
+  timerRemaining = duration;
+  timerLiftName = liftName || '';
   const overlay = document.getElementById('timer-overlay');
   const display = document.getElementById('timer-display');
   const ring = document.getElementById('timer-ring');
@@ -4901,25 +4967,82 @@ function startTimer(duration, liftName) {
   overlay.classList.add('open');
   updateTimerUI(ring, display);
 
-  timerInterval = setInterval(() => {
-    timerRemaining--;
-    if (timerRemaining <= 0) {
-      timerRemaining = 0;
-      updateTimerUI(ring, display);
-      clearInterval(timerInterval);
-      timerInterval = null;
-      // Vibrate if supported
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
-      // Flash green
-      const flash = document.createElement('div');
-      flash.className = 'timer-done-flash';
-      document.querySelector('.timer-ring-wrap').appendChild(flash);
-      setTimeout(() => flash.remove(), 700);
-      setTimeout(() => overlay.classList.remove('open'), 1200);
-    } else {
-      updateTimerUI(ring, display);
+  timerInterval = setInterval(() => tickTimer(), 1000);
+  scheduleTimerNotifications(duration, timerLiftName);
+}
+
+// Planlægger push-notifikationer 30 sek før og ved pausens afslutning, via
+// service workeren — så de virker selvom du ikke kigger på skærmen. Kræver
+// at notifikationer allerede er aktiveret (samme tilladelse som dashboardets
+// "Aktivér påmindelser", da alle tre apps deler domæne). Springes stille
+// over hvis ikke aktiveret — pause-timeren virker uændret med vibration/
+// flash når fanen er åben.
+function scheduleTimerNotifications(duration, liftName) {
+  if (!('serviceWorker' in navigator)) return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  navigator.serviceWorker.ready.then(sw => {
+    if (!sw.active) return;
+    const label = liftName ? ` — ${liftName}` : '';
+    if (duration > 30) {
+      sw.active.postMessage({
+        type: 'SCHEDULE_NOTIFICATION', id: 'rest-30s', tag: 'sbd-rest-30s',
+        title: '⏱ 30 sekunder tilbage', body: `Pausen slutter snart${label}.`,
+        delayMs: (duration - 30) * 1000,
+      });
     }
-  }, 1000);
+    sw.active.postMessage({
+      type: 'SCHEDULE_NOTIFICATION', id: 'rest-done', tag: 'sbd-rest-done',
+      title: '✅ Pausen er slut', body: `Klar til næste sæt${label}.`,
+      delayMs: duration * 1000,
+    });
+  }).catch(() => {});
+}
+function cancelTimerNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(sw => {
+    if (!sw.active) return;
+    sw.active.postMessage({ type: 'CANCEL_NOTIFICATION', id: 'rest-30s' });
+    sw.active.postMessage({ type: 'CANCEL_NOTIFICATION', id: 'rest-done' });
+  }).catch(() => {});
+}
+
+// Regner resterende tid ud fra det faktiske klokkeslæt timeren slutter ved,
+// i stedet for bare at tælle ned én gang i sekundet — så den er præcis
+// selvom fanen har været i baggrunden/låst og et par "tick" er blevet
+// droppet af browseren undervejs.
+function tickTimer() {
+  if (!timerEndAt) return;
+  const overlay = document.getElementById('timer-overlay');
+  const display = document.getElementById('timer-display');
+  const ring = document.getElementById('timer-ring');
+  timerRemaining = Math.max(0, Math.round((timerEndAt - Date.now()) / 1000));
+  if (timerRemaining <= 0) {
+    timerRemaining = 0;
+    updateTimerUI(ring, display);
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerEndAt = null;
+    cancelTimerNotifications();
+    // Vibrate if supported
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+    // Flash green
+    const flash = document.createElement('div');
+    flash.className = 'timer-done-flash';
+    document.querySelector('.timer-ring-wrap')?.appendChild(flash);
+    setTimeout(() => flash.remove(), 700);
+    setTimeout(() => overlay.classList.remove('open'), 1200);
+  } else {
+    updateTimerUI(ring, display);
+  }
+}
+
+// Når fanen bliver synlig/aktiv igen (skærm låst op, skiftet tilbage fra en
+// anden app), opdaterer vi timeren med det samme i stedet for at vente på
+// næste sekund-tick — fanger også hvis timeren reelt var færdig imens du var væk.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && timerEndAt) tickTimer();
+  });
 }
 
 function updateTimerUI(ring, display) {
@@ -4935,12 +5058,18 @@ function updateTimerUI(ring, display) {
 function skipTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
+  timerEndAt = null;
+  cancelTimerNotifications();
   document.getElementById('timer-overlay').classList.remove('open');
 }
 
 function addTimerTime(secs) {
   timerRemaining = Math.min(timerRemaining + secs, 600);
   timerTotal = Math.max(timerTotal, timerRemaining);
+  if (timerEndAt) {
+    timerEndAt = Date.now() + timerRemaining * 1000;
+    scheduleTimerNotifications(timerRemaining, timerLiftName);
+  }
   updateTimerUI(
     document.getElementById('timer-ring'),
     document.getElementById('timer-display')
