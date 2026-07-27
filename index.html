@@ -437,7 +437,7 @@ function readLob(which){
   try { s = JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
   if (!s || !s.profile || !s.profile.onboarded) return null;
 
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = localISO(new Date());
   if (s.notFeeling100 && s.notFeeling100[todayStr]) {
     return {
       discipline:'lob', week:0, totalWeeks:12, block:null, isTest:false, deload:false,
@@ -603,9 +603,12 @@ function zoneIndexFor(hr, maxHR){
   for(let i=0;i<z.length;i++){ if(hr>=z[i].lo && hr<z[i].hi) return i; }
   return hr<z[0].lo ? 0 : z.length-1;
 }
+// Lokal dato som YYYY-MM-DD — toISOString() giver UTC-datoen og forskyder
+// datoer i dansk tid (fx blev mandag til onsdag i ugeskemaet).
+function localISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function weekStartOf(dateStr){
   const d=new Date(dateStr+'T00:00:00'); const day=d.getDay(); const diff=(day===0?-6:1-day);
-  d.setDate(d.getDate()+diff); return d.toISOString().slice(0,10);
+  d.setDate(d.getDate()+diff); return localISO(d);
 }
 function fmtClock(sec){
   if(sec==null || !isFinite(sec)) return '—';
@@ -699,7 +702,7 @@ function readLobRaw(which){
 }
 function lobWeekStats(s){
   const runs=s.runs||[];
-  const todayKey=weekStartOf(new Date().toISOString().slice(0,10));
+  const todayKey=weekStartOf(localISO(new Date()));
   const wk=runs.filter(r=>weekStartOf(r.date)===todayKey);
   const km=wk.reduce((a,r)=>a+r.distanceKm,0);
   const sec=wk.reduce((a,r)=>a+r.durationSec,0);
@@ -763,7 +766,7 @@ function lobLoadRatio(s){
   const runs=s.runs||[]; if(!runs.length) return null;
   const totals={};
   runs.forEach(r=>{ const w=weekStartOf(r.date); totals[w]=(totals[w]||0)+r.distanceKm; });
-  const thisWeekKey=weekStartOf(new Date().toISOString().slice(0,10));
+  const thisWeekKey=weekStartOf(localISO(new Date()));
   const thisWeekKm=totals[thisWeekKey]||0;
   const priorKeys=Object.keys(totals).filter(k=>k<thisWeekKey).sort().slice(-4);
   if(!priorKeys.length) return null;
@@ -1210,13 +1213,13 @@ const SCHEDULE_ANCHOR_KEY='dash_schedule_anchor';
 function getScheduleAnchor(){
   let anchor=localStorage.getItem(SCHEDULE_ANCHOR_KEY);
   if(!anchor){
-    anchor=new Date().toISOString().slice(0,10);
+    anchor=localISO(new Date());
     localStorage.setItem(SCHEDULE_ANCHOR_KEY, anchor);
   }
   return anchor;
 }
 function resetScheduleAnchor(){
-  localStorage.setItem(SCHEDULE_ANCHOR_KEY, new Date().toISOString().slice(0,10));
+  localStorage.setItem(SCHEDULE_ANCHOR_KEY, localISO(new Date()));
   render();
 }
 
@@ -1251,7 +1254,7 @@ function scheduleTomorrowReminder(){
   const notifTime=new Date();
   notifTime.setDate(notifTime.getDate()+1);
   notifTime.setHours(7,0,0,0);
-  const dateStr=notifTime.toISOString().slice(0,10);
+  const dateStr=localISO(notifTime);
   const slot=patternForPerson(active)[cyclePositionForDate(dateStr, anchor, patternForPerson(active).length, active)];
   const lobPlan = active==='ellen'
     ? (ELLEN_LOB_WEEKDAYS.has(notifTime.getDay()) ? { easy: !!slot.sbd } : null)
@@ -1308,10 +1311,10 @@ function scheduleShiftWeek(delta){
 }
 function computeWeekDates(offset){
   const off = offset||0;
-  const base=new Date(weekStartOf(new Date().toISOString().slice(0,10))+'T00:00:00');
+  const base=new Date(weekStartOf(localISO(new Date()))+'T00:00:00');
   base.setDate(base.getDate() + off*7);
   const dates=[];
-  for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(base.getDate()+i); dates.push(d.toISOString().slice(0,10)); }
+  for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(base.getDate()+i); dates.push(localISO(d)); }
   return dates; // Man..Søn
 }
 function sbdCompletedByDate(sRaw){
@@ -1320,7 +1323,7 @@ function sbdCompletedByDate(sRaw){
   const st=sRaw.sessionTimes||{};
   (sRaw.completedDays||[]).forEach(d=>{
     const t=st['day'+d]; const ts=t?(t.end||t.start):null; if(!ts) return;
-    map[new Date(ts).toISOString().slice(0,10)]=SBD_CYCLE[d%8];
+    map[localISO(new Date(ts))]=SBD_CYCLE[d%8];
   });
   return map;
 }
@@ -1334,7 +1337,7 @@ function renderSchedule(sRaw, lRaw, personKey){
   const anchor=getScheduleAnchor();
   const dates=computeWeekDates(scheduleWeekOffset);
   const jsWeekdayForIndex=i=>[1,2,3,4,5,6,0][i];
-  const todayStr=new Date().toISOString().slice(0,10);
+  const todayStr=localISO(new Date());
   const sbdDone=sbdCompletedByDate(sRaw);
   const lobDone=lobCompletedByDate(lRaw);
   const pattern=patternForPerson(personKey);
@@ -1517,7 +1520,7 @@ function renderCalendar(sRaw, lRaw){
   const { cells, year, month } = getCalendarMonthDates(calendarMonthOffset);
   const sbdDone = sbdCompletedByDate(sRaw);
   const lobDone = lobCompletedByDate(lRaw);
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = localISO(new Date());
   const dowHeaders=['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
 
   let grid = dowHeaders.map(d=>`<div class="cal-dow">${d}</div>`).join('');
