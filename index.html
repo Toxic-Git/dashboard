@@ -44,23 +44,26 @@ h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;}
 
 main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin:0 auto; }
 
-/* ── RESPONSIVE: DESKTOP/TABLET ── */
+/* ── RESPONSIVE: DESKTOP/TABLET ──
+   Hver sektion (label + kort) pakkes i en .dash-sec af et lille script efter
+   <main>. Sektionerne flyder som ubrydelige blokke i to kolonner, så labels
+   aldrig skilles fra deres kort, og der ikke opstår tomme kolonner. Brede
+   widgets (Denne uge, Kalender, Oversigt) spænder over hele bredden. */
 @media (min-width:760px){
-  .topbar{ padding-left:calc((100vw - 720px)/2 + 18px); padding-right:calc((100vw - 720px)/2 + 18px); }
-  main{
-    max-width:720px;
-    display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:start;
-  }
-  .section-label{ grid-column:1 / -1; margin-top:26px; }
-  .section-label:first-child{ margin-top:6px; }
-  #slot-primary, #slot-secondary{ grid-column:span 1; }
-  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
-  #slot-attempts:empty, #slot-block-progression:empty, #slot-weekly-verdict:empty{ display:none; }
+  .topbar{ padding-left:calc((100vw - 760px)/2 + 18px); padding-right:calc((100vw - 760px)/2 + 18px); }
+  main{ max-width:760px; columns:2; column-gap:16px; }
+  .dash-sec{ break-inside:avoid; }
+  .dash-sec:has(#slot-schedule),
+  .dash-sec:has(#slot-calendar),
+  .dash-sec:has(#slot-oversigt){ column-span:all; }
+  /* Tomme slots skal ikke optage plads i flowet */
+  .dash-sec > div:empty{ display:none; }
+  .section-label{ margin-top:16px; }
+  .dash-sec:first-child .section-label{ margin-top:6px; }
 }
 @media (min-width:1080px){
   .topbar{ padding-left:calc((100vw - 1040px)/2 + 18px); padding-right:calc((100vw - 1040px)/2 + 18px); }
-  main{ max-width:1040px; grid-template-columns:1fr 1fr 1fr; }
-  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
+  main{ max-width:1040px; column-gap:20px; }
 }
 
 .section-label{
@@ -339,7 +342,28 @@ main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin
 
   <div class="section-label">AI-analyse</div>
   <div id="slot-insights"></div>
+
+  <div class="section-label">Indstillinger</div>
+  <div id="slot-settings"></div>
 </main>
+<script>
+// Pak hver sektion (label + tilhørende slots) i en .dash-sec-wrapper, så
+// desktop-layoutet kan flyde sektionerne som ubrydelige blokke i kolonner.
+// Al app-logik bruger id'er, så DOM-omstruktureringen er ufarlig.
+(function(){
+  const main = document.querySelector('main');
+  const kids = Array.from(main.children);
+  let wrap = null;
+  kids.forEach(el => {
+    if (el.classList.contains('section-label')) {
+      wrap = document.createElement('div');
+      wrap.className = 'dash-sec';
+      main.insertBefore(wrap, el);
+    }
+    if (wrap) wrap.appendChild(el);
+  });
+})();
+</script>
 
 <script>
 // ─── SBD cycle/peak structure ──────────────────────────────────────────────
@@ -1045,6 +1069,26 @@ function renderInsights(sRaw, lRaw){
     </div>`;
 }
 
+// ── Indstillinger — samlet sted for påmindelser, cyklus, sync og værktøjer ─
+function renderSettings(){
+  const sync = syncEnabled();
+  document.getElementById('slot-settings').innerHTML = `
+    <div class="section-card">
+      <h3>Indstillinger</h3>
+      <div class="schedule-settings-label">Påmindelser</div>
+      ${notificationButtonHtml() || '<div class="deferred-note">Notifikationer understøttes ikke i denne browser.</div>'}
+      <div class="schedule-settings-label" style="margin-top:14px;">Træningscyklus</div>
+      <button class="day-picker-btn" style="width:100%;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
+      <div class="deferred-note">Brug denne hvis I har holdt en uplanlagt pause og vil starte rytmen forfra fra i dag.</div>
+      <div class="schedule-settings-label" style="margin-top:14px;">Synkronisering</div>
+      <div class="deferred-note">${sync
+        ? 'Cross-device sync er aktiv — data deles automatisk mellem jeres enheder.'
+        : 'Cross-device sync er ikke sat op — data gemmes kun lokalt på denne enhed. Se opsætningsguiden (SETUP.md, trin 2).'}</div>
+      <div class="schedule-settings-label" style="margin-top:14px;">Værktøjer</div>
+      <a class="day-picker-btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;" href="./demo-data.html">Demo-data — se appen fyldt med eksempeldata</a>
+    </div>`;
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // NYE SEKTIONER: Åbningsforsøg, Blok-progression, Ugentlig verdict, Ugeskema
 // ══════════════════════════════════════════════════════════════════════════
@@ -1505,6 +1549,9 @@ function renderCalendar(sRaw, lRaw){
         <span><span class="cal-dot sbd"></span>SBD (${sbdCount})</span>
         <span><span class="cal-dot lob"></span>Løb (${lobCount})</span>
       </div>
+      ${Object.keys(sbdDone).length===0 && Object.keys(lobDone).length===0
+        ? `<div class="deferred-note" style="margin-top:8px;">Kalenderen viser gennemført træning — der kommer prikker på dagene, efterhånden som I logger SBD-sessioner og løbeture. Den planlagte rytme ser du under "Denne uge".</div>`
+        : ''}
     </div>`;
 }
 
@@ -1557,6 +1604,7 @@ function render(){
   renderMal(sRaw, lRaw);
   renderPR(sRaw, lRaw);
   renderInsights(sRaw, lRaw);
+  renderSettings();
 }
 
 function setProfile(name){
@@ -1569,7 +1617,7 @@ function setProfile(name){
 // så det henter blot seneste version — presser aldrig noget op.
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md).
-const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
+const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 
 function syncEnabled(){
   return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
