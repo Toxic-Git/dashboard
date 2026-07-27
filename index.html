@@ -1388,6 +1388,10 @@ function renderSchedule(sRaw, lRaw, personKey){
     if(lobRuns && lobRuns.length){
       const totalKm=lobRuns.reduce((a,r)=>a+r.distanceKm,0);
       lobCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏃 ${totalKm.toFixed(1)} km</div>`;
+    } else if((isFuture||isToday) && lobPlan && !(lRaw && lRaw.profile && lRaw.profile.onboarded)){
+      // Løbe-trackeren er ikke onboardet endnu — vis dagen alligevel, så
+      // rytmens løbedage er synlige fra start.
+      lobCell=`<span class="week-day-tag tag-planned">${isToday?'I dag':'Planlagt'}</span> <div class="week-day-badge">🏃 ${lobPlan.easy?'Let løb':'Løb'}</div><div class="week-day-sub">Gennemfør opsætningen i løbe-trackeren for fase og intensitet</div>`;
     } else if((isFuture||isToday) && lobPlan && lRaw && lRaw.profile && lRaw.profile.onboarded){
       const info=lobPhaseInfo(lRaw.profile.seasonStart);
       const badge=lobPlan.easy ? 'Let' : (info.isDeload?'Deload':info.phase);
