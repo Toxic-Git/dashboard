@@ -44,26 +44,23 @@ h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;}
 
 main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin:0 auto; }
 
-/* ── RESPONSIVE: DESKTOP/TABLET ──
-   Hver sektion (label + kort) pakkes i en .dash-sec af et lille script efter
-   <main>. Sektionerne flyder som ubrydelige blokke i to kolonner, så labels
-   aldrig skilles fra deres kort, og der ikke opstår tomme kolonner. Brede
-   widgets (Denne uge, Kalender, Oversigt) spænder over hele bredden. */
+/* ── RESPONSIVE: DESKTOP/TABLET ── */
 @media (min-width:760px){
-  .topbar{ padding-left:calc((100vw - 760px)/2 + 18px); padding-right:calc((100vw - 760px)/2 + 18px); }
-  main{ max-width:760px; columns:2; column-gap:16px; }
-  .dash-sec{ break-inside:avoid; }
-  .dash-sec:has(#slot-schedule),
-  .dash-sec:has(#slot-calendar),
-  .dash-sec:has(#slot-oversigt){ column-span:all; }
-  /* Tomme slots skal ikke optage plads i flowet */
-  .dash-sec > div:empty{ display:none; }
-  .section-label{ margin-top:16px; }
-  .dash-sec:first-child .section-label{ margin-top:6px; }
+  .topbar{ padding-left:calc((100vw - 720px)/2 + 18px); padding-right:calc((100vw - 720px)/2 + 18px); }
+  main{
+    max-width:720px;
+    display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:start;
+  }
+  .section-label{ grid-column:1 / -1; margin-top:26px; }
+  .section-label:first-child{ margin-top:6px; }
+  #slot-primary, #slot-secondary{ grid-column:span 1; }
+  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
+  #slot-attempts:empty, #slot-block-progression:empty, #slot-weekly-verdict:empty{ display:none; }
 }
 @media (min-width:1080px){
   .topbar{ padding-left:calc((100vw - 1040px)/2 + 18px); padding-right:calc((100vw - 1040px)/2 + 18px); }
-  main{ max-width:1040px; column-gap:20px; }
+  main{ max-width:1040px; grid-template-columns:1fr 1fr 1fr; }
+  #slot-oversigt, #slot-schedule, #slot-calendar{ grid-column:1 / -1; }
 }
 
 .section-label{
@@ -342,28 +339,7 @@ main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin
 
   <div class="section-label">AI-analyse</div>
   <div id="slot-insights"></div>
-
-  <div class="section-label">Indstillinger</div>
-  <div id="slot-settings"></div>
 </main>
-<script>
-// Pak hver sektion (label + tilhørende slots) i en .dash-sec-wrapper, så
-// desktop-layoutet kan flyde sektionerne som ubrydelige blokke i kolonner.
-// Al app-logik bruger id'er, så DOM-omstruktureringen er ufarlig.
-(function(){
-  const main = document.querySelector('main');
-  const kids = Array.from(main.children);
-  let wrap = null;
-  kids.forEach(el => {
-    if (el.classList.contains('section-label')) {
-      wrap = document.createElement('div');
-      wrap.className = 'dash-sec';
-      main.insertBefore(wrap, el);
-    }
-    if (wrap) wrap.appendChild(el);
-  });
-})();
-</script>
 
 <script>
 // ─── SBD cycle/peak structure ──────────────────────────────────────────────
@@ -483,6 +459,19 @@ const STRETCH_SUGGESTIONS = {
   'SBD':   'Fuldkrops-stræk: bryst, hofte, lat — 20 sek hver.',
 };
 const LOB_STRETCH = 'Læg- og hamstring-stræk efter løbeturen, 2×20 sek pr. side.';
+const LOB_WARMUP = 'Let gang/jog + benspark + ankelrotationer, 3-5 min før du sætter farten op.';
+
+// Dynamisk opvarmning FØR SBD — bevidst ikke statisk stræk her (kan svække
+// kraftudviklingen midlertidigt), kun kropsvægt-bevægelser der åbner kroppen.
+const WARMUP_SUGGESTIONS = {
+  'CST':    'Armcirkler + skulder-rotationer + let båndtræk, 1-2 min.',
+  'Lower':  'Kropsvægt-squats + hofte-cirkler + benspark, 1-2 min.',
+  'B&B':    'Cat-cow + let banded row + skulderblads-træk, 1-2 min.',
+  'SQ MAX': 'Kropsvægt-squats + hofte-cirkler + benspark, 1-2 min.',
+  'DL MAX': 'Cat-cow + let banded row + skulderblads-træk, 1-2 min.',
+  'BP MAX': 'Armcirkler + skulder-rotationer + let båndtræk, 1-2 min.',
+  'SBD':    'Fuldkrops: armcirkler, hofte-cirkler, cat-cow — 20 sek hver.',
+};
 
 function renderCard(status, discipline, kind){
   const meta = DISC_META[discipline];
@@ -504,6 +493,8 @@ function renderCard(status, discipline, kind){
     : '';
   const stretch = isRest ? '' : (discipline==='lob' ? LOB_STRETCH : (STRETCH_SUGGESTIONS[status.day.short] || ''));
   const stretchHtml = stretch ? `<div class="deferred-note" style="margin-top:8px;">🧘 ${stretch}</div>` : '';
+  const warmup = isRest ? '' : (discipline==='lob' ? LOB_WARMUP : (WARMUP_SUGGESTIONS[status.day.short] || ''));
+  const warmupHtml = warmup ? `<div class="deferred-note" style="margin-top:8px;">🔥 ${warmup}</div>` : '';
   return `<div class="card ${kind}">
     <div class="card-head">
       <div><div class="disc-name"><span class="disc-icon">${meta.icon}</span>${meta.label}</div></div>
@@ -513,6 +504,7 @@ function renderCard(status, discipline, kind){
       <div class="next-label">Næste træningsdag</div>
       <div class="next-day">${status.day.short || status.day.name}</div>
       ${isRest ? `<div class="rest-note">💤 Hviledag</div>` : `<div class="next-desc">${desc}</div>`}
+      ${warmupHtml}
       ${stretchHtml}
       <div class="progress-wrap">
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -1053,26 +1045,6 @@ function renderInsights(sRaw, lRaw){
     </div>`;
 }
 
-// ── Indstillinger — samlet sted for påmindelser, cyklus, sync og værktøjer ─
-function renderSettings(){
-  const sync = syncEnabled();
-  document.getElementById('slot-settings').innerHTML = `
-    <div class="section-card">
-      <h3>Indstillinger</h3>
-      <div class="schedule-settings-label">Påmindelser</div>
-      ${notificationButtonHtml() || '<div class="deferred-note">Notifikationer understøttes ikke i denne browser.</div>'}
-      <div class="schedule-settings-label" style="margin-top:14px;">Træningscyklus</div>
-      <button class="day-picker-btn" style="width:100%;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
-      <div class="deferred-note">Brug denne hvis I har holdt en uplanlagt pause og vil starte rytmen forfra fra i dag.</div>
-      <div class="schedule-settings-label" style="margin-top:14px;">Synkronisering</div>
-      <div class="deferred-note">${sync
-        ? 'Cross-device sync er aktiv — data deles automatisk mellem jeres enheder.'
-        : 'Cross-device sync er ikke sat op — data gemmes kun lokalt på denne enhed. Se opsætningsguiden (SETUP.md, trin 2).'}</div>
-      <div class="schedule-settings-label" style="margin-top:14px;">Værktøjer</div>
-      <a class="day-picker-btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;" href="./demo-data.html">Demo-data — se appen fyldt med eksempeldata</a>
-    </div>`;
-}
-
 // ══════════════════════════════════════════════════════════════════════════
 // NYE SEKTIONER: Åbningsforsøg, Blok-progression, Ugentlig verdict, Ugeskema
 // ══════════════════════════════════════════════════════════════════════════
@@ -1160,15 +1132,19 @@ const DAY_NAMES=['Søn','Man','Tir','Ons','Tor','Fre','Lør'];
 // der hvor cyklussen gentager. De to løb-slots der ligger op til/efter en
 // bendag er markeret lette; det tredje (mellem BB2 og CST1) rammer ingen
 // bendag og kan køres som en normal/hårdere tur.
+// SBD-slots har ingen fast cycleId — hvilket løft der vises udregnes fra din
+// faktiske fremgang (totalDays), ikke fra kalenderdage siden ankeret. Det er
+// rettelsen for buggen hvor fremtidige dage kunne vise forkert indhold, hvis
+// virkeligheden afveg fra den perfekte 2-på/1-fri-rytme.
 const OLIVER_PATTERN = [
-  { sbd:{cycleId:'cst1'}, lob:null },
-  { sbd:{cycleId:'low1'}, lob:null },
+  { sbd:{}, lob:null },
+  { sbd:{}, lob:null },
   { sbd:null, lob:{easy:true} },
-  { sbd:{cycleId:'bb1'},  lob:null },
-  { sbd:{cycleId:'cst2'}, lob:null },
+  { sbd:{},  lob:null },
+  { sbd:{}, lob:null },
   { sbd:null, lob:{easy:true} },
-  { sbd:{cycleId:'low2'}, lob:null },
-  { sbd:{cycleId:'bb2'},  lob:null },
+  { sbd:{}, lob:null },
+  { sbd:{},  lob:null },
   { sbd:null, lob:{easy:false} },
 ];
 // Ellens mønster: samme dage som Oliver (hun matcher hans SBD-dage), men SBD
@@ -1529,9 +1505,6 @@ function renderCalendar(sRaw, lRaw){
         <span><span class="cal-dot sbd"></span>SBD (${sbdCount})</span>
         <span><span class="cal-dot lob"></span>Løb (${lobCount})</span>
       </div>
-      ${Object.keys(sbdDone).length===0 && Object.keys(lobDone).length===0
-        ? `<div class="deferred-note" style="margin-top:8px;">Kalenderen viser gennemført træning — der kommer prikker på dagene, efterhånden som I logger SBD-sessioner og løbeture. Den planlagte rytme ser du under "Denne uge".</div>`
-        : ''}
     </div>`;
 }
 
@@ -1584,7 +1557,6 @@ function render(){
   renderMal(sRaw, lRaw);
   renderPR(sRaw, lRaw);
   renderInsights(sRaw, lRaw);
-  renderSettings();
 }
 
 function setProfile(name){
@@ -1597,7 +1569,7 @@ function setProfile(name){
 // så det henter blot seneste version — presser aldrig noget op.
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md).
-const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
+const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
 
 function syncEnabled(){
   return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');

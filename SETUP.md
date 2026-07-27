@@ -25,7 +25,7 @@ dit-repo/
   demo-data.html        ← Værktøj til at se appen fyldt med eksempeldata
 
   sync-worker/
-    worker.js          ← Cloudflare Worker (cross-device sync)
+    worker.js          ← Cloudflare Worker (cross-device sync + Strava)
     wrangler.toml        ← Konfiguration til Worker'en
     DEPLOY.md           ← Detaljeret deploy-vejledning til Worker'en
 ```
@@ -49,19 +49,22 @@ dit-repo/
 
 ---
 
-## 2. Sæt cross-device sync op (valgfrit, men anbefalet)
+## 2. Sæt cross-device sync + Strava op (valgfrit, men anbefalet)
 
 Uden dette trin virker alle tre apps fint — de gemmer bare kun lokalt på den
 enhed du bruger dem på. Med dette trin synkroniserer data automatisk mellem
-telefon og computer. (Løbeture importeres manuelt i løbe-trackerens
-Opsætning som GPX/TCX/CSV — det kræver ikke dette trin.)
+telefon og computer, og løb kan importeres automatisk fra Strava.
 
 Følg `sync-worker/DEPLOY.md` — kort fortalt:
 
 1. `npm install -g wrangler` og `wrangler login`
 2. Opret et KV-namespace, sæt dets ID ind i `wrangler.toml`
-3. `wrangler deploy` i `sync-worker`-mappen
-4. Kopiér den URL Wrangler giver dig (`https://oliver-training-sync.xxx.workers.dev`)
+3. (Kun for Strava) Opret en Strava-app på strava.com/settings/api, sæt
+   `LOB_APP_URL` i `wrangler.toml` til din `.../lob/index.html`-adresse
+4. `wrangler deploy` i `sync-worker`-mappen
+5. (Kun for Strava) `wrangler secret put STRAVA_CLIENT_ID` og
+   `wrangler secret put STRAVA_CLIENT_SECRET`
+6. Kopiér den URL Wrangler giver dig (`https://oliver-training-sync.xxx.workers.dev`)
 
 **Sæt den URL ind tre steder** — find linjen `const SYNC_BASE_URL = ...` i:
 - `index.html`
@@ -98,7 +101,8 @@ sig automatisk til en bredere skærm.
 2. **Løb:** vælg profil, gennemfør onboarding (maxpuls, hvilepuls, evt.
    20-min-test).
 3. **Dashboard:** vælg profil, tjek at "Denne uge" og "Oversigt" viser data.
-4. (Valgfrit) Aktivér push-påmindelser i dashboardets "Indstillinger"-sektion.
+4. (Valgfrit) Aktivér push-påmindelser i dashboardets "Denne uge"-kort.
+5. (Valgfrit) Forbind Strava i løbe-trackerens Opsætning, for begge profiler.
 
 ---
 
@@ -115,6 +119,7 @@ sig automatisk til en bredere skærm.
 - [ ] Alle filer uploadet til GitHub, `sbd/`/`lob/` som undermapper i roden
 - [ ] GitHub Pages aktiveret, dashboard-URL virker
 - [ ] (Valgfrit) Worker deployet, `SYNC_BASE_URL` sat i alle tre filer
+- [ ] (Valgfrit) Strava-app oprettet, secrets sat, forbundet for begge profiler
 - [ ] Alle tre apps installeret som PWA på begge telefoner
 - [ ] SBD og løb onboardet for begge profiler
 - [ ] Dashboard viser rigtige data for begge profiler

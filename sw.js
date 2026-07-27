@@ -1,71 +1,61 @@
-const CACHE_NAME = 'dashboard-v2';
-const ASSETS = ['./index.html', './manifest.json', './dash-icon.svg'];
+// Dashboard Service Worker
+const CACHE_NAME = 'dash-tracker-v1';
+const ASSETS = ['./index.html', './manifest.json'];
 
-self.addEventListener('install', function(event){
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(ASSETS);
-    })
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).catch(() => {})
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', function(event){
-  event.waitUntil(
-    caches.keys().then(function(keys){
-      return Promise.all(
-        keys.filter(function(k){ return k !== CACHE_NAME; })
-            .map(function(k){ return caches.delete(k); })
-      );
-    })
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', function(event){
-  if (event.request.method !== 'GET') return;
-  // Netværk først (så opdateringer slår igennem), cache som offline-fallback
-  event.respondWith(
-    fetch(event.request).then(function(res){
-      const copy = res.clone();
-      caches.open(CACHE_NAME).then(function(cache){ cache.put(event.request, copy); });
-      return res;
-    }).catch(function(){
-      return caches.match(event.request).then(function(cached){
-        return cached || caches.match('./index.html');
-      });
-    })
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(
+    fetch(e.request)
+      .then(res => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
 
-// Planlagte påmindelser fra dashboardet (SCHEDULE_NOTIFICATION-beskeder).
-// setTimeout i en service worker overlever ikke at browseren lukker helt,
-// men på mobil (PWA) holder den typisk længe nok til "kl. 7 i morgen"-
-// påmindelser når appen har været åben samme dag.
-self.addEventListener('message', function(event){
-  const data = event.data;
-  if (!data || data.type !== 'SCHEDULE_NOTIFICATION') return;
-  const title = data.title || 'Træning';
-  const body = data.body || '';
-  const delayMs = Math.max(0, data.delayMs || 0);
-  setTimeout(function(){
-    self.registration.showNotification(title, {
-      body: body,
-      icon: './dash-icon.svg',
-      badge: './dash-icon.svg',
-      tag: 'traening-reminder'
-    });
-  }, delayMs);
+// ── Lokale påmindelser for planlagte trænings-/løbedage ────────────────────
+self.addEventListener('message', e => {
+  if (e.data?.type === 'SCHEDULE_NOTIFICATION') {
+    const { title, body, delayMs } = e.data;
+    setTimeout(() => {
+      self.registration.showNotification(title, {
+        body,
+        icon: './dash-icon.svg',
+        badge: './dash-icon.svg',
+        tag: 'dash-reminder',
+        renotify: true,
+        data: { url: './index.html' },
+      });
+    }, delayMs);
+  }
 });
 
-self.addEventListener('notificationclick', function(event){
-  event.notification.close();
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list){
-      for (const client of list) {
-        if ('focus' in client) return client.focus();
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes('index.html') && 'focus' in client) return client.focus();
       }
-      return self.clients.openWindow('./index.html');
+      return clients.openWindow('./index.html');
     })
   );
 });
