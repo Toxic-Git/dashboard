@@ -230,6 +230,10 @@ main{ padding:16px 16px calc(30px + var(--safe-bottom)); max-width:520px; margin
 .cal-dot{ width:5px; height:5px; border-radius:50%; }
 .cal-dot.sbd{ background:var(--sq); }
 .cal-dot.lob{ background:#5ea472; }
+/* Planlagte (fremtidige) dage: hul prik i stedet for udfyldt */
+.cal-dot.plan{ background:transparent; box-sizing:border-box; }
+.cal-dot.sbd.plan{ border:1px solid var(--sq); }
+.cal-dot.lob.plan{ border:1px solid #5ea472; }
 .cal-legend{ display:flex; gap:16px; margin-top:12px; font-size:11px; color:var(--muted); align-items:center; }
 .cal-legend span{ display:inline-flex; align-items:center; gap:5px; }
 .week-day-row{
@@ -1520,12 +1524,15 @@ function getCalendarMonthDates(offset){
   return { cells, year, month };
 }
 
-function renderCalendar(sRaw, lRaw){
+function renderCalendar(sRaw, lRaw, personKey){
   const { cells, year, month } = getCalendarMonthDates(calendarMonthOffset);
   const sbdDone = sbdCompletedByDate(sRaw);
   const lobDone = lobCompletedByDate(lRaw);
   const todayStr = localISO(new Date());
   const dowHeaders=['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+  const anchor=getScheduleAnchor();
+  const pattern=patternForPerson(personKey);
+  const blocked=getBlockedDates(personKey);
 
   let grid = dowHeaders.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   cells.forEach(dateStr=>{
@@ -1534,10 +1541,22 @@ function renderCalendar(sRaw, lRaw){
     const hasSbd = !!sbdDone[dateStr];
     const hasLob = !!(lobDone[dateStr] && lobDone[dateStr].length);
     const dayNum = parseInt(dateStr.slice(-2));
-    let dots='';
+    let dots='', tip='';
     if(hasSbd) dots += `<span class="cal-dot sbd"></span>`;
     if(hasLob) dots += `<span class="cal-dot lob"></span>`;
-    grid += `<div class="cal-cell ${isToday?'today':''}"><div class="cal-daynum">${dayNum}</div><div class="cal-dots">${dots}</div></div>`;
+    // Planlagte dage: vis rytmen frem i tiden (hule prikker)
+    if(dateStr>=todayStr && !blocked.includes(dateStr)){
+      const slot=pattern[cyclePositionForDate(dateStr,anchor,pattern.length,personKey)];
+      const weekdayIdx=new Date(dateStr+'T12:00:00').getDay();
+      const lobPlan = personKey==='ellen'
+        ? (ELLEN_LOB_WEEKDAYS.has(weekdayIdx) ? { easy: !!slot.sbd } : null)
+        : slot.lob;
+      const tips=[];
+      if(slot.sbd && !hasSbd){ dots += `<span class="cal-dot sbd plan"></span>`; tips.push(slot.sbd.optional?'SBD (valgfri)':'SBD'); }
+      if(lobPlan && !hasLob){ dots += `<span class="cal-dot lob plan"></span>`; tips.push(lobPlan.easy?'Let løb':'Løb'); }
+      if(tips.length) tip=` title="Planlagt: ${tips.join(' + ')}"`;
+    }
+    grid += `<div class="cal-cell ${isToday?'today':''}"${tip}><div class="cal-daynum">${dayNum}</div><div class="cal-dots">${dots}</div></div>`;
   });
 
   const monthPrefix=`${year}-${String(month+1).padStart(2,'0')}`;
@@ -1555,10 +1574,9 @@ function renderCalendar(sRaw, lRaw){
       <div class="cal-legend">
         <span><span class="cal-dot sbd"></span>SBD (${sbdCount})</span>
         <span><span class="cal-dot lob"></span>Løb (${lobCount})</span>
+        <span><span class="cal-dot sbd plan"></span><span class="cal-dot lob plan" style="margin-left:2px;"></span>Planlagt</span>
       </div>
-      ${Object.keys(sbdDone).length===0 && Object.keys(lobDone).length===0
-        ? `<div class="deferred-note" style="margin-top:8px;">Kalenderen viser gennemført træning — der kommer prikker på dagene, efterhånden som I logger SBD-sessioner og løbeture. Den planlagte rytme ser du under "Denne uge".</div>`
-        : ''}
+      <div class="deferred-note" style="margin-top:8px;">Udfyldte prikker = gennemført, hule = planlagt ud fra jeres rytme. Hold musen over en dag for at se hvad der er planlagt.</div>
     </div>`;
 }
 
@@ -1595,7 +1613,7 @@ function render(){
 
   renderOversigt(sRaw, lRaw);
   renderSchedule(sRaw, lRaw, active);
-  renderCalendar(sRaw, lRaw);
+  renderCalendar(sRaw, lRaw, active);
   renderAttempts(sRaw);
   renderStyrke(sRaw);
   renderVolumen(sRaw);
