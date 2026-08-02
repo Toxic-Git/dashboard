@@ -1592,7 +1592,32 @@ function aState() { return state.profile === 'partner' ? partnerState : state; }
 // the current date, but does NOT drive program progression.
 
 function syncProgramDay() {
-  // No-op — day advancement is training-driven, not calendar-driven
+  // Auto-hop over pausedage, så appen altid matcher dashboardets plan:
+  // pausedagen i 8-dages-cyklussen ER løbedagen i den fælles rytme. Når der
+  // er gået en kalenderdag mere siden sidste gennemførte økt (2+ dage), er
+  // pausen reelt afholdt — spring videre automatisk, præcis som hvis man
+  // selv havde trykket "Næste dag →". Peak-ugen startes stadig manuelt.
+  const as = aState();
+  if (isPeakWeek()) return;
+  let guard = 0;
+  while (guard++ < 2 && CYCLE[as.totalDays % 8].type === 'rest') {
+    const st = as.sessionTimes || {};
+    let lastTs = null;
+    Object.values(st).forEach(t => {
+      const ts = t && (t.end || t.start);
+      if (ts && (!lastTs || ts > lastTs)) lastTs = ts;
+    });
+    if (!lastTs) return; // intet trænet endnu — rør ikke noget
+    const daysSince = Math.round(
+      (new Date(localISO(new Date()) + 'T12:00:00') - new Date(localISO(new Date(lastTs)) + 'T12:00:00')) / 86400000
+    );
+    if (daysSince < 2) return; // pausedagen er stadig "i dag"
+    if (as.totalDays >= 12 * 7 - 1) return;
+    const nextWeek = Math.min(12, Math.floor((as.totalDays + 1) / 7) + 1);
+    if (nextWeek === 12 && getWeek() < 12) return; // peak-uge kræver manuel start
+    as.totalDays++;
+    saveState();
+  }
 }
 
 function getTodayDateStr() {

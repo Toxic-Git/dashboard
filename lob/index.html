@@ -824,12 +824,47 @@ function suggestNextWorkout(){
   };
 }
 
+// ── Konkrete mål: distance + tempo beregnet ud fra dine seneste løb ───────
+// Median-pace og -distance fra de seneste (lette) ture bruges som baseline,
+// så målet automatisk følger med, når formen flytter sig.
+function paceStr(sec){
+  if(!isFinite(sec)||sec<=0) return null;
+  const m=Math.floor(sec/60), s=Math.round(sec%60);
+  return m+':'+String(s).padStart(2,'0');
+}
+function paceRange(sec, spread){ return paceStr(sec)+'–'+paceStr(sec+(spread||15))+' min/km'; }
+function roundKm(km){ return (Math.round(km*2)/2).toLocaleString('da-DK'); }
+function recentRunStats(){
+  const runs=[...aState().runs].filter(r=>r.distanceKm>0.5&&r.durationSec>0).sort((a,b)=>a.date.localeCompare(b.date)).slice(-10);
+  if(runs.length<2) return null;
+  const easy=runs.filter(r=>!r.avgHR||zoneForHR(r.avgHR)<=1);
+  const base=(easy.length>=3?easy:runs);
+  const med=a=>{const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+  return { easyPace: med(base.map(r=>r.durationSec/r.distanceKm)), typDist: med(base.map(r=>r.distanceKm)) };
+}
+function concreteTarget(s){
+  const st=recentRunStats();
+  if(!st) return null;
+  const E=st.easyPace, D=st.typDist, t=(s.title||'')+' '+(s.type||'');
+  if(t.includes('Lang')) return `Løb ${roundKm(D*1.15)}–${roundKm(D*1.25)} km i ${paceRange(E+10,20)} — Zone 2 hele vejen.`;
+  if(t.includes('Tempoløb')) return `I alt ca. ${roundKm(Math.max(5,D*0.9))} km — tempo-delen i ${paceRange(E-55,15)}.`;
+  if(t.includes('Intervaller')||t.includes('Race-pace')) return `Intervallerne i ${paceRange(E-75,15)} — jog-pauserne helt rolige (${paceStr(E+45)}+ min/km).`;
+  if(t.includes('Stimulusskifte')) return `Basen: ${roundKm(D)} km i dit lette tempo (${paceRange(E,15)}).`;
+  if(t.includes('Deload')) return `Løb ${roundKm(D*0.6)} km i ${paceRange(E+20,20)} — kortere og roligere end normalt.`;
+  if(t.includes('tempotest')) return `Efter opvarmning: 20 min jævnt for fuld indsats — sigt omkring ${paceRange(E-65,15)} og notér distancen.`;
+  if(t.includes('Restitution')) return `Højst ${roundKm(D*0.6)} km i ${paceRange(E+40,20)} — det må gerne føles for langsomt.`;
+  if(t.includes('Genstart')||t.includes('Let løb')) return `Løb ${roundKm(D*0.8)}–${roundKm(D)} km i ${paceRange(E,20)}.`;
+  return `Løb ca. ${roundKm(D)} km i ${paceRange(E,20)}.`;
+}
+
 function renderSuggestion(){
   const s = suggestNextWorkout();
+  const target = concreteTarget(s);
   document.getElementById('sug-type').textContent = s.type;
   document.getElementById('sug-body').innerHTML =
     `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${s.title}</div>
      <div class="note">${s.desc}</div>
+     ${target ? `<div class="ok-box">🎯 Sæt dig for: ${target}</div>` : ''}
      <div class="note" style="margin-top:6px;"><i>${s.reason}</i></div>`;
 
   const todayStr = localISO(new Date());
