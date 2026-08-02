@@ -1,5 +1,5 @@
 // Dashboard Service Worker
-const CACHE_NAME = 'dash-tracker-v1';
+const CACHE_NAME = 'dash-tracker-v2';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

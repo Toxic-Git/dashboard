@@ -1452,6 +1452,17 @@ async function init(){
   if('serviceWorker' in navigator){
     try{
       navigator.serviceWorker.register('sw.js').catch(function(e){ console.log('SW ikke registreret:', e); });
+      // Når en ny service worker overtager siden (efter en opdatering), er
+      // den allerede åbne PWA-instans stadig styret af den gamle udgave af
+      // JS'en, indtil siden genindlæses — genindlæs derfor automatisk én
+      // gang, så nye funktioner (som konkrete løbe-mål) slår igennem uden
+      // at man selv skal huske at lukke og genåbne appen.
+      let _swReloaded=false;
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if(_swReloaded) return;
+        _swReloaded=true;
+        window.location.reload();
+      });
     }catch(e){
       console.log('SW kunne ikke tilgås (fx sandbox-preview):', e);
     }

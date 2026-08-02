@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lobe-tracker-v2';
+const CACHE_NAME = 'lobe-tracker-v3';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', function(event){

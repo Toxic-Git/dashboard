@@ -5295,6 +5295,14 @@ function registerSW() {
   if (!location.hostname.includes('github.io') && !location.hostname.includes('localhost')) return;
   navigator.serviceWorker.register('./sw.js')
     .catch(e => console.warn('SW registration failed:', e));
+  // Genindlæs automatisk én gang når en ny service worker overtager, så
+  // opdateringer slår igennem uden at man selv skal lukke/genåbne appen.
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloaded) return;
+    _swReloaded = true;
+    window.location.reload();
+  });
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
