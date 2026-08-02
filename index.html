@@ -1084,6 +1084,7 @@ function renderSettings(){
       <h3>Indstillinger</h3>
       <div class="schedule-settings-label">Påmindelser</div>
       ${notificationButtonHtml() || '<div class="deferred-note">Notifikationer understøttes ikke i denne browser.</div>'}
+      <button class="day-picker-btn" style="width:100%;margin-top:6px;" onclick="sendTestNotification()">Send test-notifikation</button>
       <div class="schedule-settings-label" style="margin-top:14px;">Træningscyklus</div>
       <button class="day-picker-btn" style="width:100%;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
       <div class="deferred-note">Brug denne hvis I har holdt en uplanlagt pause og vil starte rytmen forfra fra i dag.</div>
@@ -1239,42 +1240,64 @@ function getNotificationPermission(){
 function notificationButtonHtml(){
   const perm=getNotificationPermission();
   if(perm==='unsupported') return '';
-  if(perm==='granted') return `<div class="deferred-note" style="margin-top:4px;">🔔 Påmindelser er slået til — du får besked kl. 7 dagen før en planlagt træningsdag.</div>`;
+  if(perm==='granted') return `<div class="deferred-note" style="margin-top:4px;">🔔 Påmindelser er slået til — du får besked om dagens træning kl. 7. Kræver at dashboardet er åbent (fx installeret som app) — browsere kan ikke vække en helt lukket side.</div>`;
   if(perm==='denied') return `<div class="deferred-note" style="margin-top:4px;">Påmindelser er blokeret i browseren — slå dem til i browserens indstillinger for denne side.</div>`;
   return `<button class="day-picker-btn" style="width:100%;margin-top:4px;" onclick="requestNotificationPermission()">Aktivér påmindelser</button>`;
 }
 async function requestNotificationPermission(){
   if(!('Notification' in window)) return;
   const perm=await Notification.requestPermission();
-  if(perm==='granted') scheduleTomorrowReminder();
+  if(perm==='granted') checkDailyReminder();
   render();
 }
-function scheduleTomorrowReminder(){
-  if(getNotificationPermission()!=='granted') return;
-  if(!('serviceWorker' in navigator)) return;
-  const active=localStorage.getItem('dash_profile')||'oliver';
-  const anchor=getScheduleAnchor();
-  const now=new Date();
-  const notifTime=new Date();
-  notifTime.setDate(notifTime.getDate()+1);
-  notifTime.setHours(7,0,0,0);
-  const dateStr=localISO(notifTime);
-  const slot=patternForPerson(active)[cyclePositionForDate(dateStr, anchor, patternForPerson(active).length, active)];
-  const lobPlan = active==='ellen'
-    ? (ELLEN_LOB_WEEKDAYS.has(notifTime.getDay()) ? { easy: !!slot.sbd } : null)
+// Morgen-påmindelse om DAGENS træning, drevet fra siden (ikke en langtids-
+// timer i service workeren — browsere dræber den efter få minutter, så den
+// gamle "planlæg til i morgen kl. 7"-model affyrede reelt aldrig noget).
+// Tjekkes hvert minut mens dashboardet er åbent + hver gang det åbnes/vises:
+// er klokken over 7 og er der ikke sendt i dag, sendes dagens besked.
+function buildDayReminder(dateStr, personKey){
+  const slot = slotForDate(dateStr, getScheduleAnchor(), personKey) || { sbd:null, lob:null };
+  const weekdayIdx = new Date(dateStr+'T12:00:00').getDay();
+  const lobPlan = personKey==='ellen'
+    ? (ELLEN_LOB_WEEKDAYS.has(weekdayIdx) ? { easy: !!slot.sbd } : null)
     : slot.lob;
   const parts=[];
   if(slot.sbd) parts.push(slot.sbd.optional ? '🏋️ SBD (valgfri)' : '🏋️ SBD');
   if(lobPlan) parts.push(lobPlan.easy ? '🏃 let løb' : '🏃 løb');
-  const title = parts.length ? parts.join(' + ')+' i morgen' : '😴 Hviledag i morgen';
+  const title = parts.length ? parts.join(' + ')+' i dag' : '😴 Hviledag i dag';
   const body = parts.length
-    ? (slot.sbd && slot.sbd.optional ? 'SBD er valgfri i morgen — spring over hvis du er for træt.' : 'Dit mønster siger '+parts.join(' + ')+' i morgen.')
-    : 'Ingen planlagt træning i morgen — nyd hviledagen.';
-  const delayMs=notifTime-now;
-  if(delayMs<=0) return;
-  navigator.serviceWorker.ready.then(sw=>{
-    sw.active?.postMessage({ type:'SCHEDULE_NOTIFICATION', title, body, delayMs });
-  }).catch(e=>console.log('Kunne ikke planlægge påmindelse:', e));
+    ? (slot.sbd && slot.sbd.optional ? 'SBD er valgfri i dag — spring over hvis du er for træt.' : 'Dit mønster siger '+parts.join(' + ')+' i dag.')
+    : 'Ingen planlagt træning i dag — nyd hviledagen.';
+  return { title, body };
+}
+
+function checkDailyReminder(){
+  if(getNotificationPermission()!=='granted') return;
+  if(!('serviceWorker' in navigator)) return;
+  const now=new Date();
+  if(now.getHours()<7) return;
+  const today=localISO(now);
+  if(localStorage.getItem('dash_notif_sent')===today) return;
+  const active=localStorage.getItem('dash_profile')||'oliver';
+  const { title, body } = buildDayReminder(today, active);
+  navigator.serviceWorker.ready.then(reg=>{
+    reg.showNotification(title, { body, icon:'./dash-icon.svg', badge:'./dash-icon.svg', tag:'dash-daily' });
+    localStorage.setItem('dash_notif_sent', today);
+  }).catch(e=>console.log('Kunne ikke sende påmindelse:', e));
+}
+
+function startReminderLoop(){
+  checkDailyReminder();
+  setInterval(checkDailyReminder, 60000);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkDailyReminder(); });
+}
+
+async function sendTestNotification(){
+  if(getNotificationPermission()!=='granted'){ alert('Aktivér påmindelser først (knappen ovenfor).'); return; }
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    await reg.showNotification('🔔 Test-notifikation', { body:'Notifikationer virker på denne enhed.', icon:'./dash-icon.svg', tag:'dash-test' });
+  }catch(e){ alert('Kunne ikke sende: '+e.message); }
 }
 
 // ── "Ikke mulig i dag" — skub en enkelt dag videre til i morgen ───────────
@@ -1294,18 +1317,55 @@ function toggleBlockedDate(personKey, dateStr){
   localStorage.setItem(blockedDatesKey(personKey), JSON.stringify(blocked));
   render();
 }
-// Antal blokerede dage strengt FØR dateStr — de tæller ikke med i cyklussens
-// fremdrift, så den dag der kommer efter en blokeret dag overtager det
-// indhold den blokerede dag skulle have haft.
-function blockedDaysBefore(personKey, anchor, dateStr){
-  return getBlockedDates(personKey).filter(d=>d>=anchor && d<dateStr).length;
+// ── "Ikke mulig — indhent" — drop næste pause/løbedag i stedet ────────────
+// Alternativet til "ryk alt": dagens indhold skubbes til i morgen, men den
+// første efterfølgende ikke-SBD-dag (pause/løbedag) droppes, så man træner
+// 2 dage i træk og cyklussen falder tilbage på plads af sig selv.
+function catchupDatesKey(personKey){ return `dash_catchup_dates_${personKey}`; }
+function getCatchupDates(personKey){
+  try{
+    const raw=JSON.parse(localStorage.getItem(catchupDatesKey(personKey)));
+    return Array.isArray(raw) ? raw : [];
+  }catch(e){ return []; }
+}
+function toggleCatchupDate(personKey, dateStr){
+  const list=getCatchupDates(personKey);
+  const i=list.indexOf(dateStr);
+  if(i>=0) list.splice(i,1); else list.push(dateStr);
+  localStorage.setItem(catchupDatesKey(personKey), JSON.stringify(list));
+  render();
 }
 
-function cyclePositionForDate(dateStr, anchor, length, personKey){
-  const d1=new Date(anchor+'T00:00:00'), d2=new Date(dateStr+'T00:00:00');
-  let diffDays=Math.round((d2-d1)/86400000);
-  if(personKey) diffDays -= blockedDaysBefore(personKey, anchor, dateStr);
-  return ((diffDays%length)+length)%length;
+// Finder mønster-slottet for en given dato ved at gå dag for dag fra ankeret:
+// - blokerede dage ("ryk alt") optager intet slot → alt efter dem skubbes
+// - indhentnings-dage optager intet slot OG markerer at næste ikke-SBD-slot
+//   skal springes over, så cyklussen genindhenter sig selv
+// Returnerer null for dage der selv er blokeret/indhentning (render viser
+// deres egen celle-tekst).
+function slotForDate(dateStr, anchor, personKey){
+  const pattern=patternForPerson(personKey);
+  const len=pattern.length;
+  const d1=new Date(anchor+'T12:00:00'), d2=new Date(dateStr+'T12:00:00');
+  const diff=Math.round((d2-d1)/86400000);
+  if(diff<0) return pattern[((diff%len)+len)%len];
+  const blocked=new Set(getBlockedDates(personKey));
+  const catchup=new Set(getCatchupDates(personKey));
+  let cursor=0, pending=0;
+  const d=new Date(d1);
+  for(let i=0;i<=diff;i++){
+    const ds=localISO(d);
+    let slot=null;
+    if(catchup.has(ds)){ pending++; }
+    else if(!blocked.has(ds)){
+      let idx=cursor%len;
+      if(pending>0 && !pattern[idx].sbd){ cursor++; pending--; idx=cursor%len; }
+      slot=pattern[idx];
+      cursor++;
+    }
+    if(i===diff) return slot;
+    d.setDate(d.getDate()+1);
+  }
+  return null;
 }
 
 let scheduleWeekOffset = 0;
@@ -1354,8 +1414,9 @@ function renderSchedule(sRaw, lRaw, personKey){
     const isToday=dateStr===todayStr;
     const isFuture=dateStr>todayStr;
     const dayLabel=DAY_NAMES[weekdayIdx];
-    const slot=pattern[cyclePositionForDate(dateStr,anchor,pattern.length,personKey)];
+    const slot=slotForDate(dateStr,anchor,personKey) || { sbd:null, lob:null };
     const isBlocked=getBlockedDates(personKey).includes(dateStr);
+    const isCatchup=getCatchupDates(personKey).includes(dateStr);
     // Ellen: løb er faste ugedage (hendes krav), uafhængigt af den rullende
     // cyklus. Let løb hvis det falder sammen med en SBD-dag (kombi), ellers
     // kvalitet/tempo.
@@ -1368,7 +1429,9 @@ function renderSchedule(sRaw, lRaw, personKey){
       const c=sbdDone[dateStr];
       sbdCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏋️ ${c.short}</div><div class="week-day-sub">${c.type==='rest'?'Hviledag':(c.desc||'')}</div>`;
     } else if((isFuture||isToday) && isBlocked){
-      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Rykket til i morgen</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Fortryd</button>`;
+      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Alt rykket én dag frem</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Fortryd</button>`;
+    } else if((isFuture||isToday) && isCatchup){
+      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Indhentes — næste pause droppes, så du træner 2 dage i træk</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Fortryd</button>`;
     } else if((isFuture||isToday) && slot.sbd && !isTestWeek && sRaw){
       let proj;
       if(slot.sbd.cycleId){
@@ -1380,7 +1443,7 @@ function renderSchedule(sRaw, lRaw, personKey){
       }
       const tag = slot.sbd.optional ? 'Valgfri' : (isToday?'I dag':'Planlagt');
       const optNote = slot.sbd.optional ? '<div class="week-day-sub">Spring over hvis du er for træt</div>' : (proj.desc?`<div class="week-day-sub">${proj.desc}</div>`:'');
-      sbdCell=`<span class="week-day-tag tag-planned">${tag}</span> <div class="week-day-badge">🏋️ ${proj.short}</div>${optNote}<button class="day-picker-btn" style="margin-top:6px;width:100%;font-size:9px;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Ikke mulig — ryk til i morgen</button>`;
+      sbdCell=`<span class="week-day-tag tag-planned">${tag}</span> <div class="week-day-badge">🏋️ ${proj.short}</div>${optNote}<button class="day-picker-btn" style="margin-top:6px;width:100%;font-size:9px;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Ikke mulig — indhent (drop næste pause)</button><button class="day-picker-btn" style="margin-top:4px;width:100%;font-size:9px;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Ikke mulig — ryk alt én dag</button>`;
     } else if((isFuture||isToday) && !slot.sbd && !lobPlan){
       sbdCell=`<span class="week-day-tag tag-rest">😴 Hviledag</span>`;
     } else {
@@ -1533,6 +1596,7 @@ function renderCalendar(sRaw, lRaw, personKey){
   const anchor=getScheduleAnchor();
   const pattern=patternForPerson(personKey);
   const blocked=getBlockedDates(personKey);
+  const catchup=getCatchupDates(personKey);
 
   let grid = dowHeaders.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   cells.forEach(dateStr=>{
@@ -1545,8 +1609,8 @@ function renderCalendar(sRaw, lRaw, personKey){
     if(hasSbd) dots += `<span class="cal-dot sbd"></span>`;
     if(hasLob) dots += `<span class="cal-dot lob"></span>`;
     // Planlagte dage: vis rytmen frem i tiden (hule prikker)
-    if(dateStr>=todayStr && !blocked.includes(dateStr)){
-      const slot=pattern[cyclePositionForDate(dateStr,anchor,pattern.length,personKey)];
+    if(dateStr>=todayStr && !blocked.includes(dateStr) && !catchup.includes(dateStr)){
+      const slot=slotForDate(dateStr,anchor,personKey) || { sbd:null, lob:null };
       const weekdayIdx=new Date(dateStr+'T12:00:00').getDay();
       const lobPlan = personKey==='ellen'
         ? (ELLEN_LOB_WEEKDAYS.has(weekdayIdx) ? { easy: !!slot.sbd } : null)
@@ -1671,7 +1735,7 @@ async function syncPull(key){
 async function boot(){
   registerSW();
   render(); // vis lokale data med det samme
-  if(getNotificationPermission()==='granted') scheduleTomorrowReminder();
+  startReminderLoop();
   const results = await Promise.all([
     syncPull('sbd_state'), syncPull('sbd_partner'),
     syncPull('lob_state'), syncPull('lob_partner'),
