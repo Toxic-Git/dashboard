@@ -298,6 +298,14 @@ html, body {
 .set-row-5col.completed { background:rgba(61,184,122,0.06); }
 .set-row-5col.completed .set-num { color:var(--green); }
 
+/* Ramp-tilbage efter lang pause */
+.ramp-box {
+  margin:10px 16px 0; padding:12px 14px; border-radius:10px;
+  background:rgba(212,168,67,0.1); border:1px solid rgba(212,168,67,0.35);
+  font-size:12.5px; line-height:1.6; color:var(--text);
+}
+.ramp-box b { color:var(--gold); }
+
 /* Autoreg suggestion */
 .autoreg-bar {
   padding:12px 16px; border-top:1px solid var(--border);
@@ -1044,6 +1052,28 @@ function getSBDScheme(lift, week) {
   const liftName = lift === 'squat' ? 'Squat'
     : lift === 'bench' ? 'Bench Press' : 'Deadlift (Conv.)';
 
+  // ── Ramp-tilbage efter lang pause ─────────────────────────────────────
+  // En fast %-nedsættelse ud fra kalenderen gætter på det forkerte problem:
+  // efter en lang pause er det sjældent selve styrken der er faldet lige så
+  // meget som følelsen af tyngde (rust i teknik/groove, mindre klar
+  // bindevæv) — og det varierer for meget til at ét fast tal kan ramme
+  // rigtigt. Vi foreslår derfor kun et forsigtigt LOFT (ikke et mål), og
+  // lader opvarmningen bygge op i mindre spring, så du selv stopper ved
+  // RPE 8 — uanset hvad tallet nedenfor siger. Så snart der er logget én
+  // session igen, forsvinder denne besked af sig selv (daysSince falder).
+  const RAMP_BACK_THRESHOLD_DAYS = 14;
+  const gapDays = daysSinceLastSbdSession(aState());
+  const isRampBack = gapDays !== null && gapDays >= RAMP_BACK_THRESHOLD_DAYS;
+
+  if (isRampBack) {
+    const capPct = 0.80, ceilPct = 0.85;
+    const cap = r(oneRM * capPct);
+    return {
+      sets: 3, reps: 2, repsRange: '1–3', kg: cap, pct: Math.round(capPct * 100),
+      targetRPE: 8, isRampBack: true, rampGapDays: gapDays, rampCeilingKg: r(oneRM * ceilPct),
+    };
+  }
+
   // Deload: 50% volumen, same % som blok start
   if (dl) {
     const deloadSchemes = {
@@ -1591,6 +1621,22 @@ function aState() { return state.profile === 'partner' ? partnerState : state; }
 // Calendar is used for context (what day of week it is) and displaying
 // the current date, but does NOT drive program progression.
 
+// Dage siden sidste gennemførte SBD-session (baseret på sessionTimes), eller
+// null hvis intet er trænet endnu. Bruges både til pause-hop mellem dage og
+// til at opdage lange pauser (ramp-tilbage, se getSBDScheme).
+function daysSinceLastSbdSession(as) {
+  const st = as.sessionTimes || {};
+  let lastTs = null;
+  Object.values(st).forEach(t => {
+    const ts = t && (t.end || t.start);
+    if (ts && (!lastTs || ts > lastTs)) lastTs = ts;
+  });
+  if (!lastTs) return null;
+  return Math.round(
+    (new Date(localISO(new Date()) + 'T12:00:00') - new Date(localISO(new Date(lastTs)) + 'T12:00:00')) / 86400000
+  );
+}
+
 function syncProgramDay() {
   // Auto-hop over pausedage, så appen altid matcher dashboardets plan:
   // pausedagen i 8-dages-cyklussen ER løbedagen i den fælles rytme. Når der
@@ -1601,16 +1647,8 @@ function syncProgramDay() {
   if (isPeakWeek()) return;
   let guard = 0;
   while (guard++ < 2 && CYCLE[as.totalDays % 8].type === 'rest') {
-    const st = as.sessionTimes || {};
-    let lastTs = null;
-    Object.values(st).forEach(t => {
-      const ts = t && (t.end || t.start);
-      if (ts && (!lastTs || ts > lastTs)) lastTs = ts;
-    });
-    if (!lastTs) return; // intet trænet endnu — rør ikke noget
-    const daysSince = Math.round(
-      (new Date(localISO(new Date()) + 'T12:00:00') - new Date(localISO(new Date(lastTs)) + 'T12:00:00')) / 86400000
-    );
+    const daysSince = daysSinceLastSbdSession(as);
+    if (daysSince === null) return; // intet trænet endnu — rør ikke noget
     if (daysSince < 2) return; // pausedagen er stadig "i dag"
     if (as.totalDays >= 12 * 7 - 1) return;
     const nextWeek = Math.min(12, Math.floor((as.totalDays + 1) / 7) + 1);
@@ -1991,7 +2029,7 @@ function renderToday() {
     // RPE-based weight hint — RIR formula for all lifts
     // Primary SBD: uses actual 1RM. Accessories: estimates e1RM from last logged set via Epley
     let rpeWeightHint = '';
-    if (ex.scheme.kg > 0 || ex.type === 'acc') {
+    if ((ex.scheme.kg > 0 || ex.type === 'acc') && !ex.scheme.isRampBack) {
       const liftRMMap = {
         'Bench Press': 'bp', 'Bench Press — 1RM Forsøg': 'bp',
         'Squat': 'sq',       'Squat — 1RM Forsøg': 'sq',
@@ -2061,6 +2099,16 @@ function renderToday() {
         </div>
         <div class="ex-badge ${badgeClass}">${badgeLabel}</div>
       </div>`;
+
+    if (ex.type === 'primary' && ex.scheme.isRampBack) {
+      html += `<div class="ramp-box">
+        🔄 <b>Ramp-tilbage</b> — ${ex.scheme.rampGapDays} dage siden sidste SBD-session.
+        Vægten nedenfor er kun et <b>loft</b>, ikke et mål. Byg op i opvarmningens spring,
+        og <b>stop ved RPE 8</b> — uanset hvad tallet siger. Gå ikke over
+        <b>${ex.scheme.rampCeilingKg} kg</b> i dag, uanset hvor let det føles.
+        Log det du faktisk rammer — næste session regner autoreguleringen ud fra det, ikke fra tiden før pausen.
+      </div>`;
+    }
 
     // Warmup section for primary lifts
     if (showWarmup) {
