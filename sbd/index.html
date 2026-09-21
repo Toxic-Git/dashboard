@@ -52,32 +52,9 @@ html, body {
 .view.active { display:block; }
 
 /* ── COMPUTER/DESKTOP: centrér indhold i en læsbar kolonne ── */
-/* ── COMPUTER/DESKTOP ── */
 @media (min-width:760px){
-  .view{ padding-left:calc((100vw - 720px)/2); padding-right:calc((100vw - 720px)/2); padding-bottom:110px; }
-  /* Flydende, centreret bundmenu i stedet for kant-til-kant mobilbjælke */
-  .bottom-nav{
-    left:50%; right:auto; transform:translateX(-50%);
-    width:100%; max-width:520px; bottom:14px;
-    border:1px solid var(--border); border-radius:14px; overflow:hidden;
-    box-shadow:0 10px 32px rgba(0,0,0,0.5);
-    padding-bottom:0;
-  }
-  .nav-btn:hover{ color:var(--text); }
-  /* Modals centreres på skærmen i stedet for at glide op fra bunden */
-  .modal-overlay{ align-items:center; }
-  .modal{ border-radius:var(--radius); max-width:520px; }
-}
-@media (min-width:1100px){
-  .view{ padding-left:calc((100vw - 960px)/2); padding-right:calc((100vw - 960px)/2); }
-  /* Dagens træning holdes i en behagelig, centreret kolonne */
-  #today-content{ max-width:720px; margin:0 auto; }
-  /* Program og indstillinger udnytter bredden med to kolonner */
-  #program-content{ columns:2; column-gap:16px; }
-  .prog-block{ break-inside:avoid; }
-  .settings-section{ columns:2; column-gap:16px; }
-  .settings-label{ break-after:avoid; }
-  .settings-card{ break-inside:avoid; }
+  .view{ padding-left:calc((100vw - 640px)/2); padding-right:calc((100vw - 640px)/2); }
+  .bottom-nav{ padding-left:calc((100vw - 640px)/2); padding-right:calc((100vw - 640px)/2); }
 }
 
 /* ── TOP BAR ── */
@@ -298,14 +275,6 @@ html, body {
 .set-row-5col.completed { background:rgba(61,184,122,0.06); }
 .set-row-5col.completed .set-num { color:var(--green); }
 
-/* Ramp-tilbage efter lang pause */
-.ramp-box {
-  margin:10px 16px 0; padding:12px 14px; border-radius:10px;
-  background:rgba(212,168,67,0.1); border:1px solid rgba(212,168,67,0.35);
-  font-size:12.5px; line-height:1.6; color:var(--text);
-}
-.ramp-box b { color:var(--gold); }
-
 /* Autoreg suggestion */
 .autoreg-bar {
   padding:12px 16px; border-top:1px solid var(--border);
@@ -366,6 +335,7 @@ html, body {
   letter-spacing:2px; text-transform:uppercase; cursor:pointer;
   /* Larger touch target */
   min-height:56px;
+}
   transition:opacity .15s;
 }
 .finish-btn:active { opacity:0.8; }
@@ -1052,28 +1022,6 @@ function getSBDScheme(lift, week) {
   const liftName = lift === 'squat' ? 'Squat'
     : lift === 'bench' ? 'Bench Press' : 'Deadlift (Conv.)';
 
-  // ── Ramp-tilbage efter lang pause ─────────────────────────────────────
-  // En fast %-nedsættelse ud fra kalenderen gætter på det forkerte problem:
-  // efter en lang pause er det sjældent selve styrken der er faldet lige så
-  // meget som følelsen af tyngde (rust i teknik/groove, mindre klar
-  // bindevæv) — og det varierer for meget til at ét fast tal kan ramme
-  // rigtigt. Vi foreslår derfor kun et forsigtigt LOFT (ikke et mål), og
-  // lader opvarmningen bygge op i mindre spring, så du selv stopper ved
-  // RPE 8 — uanset hvad tallet nedenfor siger. Så snart der er logget én
-  // session igen, forsvinder denne besked af sig selv (daysSince falder).
-  const RAMP_BACK_THRESHOLD_DAYS = 14;
-  const gapDays = daysSinceLastSbdSession(aState());
-  const isRampBack = gapDays !== null && gapDays >= RAMP_BACK_THRESHOLD_DAYS;
-
-  if (isRampBack) {
-    const capPct = 0.80, ceilPct = 0.85;
-    const cap = r(oneRM * capPct);
-    return {
-      sets: 3, reps: 2, repsRange: '1–3', kg: cap, pct: Math.round(capPct * 100),
-      targetRPE: 8, isRampBack: true, rampGapDays: gapDays, rampCeilingKg: r(oneRM * ceilPct),
-    };
-  }
-
   // Deload: 50% volumen, same % som blok start
   if (dl) {
     const deloadSchemes = {
@@ -1481,15 +1429,14 @@ if (!state.bodyweight) state.bodyweight = {};
 if (!state.peakAttempts) state.peakAttempts = {};
 if (!state.peakResults) state.peakResults = {};
 if (!state.dayOverrides) state.dayOverrides = {};
+if (!state.sessionNotes) state.sessionNotes = {};
+if (!partnerState.sessionNotes) partnerState.sessionNotes = {};
 
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md). Skal stå FØR første
 // saveState()-kald nedenfor, ellers fejler det med en TDZ-fejl.
-// Lokal dato som YYYY-MM-DD — toISOString() giver UTC-datoen og kan
-// forskyde datoer i dansk tid.
-function localISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
+const SYNC_BASE_URL = 'https://REPLACE-ME.workers.dev';
 let _syncPushTimers = {};
 
 function syncEnabled() {
@@ -1547,7 +1494,7 @@ function syncPush(key) {
 if (!state.programStartDate) {
   const d = new Date();
   d.setDate(d.getDate() - state.totalDays);
-  state.programStartDate = localISO(d);
+  state.programStartDate = d.toISOString().slice(0,10);
   saveState();
 }
 if (!state.programStart1RM) {
@@ -1621,41 +1568,8 @@ function aState() { return state.profile === 'partner' ? partnerState : state; }
 // Calendar is used for context (what day of week it is) and displaying
 // the current date, but does NOT drive program progression.
 
-// Dage siden sidste gennemførte SBD-session (baseret på sessionTimes), eller
-// null hvis intet er trænet endnu. Bruges både til pause-hop mellem dage og
-// til at opdage lange pauser (ramp-tilbage, se getSBDScheme).
-function daysSinceLastSbdSession(as) {
-  const st = as.sessionTimes || {};
-  let lastTs = null;
-  Object.values(st).forEach(t => {
-    const ts = t && (t.end || t.start);
-    if (ts && (!lastTs || ts > lastTs)) lastTs = ts;
-  });
-  if (!lastTs) return null;
-  return Math.round(
-    (new Date(localISO(new Date()) + 'T12:00:00') - new Date(localISO(new Date(lastTs)) + 'T12:00:00')) / 86400000
-  );
-}
-
 function syncProgramDay() {
-  // Auto-hop over pausedage, så appen altid matcher dashboardets plan:
-  // pausedagen i 8-dages-cyklussen ER løbedagen i den fælles rytme. Når der
-  // er gået en kalenderdag mere siden sidste gennemførte økt (2+ dage), er
-  // pausen reelt afholdt — spring videre automatisk, præcis som hvis man
-  // selv havde trykket "Næste dag →". Peak-ugen startes stadig manuelt.
-  const as = aState();
-  if (isPeakWeek()) return;
-  let guard = 0;
-  while (guard++ < 2 && CYCLE[as.totalDays % 8].type === 'rest') {
-    const daysSince = daysSinceLastSbdSession(as);
-    if (daysSince === null) return; // intet trænet endnu — rør ikke noget
-    if (daysSince < 2) return; // pausedagen er stadig "i dag"
-    if (as.totalDays >= 12 * 7 - 1) return;
-    const nextWeek = Math.min(12, Math.floor((as.totalDays + 1) / 7) + 1);
-    if (nextWeek === 12 && getWeek() < 12) return; // peak-uge kræver manuel start
-    as.totalDays++;
-    saveState();
-  }
+  // No-op — day advancement is training-driven, not calendar-driven
 }
 
 function getTodayDateStr() {
@@ -2029,7 +1943,7 @@ function renderToday() {
     // RPE-based weight hint — RIR formula for all lifts
     // Primary SBD: uses actual 1RM. Accessories: estimates e1RM from last logged set via Epley
     let rpeWeightHint = '';
-    if ((ex.scheme.kg > 0 || ex.type === 'acc') && !ex.scheme.isRampBack) {
+    if (ex.scheme.kg > 0 || ex.type === 'acc') {
       const liftRMMap = {
         'Bench Press': 'bp', 'Bench Press — 1RM Forsøg': 'bp',
         'Squat': 'sq',       'Squat — 1RM Forsøg': 'sq',
@@ -2091,24 +2005,36 @@ function renderToday() {
       ? `<span style="font-size:11px;color:var(--gold);margin-left:4px;">→ ~${rpeHintKg} kg ved RPE</span>`
       : '';
 
+    const lastPerf = getLastPerformance(ex.name);
+    const todayDoneSetsForCompare = (logEx?.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    let beatLastHtml = '';
+    if (lastPerf && todayDoneSetsForCompare.length) {
+      const todayBest = todayDoneSetsForCompare.reduce((b, s) =>
+        epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
+      );
+      const todayE1 = epley(parseFloat(todayBest.kg), parseInt(todayBest.reps));
+      const lastE1 = epley(lastPerf.kg, lastPerf.reps);
+      if (todayE1 > lastE1 * 1.005) {
+        beatLastHtml = ` <span style="color:var(--green);font-weight:600;">↑ bedre end sidst</span>`;
+      }
+    }
+    const practiceCount = getExercisePracticeCount(ex.name);
+    const practiceHtml = practiceCount >= 3
+      ? `<span style="font-size:10px;color:var(--muted);margin-left:6px;">· ${practiceCount} sessioner kørt</span>`
+      : '';
+    const lastPerfHtml = lastPerf
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Sidst: <span style="color:var(--text);font-weight:600;">${lastPerf.kg} kg</span> × <span style="color:var(--text);font-weight:600;">${lastPerf.reps}</span> reps${lastPerf.setsSummary ? ` <span style="opacity:0.7;">(${lastPerf.setsSummary})</span>` : ''}${beatLastHtml}${practiceHtml}</div>`
+      : (practiceCount >= 3 ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${practiceHtml}</div>` : '');
+
     html += `<div class="ex-card">
       <div class="ex-header">
         <div>
           <div class="ex-name">${ex.name}</div>
           <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeHintHtml} &nbsp;${ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown' ? rpeHtml(ex.type, week, ex.name) : ''}</div>
+          ${lastPerfHtml}
         </div>
         <div class="ex-badge ${badgeClass}">${badgeLabel}</div>
       </div>`;
-
-    if (ex.type === 'primary' && ex.scheme.isRampBack) {
-      html += `<div class="ramp-box">
-        🔄 <b>Ramp-tilbage</b> — ${ex.scheme.rampGapDays} dage siden sidste SBD-session.
-        Vægten nedenfor er kun et <b>loft</b>, ikke et mål. Byg op i opvarmningens spring,
-        og <b>stop ved RPE 8</b> — uanset hvad tallet siger. Gå ikke over
-        <b>${ex.scheme.rampCeilingKg} kg</b> i dag, uanset hvor let det føles.
-        Log det du faktisk rammer — næste session regner autoreguleringen ud fra det, ikke fra tiden før pausen.
-      </div>`;
-    }
 
     // Warmup section for primary lifts
     if (showWarmup) {
@@ -2156,7 +2082,7 @@ function renderToday() {
     logEx.sets.forEach((s, si) => {
       const done = s.done;
       const isLastSet = si === totalSets - 1;
-      const showRPE = showRPEInput && isLastSet;
+      const showRPE = showRPEInput;
       const isAMRAPSet = isLastSet && ex.scheme?.isMiniMax && ex.type === 'primary';
       const kgPlaceholder = rpeHintKg && ex.type === 'acc'
         ? rpeHintKg
@@ -2209,15 +2135,12 @@ function renderToday() {
       const repCeil   = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
       const repMid    = Math.round((repFloor + repCeil) / 2);
 
-      // Use best e1RM set across all done sets
       const doneSets = (logEx.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
-      const bestSet = doneSets.length ? doneSets.reduce((best, s) =>
-        epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(best.kg), parseInt(best.reps)) ? s : best
-      ) : lastSet;
+      const { avgReps, avgRPE, avgKg } = computeSetAverages(doneSets);
 
-      const actualReps = parseInt(bestSet?.reps) || 0;
-      const actualRPE  = lastSet.rpe ? parseFloat(lastSet.rpe) : null; // RPE from last set
-      const currentKg  = parseFloat(bestSet?.kg) || ex.scheme.kg || 0;
+      const actualReps = Math.round(avgReps);
+      const actualRPE  = avgRPE; // gennemsnit af RPE logget på tværs af sæt
+      const currentKg  = avgKg || ex.scheme.kg || 0;
 
       const expectedRPE = getExpectedRPE(ex.type, week);
       const rpeParts2   = expectedRPE.val.split('–');
@@ -2239,21 +2162,22 @@ function renderToday() {
           ? ` <span style="font-size:10px;color:var(--muted);">(${trend > 0 ? 'konsekvent let' : 'konsekvent tungt'})</span>`
           : '';
 
+        const rpeDisp = actualRPE!==null ? Math.round(actualRPE*10)/10 : null;
         if (actualReps < repFloor) {
           icon='📉'; cls='autoreg-down';
-          msg=`${actualReps} reps — under range, <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
+          msg=`Gns. ${actualReps} reps — under range, <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
         } else if (diff > currentKg * 0.04) {
           icon='🚀'; cls='autoreg-up';
-          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — langt over, <strong>prøv ${nextKg} kg</strong>${trendNote}`;
+          msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — langt over, <strong>prøv ${nextKg} kg</strong>${trendNote}`;
         } else if (diff > 0) {
           icon='📈'; cls='autoreg-up';
-          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
+          msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
         } else if (diff < -currentKg * 0.02) {
           icon='📉'; cls='autoreg-down';
-          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — for tungt, <strong>back off til ${nextKg} kg</strong>${trendNote}`;
+          msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — for tungt, <strong>back off til ${nextKg} kg</strong>${trendNote}`;
         } else {
           icon='✅'; cls='autoreg-hold';
-          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
+          msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
         }
         html += `<div class="autoreg-bar" id="autoreg-bar-${ei}" style="display:flex;">
           <div class="autoreg-icon">${icon}</div>
@@ -2262,15 +2186,22 @@ function renderToday() {
       }
     } // end showRPEInput autoreg block
 
-    // RPE reminder — shows when all sets done but RPE not logged
-    if ((isPrimary || isBackdown) && lastSet?.done && !lastSet?.rpe) {
-      html += `<div style="padding:10px 16px;border-top:1px solid var(--border);
-        display:flex;align-items:center;gap:8px;">
-        <span style="font-size:16px;">⚠️</span>
-        <span style="font-size:12px;color:var(--gold);font-weight:500;">
-          Husk at logge RPE på sidste sæt — bruges til autoregulering
-        </span>
-      </div>`;
+    // RPE reminder — viser hvor mange gennemførte sæt der stadig mangler RPE
+    // (bruges nu til gennemsnittet, ikke kun sidste sæt)
+    if (isPrimary || isBackdown) {
+      const rpeCheckSets = (logEx.sets || []).filter(s => s.done);
+      const missingRPE = rpeCheckSets.filter(s => !s.rpe).length;
+      if (rpeCheckSets.length > 0 && missingRPE > 0) {
+        html += `<div style="padding:10px 16px;border-top:1px solid var(--border);
+          display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">⚠️</span>
+          <span style="font-size:12px;color:var(--gold);font-weight:500;">
+            ${missingRPE === rpeCheckSets.length
+              ? 'Husk at logge RPE — bruges til gennemsnittet i autoreguleringen'
+              : `Mangler RPE på ${missingRPE} af ${rpeCheckSets.length} sæt — bruges til gennemsnittet`}
+          </span>
+        </div>`;
+      }
     }
 
     // Hidden placeholder for partial re-render (autoreg shows after last set)
@@ -2293,10 +2224,11 @@ function renderToday() {
         let icon, cls, msg;
         const accStep = /\bDB\b|Dumbbell/i.test(ex.name || '') ? 2 : 2.5;
         if (minReps >= repCeil) {
-          // All sets hit top or above — go up
-          const nextKg = roundForExercise(currentKg + accStep, ex.name);
+          // All sets hit top or above — go up. Vi foreslår IKKE et præcist
+          // tal her, da udstyret (håndvægte, kabelstak) ofte kun har bestemte
+          // trin — du vælger selv det næste niveau der er til rådighed.
           icon = '🏆'; cls = 'autoreg-up';
-          msg = `Alle sæt i top — <strong>gå op til ${nextKg} kg</strong> næste gang, start ved ${repFloor} reps`;
+          msg = `Du har opnået mere end øvelsen kræver — <strong>stig til næste tilgængelige niveau</strong>, start ved ${repFloor} reps`;
         } else if (maxReps < repFloor) {
           // All sets below floor — drop weight
           const nextKg = roundForExercise(currentKg - accStep, ex.name);
@@ -2316,6 +2248,15 @@ function renderToday() {
           <div class="autoreg-icon">${icon}</div>
           <div class="autoreg-text ${cls}">${msg}</div>
         </div>`;
+
+        // Plateau-varsel — kun relevant når vægten IKKE lige er hævet (giver
+        // ikke mening at advare om stilstand samme session som du rykker dig).
+        if (cls === 'autoreg-hold' && detectAccessoryPlateau(ex.name)) {
+          html += `<div class="autoreg-bar" style="background:rgba(212,168,67,0.08);">
+            <div class="autoreg-icon">🧊</div>
+            <div class="autoreg-text" style="color:var(--gold);">Ingen reel fremgang de sidste 4 sessioner — overvej et stimulusskifte (variant, tempo, eller rep-range).</div>
+          </div>`;
+        }
       }
     }
     const noteKey = `note_${ex.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '_')}`;
@@ -2569,19 +2510,14 @@ function toggleSet(ei, si) {
     const totalSets = as.logs[key]?.exercises[ei]?.sets?.length ?? 0;
     const isLastSet = si === totalSets - 1;
     if (isPrimaryOrBD && isLastSet) {
-      // Use best e1RM across ALL done sets — more robust than just last set
       const doneSets = (as.logs[key]?.exercises[ei]?.sets || []).filter(
         s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
       if (!doneSets.length) return;
 
-      // Best e1RM set = highest estimated 1RM
-      const bestSet = doneSets.reduce((best, s) =>
-        epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(best.kg), parseInt(best.reps)) ? s : best
-      );
-      const currentKg  = parseFloat(bestSet.kg);
-      const actualReps = parseInt(bestSet.reps);
-      // RPE still from last set — most fatigued signal
-      const actualRPE  = s.rpe ? parseFloat(s.rpe) : null;
+      const { avgReps, avgRPE, avgKg } = computeSetAverages(doneSets);
+      const currentKg  = avgKg;
+      const actualReps = Math.round(avgReps);
+      const actualRPE  = avgRPE; // gennemsnit på tværs af sæt, ikke kun sidste
 
       const repParts = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
       const repFloor = parseInt(repParts[0]);
@@ -2751,7 +2687,72 @@ function fmtDuration(secs) {
   return `${m} min`;
 }
 
+const SESSION_NOTE_TAGS = ['⏱ Tidsbegrænset', '😩 Udmattet', '🤒 Syg/øm', '😴 Dårlig søvn', '🍽 Ikke spist nok', '🧠 Distraheret'];
+let _pendingSessionNoteTags = new Set();
+
 function finishWorkout() {
+  const as = aState();
+  const key = logKey();
+  const log = as.logs[key];
+  const dayInfo = isPeakWeek() ? PEAK_WEEK[getPeakDay()] : CYCLE[getCycleDay()];
+  let exercises = [];
+  if (!isPeakWeek() && dayInfo?.type === 'workout') {
+    exercises = getExercises(dayInfo.id, getWeek());
+  }
+  const allDone = log && exercises.length > 0
+    ? exercises.every((ex, ei) => (log.exercises[ei]?.sets || []).every(s => s.done))
+    : true; // kan ikke afgøres — bloker ikke afslutning
+
+  if (allDone) {
+    completeWorkoutFinish();
+  } else {
+    _pendingSessionNoteTags = new Set();
+    showSessionReasonModal();
+  }
+}
+
+// Spørger KUN om en begrundelse hvis træningen ikke blev gennemført som
+// planlagt — intet popper op ved en fuldt afsluttet session.
+function showSessionReasonModal() {
+  const chips = SESSION_NOTE_TAGS.map(t =>
+    `<button type="button" class="session-tag-chip" data-tag="${t}" onclick="toggleSessionTag(this,'${t.replace(/'/g, "\\'")}')"
+      style="padding:8px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;margin:3px;cursor:pointer;">${t}</button>`
+  ).join('');
+  const body = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Ikke alle sæt blev gennemført. Hvad var årsagen? (valgfrit)</div>
+    <div style="display:flex;flex-wrap:wrap;margin-bottom:12px;">${chips}</div>
+    <textarea id="session-reason-text" placeholder="Uddyb evt. med egne ord..."
+      style="width:100%;min-height:60px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-family:inherit;font-size:13px;box-sizing:border-box;"></textarea>
+  `;
+  showModal('Afslut træning', body, saveSessionReasonAndFinish);
+}
+
+function toggleSessionTag(btn, tag) {
+  if (_pendingSessionNoteTags.has(tag)) {
+    _pendingSessionNoteTags.delete(tag);
+    btn.style.background = 'var(--surface2)'; btn.style.color = 'var(--muted)'; btn.style.borderColor = 'var(--border)';
+  } else {
+    _pendingSessionNoteTags.add(tag);
+    btn.style.background = 'var(--gold)'; btn.style.color = '#181a1f'; btn.style.borderColor = 'var(--gold)';
+  }
+}
+
+function saveSessionReasonAndFinish() {
+  const as = aState();
+  const key = logKey();
+  const textEl = document.getElementById('session-reason-text');
+  const text = textEl ? textEl.value.trim() : '';
+  const tags = [..._pendingSessionNoteTags];
+  if (tags.length || text) {
+    if (!as.sessionNotes) as.sessionNotes = {};
+    as.sessionNotes[key] = { tags, text };
+    saveState();
+  }
+  closeModal();
+  completeWorkoutFinish();
+}
+
+function completeWorkoutFinish() {
   const as = aState();
 
   // Record session end time
@@ -2990,7 +2991,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   state.dayOverrides = {};
   state.sessionTimes = {};
   state.checkpointExported = {};
-  state.programStartDate = localISO(new Date()); // today
+  state.programStartDate = new Date().toISOString().slice(0,10); // today
 
   saveState();
   closeModal();
@@ -3483,11 +3484,21 @@ function renderHistory() {
     const dayInfo = CYCLE[d % 8];
     if (!log || !dayInfo || dayInfo.type === 'rest') return;
     const w = Math.floor(d / 7) + 1;
+    const noteData = as.sessionNotes?.[key];
+    const noteHtml = noteData && (noteData.tags?.length || noteData.text)
+      ? `<div style="margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:8px;">
+          ${noteData.tags?.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;${noteData.text ? 'margin-bottom:6px;' : ''}">
+            ${noteData.tags.map(t => `<span style="font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px 8px;color:var(--gold);">${t}</span>`).join('')}
+          </div>` : ''}
+          ${noteData.text ? `<div style="font-size:12px;color:var(--muted);font-style:italic;">"${noteData.text}"</div>` : ''}
+        </div>`
+      : '';
     html += `<div class="hist-entry">
       <div class="hist-entry-header">
         <div class="hist-entry-day">${dayInfo.name}</div>
         <div class="hist-entry-date">Uge ${w} · Dag ${d + 1}</div>
-      </div>`;
+      </div>
+      ${noteHtml}`;
     log.exercises.forEach(ex => {
       const doneSets = ex.sets.filter(s => s.done);
       if (doneSets.length === 0) return;
@@ -3837,14 +3848,11 @@ function updateAutoregBar(ei) {
   const repCeil  = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
   const repMid   = Math.round((repFloor + repCeil) / 2);
 
-  // Best e1RM across all done sets, RPE from last set
   const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
-  const bestSet = doneSets.length ? doneSets.reduce((best, s) =>
-    epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(best.kg), parseInt(best.reps)) ? s : best
-  ) : lastSet;
-  const actualReps = parseInt(bestSet?.reps) || 0;
-  const actualRPE  = lastSet.rpe ? parseFloat(lastSet.rpe) : null;
-  const currentKg  = parseFloat(bestSet?.kg) || ex.scheme.kg || 0;
+  const { avgReps, avgRPE, avgKg } = computeSetAverages(doneSets);
+  const actualReps = Math.round(avgReps);
+  const actualRPE  = avgRPE;
+  const currentKg  = avgKg || ex.scheme.kg || 0;
 
   const expectedRPE = getExpectedRPE(ex.type, week);
   const rpeParts2 = expectedRPE.val.split('–');
@@ -3863,21 +3871,22 @@ function updateAutoregBar(ei) {
       : '';
 
     let icon, cls, msg;
+    const rpeDisp = actualRPE!==null ? Math.round(actualRPE*10)/10 : null;
     if (actualReps < repFloor) {
       icon='📉'; cls='autoreg-down';
-      msg=`${actualReps} reps — under range, <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
+      msg=`Gns. ${actualReps} reps — under range, <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
     } else if (diff > currentKg * 0.04) {
       icon='🚀'; cls='autoreg-up';
-      msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — langt over, <strong>prøv ${nextKg} kg</strong>${trendNote}`;
+      msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — langt over, <strong>prøv ${nextKg} kg</strong>${trendNote}`;
     } else if (diff > 0) {
       icon='📈'; cls='autoreg-up';
-      msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
+      msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
     } else if (diff < -currentKg * 0.02) {
       icon='📉'; cls='autoreg-down';
-      msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — for tungt, <strong>back off til ${nextKg} kg</strong>${trendNote}`;
+      msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — for tungt, <strong>back off til ${nextKg} kg</strong>${trendNote}`;
     } else {
       icon='✅'; cls='autoreg-hold';
-      msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
+      msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
     }
     bar.className = `autoreg-bar`;
     bar.innerHTML = `<div class="autoreg-icon">${icon}</div><div class="autoreg-text ${cls}">${msg}</div>`;
@@ -4573,7 +4582,7 @@ function exportProgramData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sbd-program-${localISO(new Date())}.json`;
+  a.download = `sbd-program-${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4656,6 +4665,82 @@ function roundForExercise(kg, exName) {
 }
 
 // Beregn næste kg baseret på reps + RPE via RIR-formel
+// Gennemsnit af vægt/reps/RPE på tværs af ALLE gennemførte sæt for en øvelse
+// — undgår at blande fx bedste sæts reps med sidste sæts RPE (to forskellige
+// sæt), som tidligere kunne give et forslag baseret på et sammensat
+// datapunkt der reelt aldrig fandt sted. RPE er kun med i gennemsnittet for
+// de sæt hvor den faktisk er logget.
+// Finder seneste gang en given øvelse blev logget (uanset dag i cyklussen),
+// søger bagud gennem gennemførte dage. Bruges til "Sidst: X kg × Y reps".
+function getLastPerformance(exName) {
+  const as = aState();
+  const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
+  for (const day of completed) {
+    const log = as.logs?.['day' + day];
+    if (!log) continue;
+    const exLog = (log.exercises || []).find(e => e.name === exName);
+    if (!exLog) continue;
+    const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    if (!doneSets.length) continue;
+    const best = doneSets.reduce((b, s) =>
+      epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
+    );
+    const setsSummary = doneSets.map(s => `${s.kg}×${s.reps}`).join(', ');
+    return { kg: parseFloat(best.kg), reps: parseInt(best.reps), setsSummary };
+  }
+  return null;
+}
+
+// Samler e1RM-historik for en øvelse på tværs af tidligere sessioner (nyeste
+// først). Bruges til både plateau-detektion og session-tælleren.
+function getExerciseHistory(exName) {
+  const as = aState();
+  const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
+  const history = [];
+  for (const day of completed) {
+    const log = as.logs?.['day' + day];
+    if (!log) continue;
+    const exLog = (log.exercises || []).find(e => e.name === exName);
+    if (!exLog) continue;
+    const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    if (!doneSets.length) continue;
+    const best = doneSets.reduce((b, s) =>
+      epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
+    );
+    history.push({ day, e1rm: epley(parseFloat(best.kg), parseInt(best.reps)) });
+  }
+  return history;
+}
+
+// Plateau: ingen reel e1RM-fremgang over de seneste `lookback` sessioner af
+// en given accessory. Kræver mindst så mange sessioner at kunne vurdere det.
+function detectAccessoryPlateau(exName, lookback = 4) {
+  const history = getExerciseHistory(exName);
+  if (history.length < lookback) return false;
+  const window = history.slice(0, lookback);
+  const newest = window[0].e1rm;
+  const oldest = window[window.length - 1].e1rm;
+  if (!oldest) return false;
+  const improvementPct = (newest - oldest) / oldest;
+  return improvementPct < 0.01; // under 1% fremgang over hele vinduet
+}
+
+// Hvor længe har du kørt denne øvelse — antal sessioner den er logget.
+function getExercisePracticeCount(exName) {
+  return getExerciseHistory(exName).length;
+}
+
+function computeSetAverages(doneSets) {
+  if (!doneSets.length) return { avgReps: 0, avgRPE: null, avgKg: 0 };
+  const avgReps = doneSets.reduce((sum, s) => sum + parseInt(s.reps), 0) / doneSets.length;
+  const rpeSets = doneSets.filter(s => s.rpe);
+  const avgRPE = rpeSets.length
+    ? rpeSets.reduce((sum, s) => sum + parseFloat(s.rpe), 0) / rpeSets.length
+    : null;
+  const avgKg = doneSets.reduce((sum, s) => sum + parseFloat(s.kg), 0) / doneSets.length;
+  return { avgReps, avgRPE, avgKg };
+}
+
 function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exName) {
   if (!currentKg || currentKg <= 0) return currentKg;
 
@@ -5343,14 +5428,6 @@ function registerSW() {
   if (!location.hostname.includes('github.io') && !location.hostname.includes('localhost')) return;
   navigator.serviceWorker.register('./sw.js')
     .catch(e => console.warn('SW registration failed:', e));
-  // Genindlæs automatisk én gang når en ny service worker overtager, så
-  // opdateringer slår igennem uden at man selv skal lukke/genåbne appen.
-  let _swReloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_swReloaded) return;
-    _swReloaded = true;
-    window.location.reload();
-  });
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
