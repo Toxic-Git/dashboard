@@ -528,6 +528,10 @@ html, body {
       <div class="topbar-title" id="topbar-title">SBD Tracker</div>
       <div class="topbar-sub" id="today-date"></div>
     </div>
+    <button onclick="showCoachMode()" style="background:var(--surface2);border:1px solid var(--gold-dim);
+      color:var(--gold);border-radius:8px;padding:6px 10px;font-family:'Barlow Condensed',sans-serif;
+      font-size:12px;font-weight:700;letter-spacing:0.5px;cursor:pointer;margin-right:8px;
+      display:flex;align-items:center;gap:4px;">🧠 Coach</button>
     <div class="topbar-badge" id="today-block-badge"></div>
   </div>
   <div id="today-content"></div>
@@ -602,6 +606,11 @@ html, body {
         <canvas id="bw-chart"></canvas>
         <div class="chart-empty" id="bw-chart-empty" style="display:none;">Log din kropsvægt for at se grafen.</div>
       </div>
+    </div>
+    <!-- Strength-to-bodyweight -->
+    <div class="chart-wrap" id="s2bw-wrap" style="margin-top:0;">
+      <div class="chart-title">Styrke i forhold til kropsvægt</div>
+      <div id="s2bw-content"></div>
     </div>
     <!-- Block progression -->
     <div class="chart-wrap" id="block-progression-wrap" style="margin-top:0;">
@@ -791,6 +800,7 @@ html, body {
       <div class="timer-lift-name" id="timer-lift-name"></div>
     </div>
   </div>
+  <div id="timer-next-set" style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:20px;min-height:36px;"></div>
   <div class="timer-actions">
     <button class="timer-btn timer-add" onclick="addTimerTime(60)">+1 min</button>
     <button class="timer-btn timer-skip" onclick="skipTimer()">Spring over</button>
@@ -1419,6 +1429,11 @@ let partnerState = JSON.parse(localStorage.getItem('sbd_partner') || 'null') || 
 
 if (!state.pr) state.pr = {};
 if (!partnerState.pr) partnerState.pr = {};
+if (!partnerState.sessionTimes) partnerState.sessionTimes = {};
+if (!partnerState.timerPrimary)  partnerState.timerPrimary  = 240;
+if (!partnerState.timerBackdown) partnerState.timerBackdown = 180;
+if (!partnerState.timerAcc)      partnerState.timerAcc      = 120;
+if (!partnerState.programHistory) partnerState.programHistory = [];
 if (!state.autoregAdj) state.autoregAdj = {};
 if (!partnerState.autoregAdj) partnerState.autoregAdj = {};
 if (!state.restScore) state.restScore = {};
@@ -1426,6 +1441,7 @@ if (!partnerState.restScore) partnerState.restScore = {};
 if (!state.sleepLog) state.sleepLog = {};
 if (!partnerState.sleepLog) partnerState.sleepLog = {};
 if (!state.bodyweight) state.bodyweight = {};
+if (!partnerState.bodyweight) partnerState.bodyweight = {};
 if (!state.peakAttempts) state.peakAttempts = {};
 if (!state.peakResults) state.peakResults = {};
 if (!state.dayOverrides) state.dayOverrides = {};
@@ -1768,7 +1784,7 @@ function renderToday() {
   const hasOverride = aState().dayOverrides?.[aState().totalDays] !== undefined;
   const estimated = (!isPeakWeek() && day.type === 'workout')
     ? calcEstimatedTime(CYCLE[cycleDay]?.id || day.id, week) : 0;
-  const timing = state.sessionTimes?.[logKey()];
+  const timing = aState().sessionTimes?.[logKey()];
   const actualSecs = timing?.sessionStart && timing?.end
     ? Math.round((timing.end - timing.sessionStart) / 1000) : null;
   const timeStr = actualSecs
@@ -1824,7 +1840,7 @@ function renderToday() {
       </div>`;
     } else {
       // Show timing breakdown once started
-      const t = state.sessionTimes?.[logKey()];
+      const t = aState().sessionTimes?.[logKey()];
       if (t?.sessionStart) {
         const nowMs = Date.now();
         const totalMins = Math.round((nowMs - t.sessionStart) / 60000);
@@ -2029,7 +2045,7 @@ function renderToday() {
     html += `<div class="ex-card">
       <div class="ex-header">
         <div>
-          <div class="ex-name">${ex.name}</div>
+          <div class="ex-name">${ex.name} <span onclick="showExercisePerformance('${ex.name.replace(/'/g, "\\'")}')" style="font-size:12px;cursor:pointer;opacity:0.6;" title="Se performance-oversigt">📊</span></div>
           <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeHintHtml} &nbsp;${ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown' ? rpeHtml(ex.type, week, ex.name) : ''}</div>
           ${lastPerfHtml}
         </div>
@@ -2179,6 +2195,7 @@ function renderToday() {
           icon='✅'; cls='autoreg-hold';
           msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
         }
+        msg += ` <span onclick="showWhyModal('${ex.name.replace(/'/g, "\\'")}', ${currentKg}, ${actualReps}, ${effectiveRPE === null ? 'null' : effectiveRPE}, ${targetReps}, ${expRPEMid})" style="cursor:pointer;text-decoration:underline;opacity:0.75;white-space:nowrap;">ℹ️ Hvorfor?</span>`;
         html += `<div class="autoreg-bar" id="autoreg-bar-${ei}" style="display:flex;">
           <div class="autoreg-icon">${icon}</div>
           <div class="autoreg-text ${cls}">${msg}</div>
@@ -2418,12 +2435,49 @@ function updateSet(ei, si, field, val) {
   saveState();
 }
 
+// Finder det faktiske næste sæt (samme øvelse eller næste øvelse) ud fra de
+// rigtige exercises/log-data — ingen gættet eller opfundet information.
+// Der findes ingen struktureret udstyrsdata pr. accessory i appen (kun
+// pladeudstyr til opvarmningssæt), så der vises bevidst ingen "gør udstyr
+// klar"-note her — det ville kræve at opfinde data der ikke findes.
+function getNextSetInfo(exercises, log, ei, si) {
+  const currentLogEx = log.exercises[ei];
+  const totalSetsThisEx = (currentLogEx?.sets || []).length;
+
+  if (si + 1 < totalSetsThisEx) {
+    const nextSet = currentLogEx.sets[si + 1];
+    const currentEx = exercises[ei];
+    return {
+      exName: currentEx.name,
+      kg: nextSet.kg || currentEx.scheme.kg,
+      reps: nextSet.reps || currentEx.scheme.reps,
+      isNewExercise: false,
+    };
+  }
+
+  for (let nextEi = ei + 1; nextEi < exercises.length; nextEi++) {
+    const nextLogEx = log.exercises[nextEi];
+    if (!nextLogEx?.sets?.length) continue;
+    const firstUndone = nextLogEx.sets.find(s => !s.done);
+    if (!firstUndone) continue;
+    const nextEx = exercises[nextEi];
+    return {
+      exName: nextEx.name,
+      kg: firstUndone.kg || nextEx.scheme.kg,
+      reps: firstUndone.reps || nextEx.scheme.reps,
+      isNewExercise: true,
+    };
+  }
+  return null; // ingen flere sæt tilbage i dagens træning
+}
+
 function toggleSet(ei, si) {
   const key = logKey();
   const as = aState();
   if (!as.logs[key]?.exercises[ei]?.sets[si]) return;
   const s = as.logs[key].exercises[ei].sets[si];
-  const ex = getExercises(CYCLE[getCycleDay()].id, getWeek())[ei];
+  const exercisesFull = getExercises(CYCLE[getCycleDay()].id, getWeek());
+  const ex = exercisesFull[ei];
   if (!ex) return;
   if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
   if (!s.reps) s.reps = ex.scheme.reps;
@@ -2431,11 +2485,11 @@ function toggleSet(ei, si) {
 
   // Track granular session timestamps
   if (s.done) {
-    if (!state.sessionTimes) state.sessionTimes = {};
-    if (!state.sessionTimes[key]) {
-      state.sessionTimes[key] = { sessionStart: null, warmupStart: null, workStart: null, start: null, end: null };
+    if (!as.sessionTimes) as.sessionTimes = {};
+    if (!as.sessionTimes[key]) {
+      as.sessionTimes[key] = { sessionStart: null, warmupStart: null, workStart: null, start: null, end: null };
     }
-    const timing = state.sessionTimes[key];
+    const timing = as.sessionTimes[key];
     const now = Date.now();
 
     // Fallback: if "Start træning" was never pressed, use first set as sessionStart
@@ -2501,10 +2555,11 @@ function toggleSet(ei, si) {
 
   if (s.done) {
     const isPrimaryOrBD = ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown';
-    const duration = ex.type === 'backdown' ? state.timerBackdown
-      : (ex.type === 'primary' || ex.type === 'secondary') ? state.timerPrimary
-      : state.timerAcc;
-    startTimer(duration, ex.name);
+    const duration = ex.type === 'backdown' ? as.timerBackdown
+      : (ex.type === 'primary' || ex.type === 'secondary') ? as.timerPrimary
+      : as.timerAcc;
+    const nextSetInfo = getNextSetInfo(exercisesFull, as.logs[key], ei, si);
+    startTimer(duration, ex.name, nextSetInfo);
 
     // Autoreg: reps primær, RPE sekundær — trend-baseret
     const totalSets = as.logs[key]?.exercises[ei]?.sets?.length ?? 0;
@@ -2660,6 +2715,7 @@ window.exportProgramData = exportProgramData;
 window.startNewProgram = startNewProgram;
 
 function calcEstimatedTime(dayId, week) {
+  const as = aState();
   const exercises = getExercises(dayId, week);
   let totalSecs = 0;
   // Warmup: ~5 min per primary lift
@@ -2671,9 +2727,9 @@ function calcEstimatedTime(dayId, week) {
     // Time per set: ~30s to execute
     const execTime = 30;
     // Rest time after each set (except last)
-    const restTime = ex.type === 'primary' || ex.type === 'secondary' ? state.timerPrimary
-      : ex.type === 'backdown' ? state.timerBackdown
-      : state.timerAcc;
+    const restTime = ex.type === 'primary' || ex.type === 'secondary' ? as.timerPrimary
+      : ex.type === 'backdown' ? as.timerBackdown
+      : as.timerAcc;
     totalSecs += sets * execTime + Math.max(0, sets - 1) * restTime;
   });
   return Math.round(totalSecs);
@@ -2757,22 +2813,22 @@ function completeWorkoutFinish() {
 
   // Record session end time
   const key = logKey();
-  if (!state.sessionTimes) state.sessionTimes = {};
+  if (!as.sessionTimes) as.sessionTimes = {};
   const MAX_REALISTIC_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours
-  if (state.sessionTimes[key]) {
+  if (as.sessionTimes[key]) {
     const candidateEnd = Date.now();
-    const candidateStart = state.sessionTimes[key].sessionStart || state.sessionTimes[key].start;
+    const candidateStart = as.sessionTimes[key].sessionStart || as.sessionTimes[key].start;
     if (candidateStart && (candidateEnd - candidateStart) > MAX_REALISTIC_SESSION_MS) {
       const estimatedSecs = isPeakWeek() ? 1800 : calcEstimatedTime(CYCLE[getCycleDay()]?.id, getWeek());
       const resetStart = candidateEnd - (estimatedSecs * 1000);
-      state.sessionTimes[key].sessionStart = resetStart;
-      state.sessionTimes[key].start = resetStart;
-      state.sessionTimes[key].wasReset = true;
+      as.sessionTimes[key].sessionStart = resetStart;
+      as.sessionTimes[key].start = resetStart;
+      as.sessionTimes[key].wasReset = true;
     }
-    state.sessionTimes[key].end = candidateEnd;
+    as.sessionTimes[key].end = candidateEnd;
   } else {
     const now = Date.now();
-    state.sessionTimes[key] = { sessionStart: now, start: now, end: now };
+    as.sessionTimes[key] = { sessionStart: now, start: now, end: now };
   }
 
   // Mark day as completed
@@ -2782,7 +2838,7 @@ function completeWorkoutFinish() {
   saveState();
 
   // Show session summary toast with breakdown
-  const timing = state.sessionTimes[key];
+  const timing = as.sessionTimes[key];
   if (timing?.sessionStart && timing?.end) {
     const actual = Math.round((timing.end - timing.sessionStart) / 1000);
     const warmupSecs = timing.warmupStart && timing.workStart
@@ -2814,23 +2870,24 @@ function completeWorkoutFinish() {
 }
 
 function startWorkout() {
+  const as = aState();
   const key = logKey();
-  if (!state.sessionTimes) state.sessionTimes = {};
-  if (!state.sessionTimes[key]) {
-    state.sessionTimes[key] = {
-      sessionStart: Date.now(), // when "Start træning" was pressed
+  if (!as.sessionTimes) as.sessionTimes = {};
+  if (!as.sessionTimes[key]) {
+    as.sessionTimes[key] = {
+      sessionStart: Date.now(), // when "Start træning" var trykket
       warmupStart: null,        // first warmup set checked
       workStart: null,          // first primary working set checked
       end: null,
     };
   } else {
     // Already exists (e.g. reopened session) — just update sessionStart if not set
-    if (!state.sessionTimes[key].sessionStart) {
-      state.sessionTimes[key].sessionStart = Date.now();
+    if (!as.sessionTimes[key].sessionStart) {
+      as.sessionTimes[key].sessionStart = Date.now();
     }
   }
   // Legacy compat: also set .start for existing code that reads it
-  state.sessionTimes[key].start = state.sessionTimes[key].sessionStart;
+  as.sessionTimes[key].start = as.sessionTimes[key].sessionStart;
   saveState();
   invalidateCache();
   renderToday();
@@ -2838,7 +2895,7 @@ function startWorkout() {
 window.startWorkout = startWorkout;
 
 function hasStartedWorkout() {
-  return !!state.sessionTimes?.[logKey()]?.sessionStart;
+  return !!aState().sessionTimes?.[logKey()]?.sessionStart;
 }
 
 function showCheckpointExportModal(week) {
@@ -2969,29 +3026,30 @@ function showResultScreen(newSQ, newBP, newDL) {
 }
 
 function startNewProgram(newSQ, newBP, newDL) {
-  state.programHistory.push({
+  const as = aState();
+  as.programHistory.push({
     date: new Date().toLocaleDateString('da-DK'),
     sq: getSQ(), bp: getBP(), dl: getDL(),
     newSq: newSQ, newBp: newBP, newDl: newDL,
-    program: state.logs,
+    program: as.logs,
   });
 
-  state.oneRM = { sq: newSQ, bp: newBP, dl: newDL };
-  state.programStart1RM = { sq: newSQ, bp: newBP, dl: newDL }; // lock new baseline
-  state.totalDays = 0;
-  state.logs = {};
-  state.completedDays = [];
-  state.pending1RM = {};
-  state.deloadWeeks = [];
-  state.restScore = {};
-  state.sleepLog = {};
-  state.autoDeloadTriggered = null;
-  state.peakAttempts = {};
-  state.peakResults = {};
-  state.dayOverrides = {};
-  state.sessionTimes = {};
-  state.checkpointExported = {};
-  state.programStartDate = new Date().toISOString().slice(0,10); // today
+  as.oneRM = { sq: newSQ, bp: newBP, dl: newDL };
+  as.programStart1RM = { sq: newSQ, bp: newBP, dl: newDL }; // lock new baseline
+  as.totalDays = 0;
+  as.logs = {};
+  as.completedDays = [];
+  as.pending1RM = {};
+  as.deloadWeeks = [];
+  as.restScore = {};
+  as.sleepLog = {};
+  as.autoDeloadTriggered = null;
+  as.peakAttempts = {};
+  as.peakResults = {};
+  as.dayOverrides = {};
+  as.sessionTimes = {};
+  as.checkpointExported = {};
+  as.programStartDate = new Date().toISOString().slice(0,10); // today
 
   saveState();
   closeModal();
@@ -3420,6 +3478,7 @@ function renderHistory() {
   renderAccChartTabs();
   renderWeeklySummary();
   drawBodyweightChart();
+  renderStrengthToBodyweight();
   renderBlockProgression();
 
   // PR summary for main SBD lifts — now includes e1RM, Solo PR, Comp PR
@@ -3724,9 +3783,9 @@ function renderSettings() {
   document.getElementById('setting-week').textContent = getWeek();
   document.getElementById('setting-day').textContent = getCycleDay() + 1;
 
-  document.getElementById('setting-timer-primary').textContent = fmtTime(state.timerPrimary);
-  document.getElementById('setting-timer-backdown').textContent = fmtTime(state.timerBackdown || 180);
-  document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
+  document.getElementById('setting-timer-primary').textContent = fmtTime(aState().timerPrimary);
+  document.getElementById('setting-timer-backdown').textContent = fmtTime(aState().timerBackdown || 180);
+  document.getElementById('setting-timer-acc').textContent = fmtTime(aState().timerAcc);
 
   // Max plate toggle styling
   const btn20 = document.getElementById('btn-plate-20');
@@ -3787,7 +3846,13 @@ function confirmReset() {
   const isPartner = state.profile === 'partner';
   showModal(`Nulstil din træning`, `Dette sletter al din træningshistorik og starter fra uge 1. Er du sikker?`, () => {
     if (isPartner) {
-      partnerState = { totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {}, pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, deloadWeeks: [] };
+      partnerState = {
+        totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {}, pr: {}, autoregAdj: {},
+        restScore: {}, sleepLog: {}, deloadWeeks: [], sessionTimes: {}, bodyweight: {},
+        checkpointExported: {}, peakAttempts: {}, peakResults: {}, dayOverrides: {},
+        sessionNotes: {}, programHistory: [], programStart1RM: { ...(partnerState.oneRM || {}) },
+        oneRM: partnerState.oneRM || {}, profile: 'partner',
+      };
     } else {
       state.totalDays = 0; state.logs = {}; state.completedDays = [];
       state.pending1RM = {}; state.deloadWeeks = [];
@@ -3888,6 +3953,7 @@ function updateAutoregBar(ei) {
       icon='✅'; cls='autoreg-hold';
       msg=`Gns. ${actualReps} reps${rpeDisp ? ' ved gns. RPE '+rpeDisp : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
     }
+    msg += ` <span onclick="showWhyModal('${ex.name.replace(/'/g, "\\'")}', ${currentKg}, ${actualReps}, ${effectiveRPE === null ? 'null' : effectiveRPE}, ${targetReps}, ${expRPEMid})" style="cursor:pointer;text-decoration:underline;opacity:0.75;white-space:nowrap;">ℹ️ Hvorfor?</span>`;
     bar.className = `autoreg-bar`;
     bar.innerHTML = `<div class="autoreg-icon">${icon}</div><div class="autoreg-text ${cls}">${msg}</div>`;
     bar.style.display = 'flex';
@@ -3898,13 +3964,14 @@ function updateAutoregBar(ei) {
 // ─── BODYWEIGHT TRACKING ─────────────────────────────────────────────────────
 
 function getBodyweight(day) {
-  return state.bodyweight?.[day] || null;
+  return aState().bodyweight?.[day] || null;
 }
 
 function saveBodyweight(kg) {
   if (!kg || isNaN(kg) || kg <= 0) return;
-  if (!state.bodyweight) state.bodyweight = {};
-  state.bodyweight[aState().totalDays] = kg;
+  const as = aState();
+  if (!as.bodyweight) as.bodyweight = {};
+  as.bodyweight[as.totalDays] = kg;
   saveState();
   const scrollY = window.scrollY;
   renderToday();
@@ -3916,7 +3983,7 @@ function drawDurationChart() {
   const empty  = document.getElementById('duration-chart-empty');
   if (!canvas || !empty) return;
 
-  const times = state.sessionTimes || {};
+  const times = aState().sessionTimes || {};
   const MAX_REALISTIC_MIN = 240; // 4 hours
   const points = Object.entries(times)
     .filter(([, t]) => (t?.sessionStart || t?.start) && t?.end && t.end > (t.sessionStart || t.start))
@@ -3996,7 +4063,7 @@ function drawBodyweightChart() {
   const canvas = document.getElementById('bw-chart');
   const empty  = document.getElementById('bw-chart-empty');
   if (!canvas || !empty) return;
-  const bw = state.bodyweight || {};
+  const bw = aState().bodyweight || {};
   const points = Object.entries(bw)
     .sort((a,b) => parseInt(a[0]) - parseInt(b[0]))
     .map(([day, kg]) => ({ x: `Uge ${Math.floor(parseInt(day)/7)+1}`, y: kg }));
@@ -4042,14 +4109,92 @@ function drawBodyweightChart() {
   });
 }
 
-// ─── BLOCK PROGRESSION ───────────────────────────────────────────────────────
+// ─── STRENGTH-TO-BODYWEIGHT ───────────────────────────────────────────────────
+// Bruger eksisterende bodyweight-log og programStart1RM — intet nyt datalager.
+// Håndterer manglende kropsvægt-data pænt i stedet for at gætte.
+function getStrengthToBodyweight() {
+  const as = aState();
+  const bwEntries = Object.entries(as.bodyweight || {})
+    .map(([day, kg]) => ({ day: parseInt(day), kg: parseFloat(kg) }))
+    .filter(e => e.kg > 0)
+    .sort((a, b) => a.day - b.day);
+  if (!bwEntries.length) return null;
+
+  const currentBW = bwEntries[bwEntries.length - 1].kg;
+  const startBW = bwEntries[0].kg;
+
+  const currentRatios = {
+    sq: getSQ() / currentBW,
+    bp: getBP() / currentBW,
+    dl: getDL() / currentBW,
+  };
+
+  const startRM = as.programStart1RM;
+  let development = null;
+  // Kræver mindst 2 kropsvægt-målinger OG et låst startpunkt for 1RM, ellers
+  // ville "udvikling" bare være et falsk tal regnet fra ét enkelt datapunkt.
+  if (startRM && bwEntries.length >= 2) {
+    development = {
+      sq: { absDiff: getSQ() - startRM.sq, relDiff: (getSQ() / currentBW) - (startRM.sq / startBW) },
+      bp: { absDiff: getBP() - startRM.bp, relDiff: (getBP() / currentBW) - (startRM.bp / startBW) },
+      dl: { absDiff: getDL() - startRM.dl, relDiff: (getDL() / currentBW) - (startRM.dl / startBW) },
+    };
+  }
+
+  return { currentBW, startBW, currentRatios, development };
+}
+
+function renderStrengthToBodyweight() {
+  const wrap = document.getElementById('s2bw-content');
+  if (!wrap) return;
+  const data = getStrengthToBodyweight();
+  if (!data) {
+    wrap.innerHTML = `<div style="font-size:13px;color:var(--muted);">Log din kropsvægt for at se styrke relativt til kropsvægt.</div>`;
+    return;
+  }
+
+  const fmtRatio = v => v.toFixed(2) + '×';
+  const rows = [
+    { label: 'Squat', key: 'sq', color: 'var(--sq)' },
+    { label: 'Bench', key: 'bp', color: 'var(--bp)' },
+    { label: 'Deadlift', key: 'dl', color: 'var(--dl)' },
+  ];
+
+  let html = rows.map(r => `
+    <div class="pr-summary-row">
+      <span>${r.label}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:${r.color};">${fmtRatio(data.currentRatios[r.key])} BW</span>
+    </div>
+  `).join('');
+
+  if (data.development) {
+    html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">`;
+    html += `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Udvikling siden programstart</div>`;
+    html += rows.map(r => {
+      const d = data.development[r.key];
+      const absSign = d.absDiff >= 0 ? '+' : '';
+      const relSign = d.relDiff >= 0 ? '+' : '';
+      return `<div class="pr-summary-row" style="font-size:12px;">
+        <span>${r.label}</span>
+        <span>${absSign}${d.absDiff.toFixed(1)} kg &nbsp;·&nbsp; ${relSign}${d.relDiff.toFixed(2)}× BW</span>
+      </div>`;
+    }).join('');
+    html += `</div>`;
+  } else {
+    html += `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Log kropsvægt over flere sessioner for at se udvikling over tid.</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+
 
 function renderBlockProgression() {
   const wrap = document.getElementById('block-progression-content');
   if (!wrap) return;
   const as = aState();
 
-  const startRM = state.programStart1RM || state.oneRM;
+  const startRM = as.programStart1RM || as.oneRM;
 
   const lifts = [
     { dayId:'low1', name:'Squat',    color:'var(--sq)', startRM: startRM.sq },
@@ -4132,7 +4277,7 @@ function renderBlockProgression() {
   });
 
   // Bodyweight per block
-  const bw = state.bodyweight || {};
+  const bw = aState().bodyweight || {};
   const bwBlocks = blocks.map(b => {
     const dayStart = (b.weekStart-1)*7, dayEnd = b.weekEnd*7;
     const entries = Object.entries(bw)
@@ -4574,7 +4719,7 @@ function exportProgramData() {
     bodyweightLog: as.bodyweight || {},
     sessions,
     autoregHistory: as.autoregAdj || {},
-    sessionTimes: state.sessionTimes || {},
+    sessionTimes: as.sessionTimes || {},
   };
 
   const json = JSON.stringify(data, null, 2);
@@ -4741,7 +4886,7 @@ function computeSetAverages(doneSets) {
   return { avgReps, avgRPE, avgKg };
 }
 
-function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exName) {
+function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exName, trace) {
   if (!currentKg || currentKg <= 0) return currentKg;
 
   // Estimér e1RM fra faktisk præstation
@@ -4751,6 +4896,7 @@ function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exN
   // Beregn target kg fra mål-reps og mål-RPE
   const targetRIR = 10 - targetRPE;
   let targetKg = e1rm / (1 + (targetRIR + targetReps - 1) / 30);
+  const targetKgBeforeTrend = targetKg;
 
   // Trend-korrektion: hvis konsekvent for let/tungt, forstærk justeringen
   const trend = getTrend(exName);
@@ -4759,13 +4905,91 @@ function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exN
   if (trend < -0.03 && targetKg < currentKg) trendBonus = -currentKg * 0.025; // konsekvent for tungt
 
   let nextKg = targetKg + trendBonus;
+  const preDampKg = nextKg;
 
   // Dæmpning: én enkelt session (god eller dårlig) må maks flytte vægten
   // ±7,5% ad gangen — undgår at ét udsving foreslår et urealistisk stort spring.
   const maxSwing = currentKg * 0.075;
   nextKg = Math.max(currentKg - maxSwing, Math.min(currentKg + maxSwing, nextKg));
+  const wasClamped = Math.abs(preDampKg - nextKg) > 0.01;
 
-  return roundForExercise(nextKg, exName);
+  const finalKg = roundForExercise(nextKg, exName);
+
+  // Hvis en trace-objekt er givet, fyldes den med de faktiske mellemregninger
+  // — "Hvorfor?"-modalen bruger PRÆCIS disse tal, aldrig en efterkonstrueret
+  // forklaring, så teksten kan aldrig afvige fra det tal der reelt vises.
+  if (trace) {
+    trace.actualRIR = actualRIR;
+    trace.e1rm = e1rm;
+    trace.targetKgBeforeTrend = targetKgBeforeTrend;
+    trace.trend = trend;
+    trace.trendBonus = trendBonus;
+    trace.preDampKg = preDampKg;
+    trace.wasClamped = wasClamped;
+    trace.finalKg = finalKg;
+  }
+
+  return finalKg;
+}
+
+// Seneste sessioner for en øvelse, med gennemsnit pr. session — bruges af
+// "Hvorfor?"-modalen til at vise det faktiske grundlag bag et forslag.
+function getRecentSessions(exName, limit = 3) {
+  const as = aState();
+  const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
+  const sessions = [];
+  for (const day of completed) {
+    const log = as.logs?.['day' + day];
+    if (!log) continue;
+    const exLog = (log.exercises || []).find(e => e.name === exName);
+    if (!exLog) continue;
+    const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    if (!doneSets.length) continue;
+    const avg = computeSetAverages(doneSets);
+    sessions.push({ day, kg: avg.avgKg, reps: avg.avgReps, rpe: avg.avgRPE });
+    if (sessions.length >= limit) break;
+  }
+  return sessions;
+}
+
+// Kører calcNextKg igen med en trace, og bygger forklaringen UDELUKKENDE ud
+// fra de tal der faktisk indgik i beregningen — aldrig en efterkonstrueret
+// tekst. Samme funktion, samme input, som den der genererede selve forslaget.
+function showWhyModal(exName, currentKg, actualReps, actualRPE, targetReps, targetRPE) {
+  const trace = {};
+  calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exName, trace);
+
+  const sessions = getRecentSessions(exName, 3).reverse();
+  const sessionLines = sessions.map(s => {
+    const rpeStr = s.rpe !== null ? ` @ ${Math.round(s.rpe * 10) / 10}` : '';
+    return `<div style="font-size:13px;color:var(--muted);padding:3px 0;">${s.kg} kg × ${Math.round(s.reps * 10) / 10}${rpeStr}</div>`;
+  }).join('');
+
+  const dirText = trace.finalKg > currentKg
+    ? 'Din progression viser, at belastningen kan øges.'
+    : trace.finalKg < currentKg
+      ? 'Din seneste præstation viser, at belastningen bør reduceres.'
+      : 'Din præstation matcher målet — samme vægt fastholdes.';
+
+  const trendText = Math.abs(trace.trend) > 0.03
+    ? `<div style="font-size:12px;color:var(--gold);margin-top:6px;">Du har ligget ${trace.trend > 0 ? 'konsekvent let' : 'konsekvent tungt'} de seneste sessioner, hvilket forstærkede justeringen med ${Math.abs(trace.trendBonus).toFixed(1)} kg.</div>`
+    : '';
+
+  const clampText = trace.wasClamped
+    ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;">Den rå beregning foreslog ${trace.preDampKg.toFixed(1)} kg, men er dæmpet til maks ±7,5% fra ${currentKg} kg for at undgå et for stort spring fra én session.</div>`
+    : '';
+
+  const body = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Seneste ${sessions.length || 0} relevante session${sessions.length === 1 ? '' : 'er'}:</div>
+    ${sessionLines || '<div style="font-size:13px;color:var(--muted);">Ingen tidligere sessioner fundet for denne øvelse.</div>'}
+    <div style="margin-top:10px;font-size:13px;">${dirText}</div>
+    ${trendText}
+    ${clampText}
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:14px;">
+      Derfor anbefales <strong style="color:var(--gold);">${trace.finalKg} kg</strong>.
+    </div>
+  `;
+  showModal('Hvorfor denne vægt?', body, closeModal);
 }
 
 // Beregn pct-justering til intern brug
@@ -4990,6 +5214,339 @@ function getExPR(exName) {
   return store[exName];
 }
 
+// Finder de bedste faktiske vægte løftet for mindst 1/3/5/8 reps, samt
+// bedste enkelt-session-volumen og en simpel session-for-session historik.
+// Scanner de rå logs direkte — intet parallelt PR-lager, kun det der allerede
+// findes i aState().logs.
+function getRepMaxes(exName) {
+  const as = aState();
+  const targets = [1, 3, 5, 8];
+  const best = {};
+  let bestVolume = { vol: 0, day: null };
+  const history = [];
+
+  Object.keys(as.logs || {}).forEach(dayKey => {
+    const log = as.logs[dayKey];
+    const exLog = (log.exercises || []).find(e => e.name === exName);
+    if (!exLog) return;
+    const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    if (!doneSets.length) return;
+    const dayNum = parseInt(dayKey.replace('day', ''));
+
+    const sessionVol = doneSets.reduce((sum, s) => sum + parseFloat(s.kg) * parseInt(s.reps), 0);
+    if (sessionVol > bestVolume.vol) bestVolume = { vol: sessionVol, day: dayNum };
+
+    doneSets.forEach(s => {
+      const kg = parseFloat(s.kg), reps = parseInt(s.reps);
+      targets.forEach(t => {
+        if (reps >= t && (!best[t] || kg > best[t].kg)) {
+          best[t] = { kg, reps, day: dayNum };
+        }
+      });
+    });
+
+    const bestSet = doneSets.reduce((b, s) =>
+      epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
+    );
+    history.push({ day: dayNum, kg: parseFloat(bestSet.kg), reps: parseInt(bestSet.reps) });
+  });
+
+  history.sort((a, b) => a.day - b.day);
+  return { repMaxes: best, bestVolume, history };
+}
+
+// ─── EXERCISE RELIABILITY ──────────────────────────────────────────────────
+// Reliability måler hvor FORUDSIGELIG session-til-session-udviklingen er —
+// ikke om øvelsen går fremad, men om fremgangen/tilbagegangen er ensartet.
+// En øvelse der stiger jævnt (+2%, +3%, +2,5%) er "reliable"; én der svinger
+// vildt (+5%, -8%, +3%) er det ikke, uanset samlet retning. Deload- og
+// test/peak-uger udelades, da de per design afviger fra normal belastning.
+function getExerciseReliability(exName, lookback = 6) {
+  const as = aState();
+  const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
+  const e1rms = [];
+  for (const day of completed) {
+    const week = Math.floor(day / 7) + 1;
+    if (isDeload(week) || isTest(week)) continue;
+    const log = as.logs?.['day' + day];
+    if (!log) continue;
+    const exLog = (log.exercises || []).find(e => e.name === exName);
+    if (!exLog) continue;
+    const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    if (!doneSets.length) continue;
+    const best = doneSets.reduce((b, s) =>
+      epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
+    );
+    e1rms.push(epley(parseFloat(best.kg), parseInt(best.reps)));
+    if (e1rms.length >= lookback) break;
+  }
+  if (e1rms.length < 4) return null; // for få sammenlignelige sessioner til at konkludere noget
+
+  const chrono = [...e1rms].reverse();
+  const deltas = [];
+  for (let i = 1; i < chrono.length; i++) {
+    deltas.push((chrono[i] - chrono[i - 1]) / chrono[i - 1]);
+  }
+  const meanDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+  const variance = deltas.reduce((sum, d) => sum + (d - meanDelta) ** 2, 0) / deltas.length;
+  const stdDev = Math.sqrt(variance);
+  const consistencyPct = Math.max(0, Math.min(100, Math.round((1 - stdDev * 8) * 100)));
+
+  return { consistencyPct, sessionCount: e1rms.length };
+}
+
+// ─── PERFORMANCE VS. FATIGUE ───────────────────────────────────────────────
+// Adskiller "jeg er blevet stærkere" fra "jeg præsterer godt fordi jeg er
+// frisk" ved at sammenholde e1RM-trend med RPE og restitutionsdata. Viser
+// KUN felter hvor der faktisk findes data — ingen gættede vurderinger.
+function getPerformanceVsFatigue(exName) {
+  const as = aState();
+  const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
+  const sessions = [];
+  for (const day of completed) {
+    const log = as.logs?.['day' + day];
+    if (!log) continue;
+    const exLog = (log.exercises || []).find(e => e.name === exName);
+    if (!exLog) continue;
+    const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+    if (!doneSets.length) continue;
+    const avg = computeSetAverages(doneSets);
+    const best = doneSets.reduce((b, s) =>
+      epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
+    );
+    sessions.push({ day, e1rm: epley(parseFloat(best.kg), parseInt(best.reps)), avgRPE: avg.avgRPE });
+  }
+  if (!sessions.length) return null;
+
+  const currentE1RM = sessions[0].e1rm;
+
+  // 4-ugers trend: sammenlign med den ældste session inden for de sidste 28 dage
+  let trend4wk = null;
+  const fourWeeksAgoDay = sessions[0].day - 28;
+  const olderEntry = sessions.find(s => s.day <= fourWeeksAgoDay);
+  if (olderEntry) trend4wk = currentE1RM - olderEntry.e1rm;
+
+  // Gennemsnitlig RPE de seneste 5 sessioner hvor RPE faktisk er logget
+  const rpeVals = sessions.filter(s => s.avgRPE !== null).slice(0, 5).map(s => s.avgRPE);
+  const avgRPE = rpeVals.length ? rpeVals.reduce((a, b) => a + b, 0) / rpeVals.length : null;
+
+  // Recovery: gennemsnit af seneste 7 loggede energy scores (0-100 skala)
+  const sleepEntries = Object.entries(as.sleepLog || {})
+    .map(([d, v]) => ({ day: parseInt(d), v: parseInt(v) }))
+    .filter(e => !isNaN(e.v))
+    .sort((a, b) => b.day - a.day)
+    .slice(0, 7);
+  const recovery = sleepEntries.length
+    ? Math.round(sleepEntries.reduce((s, e) => s + e.v, 0) / sleepEntries.length)
+    : null;
+
+  let performanceStatus = null;
+  if (trend4wk !== null) {
+    const pctChange = trend4wk / (currentE1RM - trend4wk);
+    performanceStatus = pctChange > 0.02 ? 'green' : pctChange < -0.02 ? 'red' : 'yellow';
+  }
+
+  let fatigueStatus = null;
+  if (recovery !== null) {
+    fatigueStatus = recovery >= 70 ? 'green' : recovery >= 50 ? 'yellow' : 'red';
+  }
+
+  return { currentE1RM, trend4wk, avgRPE, recovery, performanceStatus, fatigueStatus };
+}
+
+// ─── COACH MODE ─────────────────────────────────────────────────────────────
+// Intet nyt beslutnings-lag — Coach Mode er UDELUKKENDE en samlet visning af
+// logik der allerede findes: getProgressionSuggestion (før økten),
+// calcNextKg/computeSetAverages (samme motor som den almindelige autoreg-bar,
+// under økten), samt Exercise Reliability og Performance vs. Fatigue når der
+// er nok data. Ingen af tallene her kan afvige fra det de samme funktioner
+// allerede viser andre steder i appen.
+function showCoachMode() {
+  const as = aState();
+  const week = getWeek();
+  const dayInfo = isPeakWeek() ? PEAK_WEEK[getPeakDay()] : CYCLE[getCycleDay()];
+
+  if (!dayInfo || dayInfo.type !== 'workout') {
+    showModal('🧠 Coach', `<div style="color:var(--muted);">Ingen træningsdag i dag — Coach Mode har intet at vise.</div>`, closeModal);
+    return;
+  }
+
+  const exercises = isPeakWeek() ? [] : getExercises(dayInfo.id, week);
+  const primaryEx = exercises.find(e => e.type === 'primary') || exercises[0];
+  if (!primaryEx) {
+    showModal('🧠 Coach', `<div style="color:var(--muted);">Ingen øvelser fundet for i dag (peak-uge håndteres separat).</div>`, closeModal);
+    return;
+  }
+  const exName = primaryEx.name;
+
+  const log = as.logs[logKey()];
+  const exIndex = exercises.indexOf(primaryEx);
+  const logEx = log?.exercises?.[exIndex];
+  const doneSets = logEx ? (logEx.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) : [];
+
+  const recent = getRecentSessions(exName, 3).reverse();
+  const recentHtml = recent.length
+    ? recent.map(s => `<div style="font-size:13px;color:var(--muted);padding:2px 0;">${s.kg} kg × ${Math.round(s.reps * 10) / 10}${s.rpe !== null ? ' @ ' + Math.round(s.rpe * 10) / 10 : ''}</div>`).join('')
+    : `<div style="font-size:13px;color:var(--muted);">Ingen tidligere sessioner endnu.</div>`;
+
+  let statusHtml;
+  if (doneSets.length) {
+    // Under træningen — reagerer på de faktisk loggede sæt, samme motor som
+    // den almindelige autoreg-besked (calcNextKg med trace til "Hvorfor?")
+    const { avgReps, avgRPE, avgKg } = computeSetAverages(doneSets);
+    const expectedRPE = getExpectedRPE(primaryEx.type, week);
+    const rpeParts = expectedRPE.val.split('–');
+    const expRPEMid = rpeParts.length > 1 ? (parseFloat(rpeParts[0]) + parseFloat(rpeParts[1])) / 2 : parseFloat(rpeParts[0]);
+    const targetReps = primaryEx.scheme.reps;
+    const trace = {};
+    const nextKg = calcNextKg(avgKg, avgReps, avgRPE, targetReps, expRPEMid, exName, trace);
+
+    let icon, msg;
+    if (avgRPE !== null && avgRPE >= 9.5) {
+      icon = '🔴';
+      msg = `Høj RPE — du ligger markant over dagens mål. Overvej at reducere belastningen på de resterende sæt.`;
+    } else if (avgRPE !== null && avgRPE > expRPEMid + 0.5) {
+      icon = '🟠';
+      msg = `Høj RPE — du ligger over dagens mål. Næste sæt: <strong>${nextKg} kg</strong>.`;
+    } else if (avgRPE !== null && avgRPE < expRPEMid - 0.5) {
+      icon = '🟢';
+      msg = `Ser stærkt ud — du ligger under dagens mål-RPE. Næste sæt: <strong>${nextKg} kg</strong>.`;
+    } else {
+      icon = '✅';
+      msg = `Lige på målet. Næste sæt: <strong>${nextKg} kg</strong>.`;
+    }
+    const whyArgs = `'${exName.replace(/'/g, "\\'")}', ${avgKg}, ${avgReps}, ${avgRPE === null ? 'null' : avgRPE}, ${targetReps}, ${expRPEMid}`;
+    statusHtml = `
+      <div style="margin-top:10px;padding:12px;background:var(--surface2);border-radius:10px;">
+        <div style="font-size:14px;">${icon} ${msg}</div>
+        <span onclick="showWhyModal(${whyArgs})" style="cursor:pointer;text-decoration:underline;opacity:0.75;font-size:12px;">ℹ️ Hvorfor?</span>
+      </div>`;
+  } else {
+    // Endnu ikke startet — genbruger den eksisterende pre-session-anbefaling
+    const sugg = !isPeakWeek() ? getProgressionSuggestion(dayInfo.id, week) : null;
+    statusHtml = sugg
+      ? `<div style="margin-top:10px;font-size:14px;">${sugg}</div>`
+      : `<div style="margin-top:10px;font-size:13px;color:var(--muted);">Ingen tidligere session at basere et forslag på endnu — log dagens sæt for at komme i gang.</div>`;
+  }
+
+  // Reliability + Performance vs. Fatigue — samme funktioner som 📊-oversigten
+  const reliability = getExerciseReliability(exName);
+  const pvf = getPerformanceVsFatigue(exName);
+  let synthesisHtml = '';
+  if (reliability && pvf && pvf.performanceStatus && pvf.fatigueStatus) {
+    const stable = reliability.consistencyPct >= 80;
+    const tired = pvf.fatigueStatus === 'red';
+    const progressing = pvf.performanceStatus === 'green';
+    if (stable && tired && !progressing) {
+      synthesisHtml = `<div style="margin-top:10px;font-size:13px;color:var(--gold);">${exName}-performance er stabil, men din fatigue er høj. Derfor anbefales normal teknik og en konservativ progression frem for en ekstra vægtstigning.</div>`;
+    } else if (!stable && tired) {
+      synthesisHtml = `<div style="margin-top:10px;font-size:13px;color:var(--gold);">Performance svinger meget, og fatigue er høj lige nu — svært at konkludere noget sikkert om reel fremgang før begge stabiliserer sig.</div>`;
+    } else if (progressing && !tired) {
+      synthesisHtml = `<div style="margin-top:10px;font-size:13px;color:var(--green);">Fremgang og lav fatigue går hånd i hånd — god plads til at presse på.</div>`;
+    }
+  }
+
+  const reliabilityHtml = reliability
+    ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;">Reliability: ${reliability.consistencyPct}%</div>`
+    : '';
+  const pvfHtml = pvf
+    ? `<div style="font-size:12px;color:var(--muted);">${pvf.trend4wk !== null ? `4-ugers trend: ${pvf.trend4wk >= 0 ? '+' : ''}${pvf.trend4wk.toFixed(1)} kg` : ''}${pvf.recovery !== null ? ` · Recovery: ${pvf.recovery}%` : ''}</div>`
+    : '';
+
+  const body = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">${exName} — seneste sessioner:</div>
+    ${recentHtml}
+    <div style="margin-top:6px;">
+      <div class="settings-label" style="margin-bottom:4px;">Dagens status</div>
+      ${statusHtml}
+      ${synthesisHtml}
+      ${reliabilityHtml}${pvfHtml}
+    </div>
+  `;
+  showModal('🧠 Coach', body, closeModal);
+}
+
+function showExercisePerformance(exName) {
+  const { repMaxes, bestVolume, history } = getRepMaxes(exName);
+  if (!history.length) {
+    showModal(exName, `<div style="color:var(--muted);">Ingen loggede sæt for denne øvelse endnu.</div>`, closeModal);
+    return;
+  }
+
+  const repRows = [1, 3, 5, 8].map(t => {
+    const r = repMaxes[t];
+    return `<div class="pr-summary-row"><span>${t}RM</span><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;">${r ? `${r.kg} kg` : '—'}</span></div>`;
+  }).join('');
+
+  const volRow = bestVolume.vol > 0
+    ? `<div class="pr-summary-row"><span>Største volumen (session)</span><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;">${Math.round(bestVolume.vol)} kg</span></div>`
+    : '';
+
+  const historyRows = history.slice(-10).map((h, i) =>
+    `<div class="hist-lift-row"><span class="hist-lift-name">Session ${i + 1} (dag ${h.day + 1})</span><span class="hist-lift-val">${h.kg} × ${h.reps}</span></div>`
+  ).join('');
+
+  // Exercise Reliability
+  const reliability = getExerciseReliability(exName);
+  let reliabilityHtml = '';
+  if (reliability) {
+    const { consistencyPct, sessionCount } = reliability;
+    const dot = consistencyPct >= 80 ? '🟢' : consistencyPct >= 60 ? '🟡' : '🔴';
+    const label = consistencyPct >= 80 ? 'Høj stabilitet' : consistencyPct >= 60 ? 'Moderat stabilitet' : 'Variabel performance';
+    const note = consistencyPct >= 80
+      ? `Seneste ${sessionCount} sessioner viser meget ensartet performance.`
+      : consistencyPct >= 60
+        ? `Performance svinger noget mellem sessioner.`
+        : `Performance svinger markant mere end normalt mellem sessioner.`;
+    reliabilityHtml = `
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+        <div class="settings-label" style="margin-bottom:8px;">Exercise Reliability</div>
+        <div class="pr-summary-row"><span>${dot} ${label}</span><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;">${consistencyPct}%</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">${note}</div>
+      </div>`;
+  }
+
+  // Performance vs. Fatigue
+  const pvf = getPerformanceVsFatigue(exName);
+  let pvfHtml = '';
+  if (pvf) {
+    const dotFor = s => s === 'green' ? '🟢' : s === 'yellow' ? '🟡' : s === 'red' ? '🔴' : '';
+    const trendLine = pvf.trend4wk !== null
+      ? `<div style="font-size:12px;color:var(--muted);">4-ugers trend: ${pvf.trend4wk >= 0 ? '+' : ''}${pvf.trend4wk.toFixed(1)} kg</div>`
+      : `<div style="font-size:11px;color:var(--muted);">4-ugers trend: ikke nok data endnu (kræver en session ≥4 uger tilbage)</div>`;
+    const rpeLine = pvf.avgRPE !== null
+      ? `<div style="font-size:12px;color:var(--muted);">Gennemsnitlig RPE: ${pvf.avgRPE.toFixed(1)}</div>` : '';
+    const recoveryLine = pvf.recovery !== null
+      ? `<div style="font-size:12px;color:var(--muted);">Recovery: ${pvf.recovery}%</div>` : '';
+    const statusLine = (pvf.performanceStatus || pvf.fatigueStatus)
+      ? `<div style="margin-top:6px;font-size:13px;">
+          ${pvf.performanceStatus ? `Performance: ${dotFor(pvf.performanceStatus)}` : ''}
+          ${pvf.fatigueStatus ? `&nbsp;&nbsp;Fatigue: ${dotFor(pvf.fatigueStatus)}` : ''}
+        </div>`
+      : `<div style="margin-top:6px;font-size:11px;color:var(--muted);">Ikke nok data til at vurdere performance/fatigue-status endnu.</div>`;
+    pvfHtml = `
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+        <div class="settings-label" style="margin-bottom:8px;">Performance vs. Fatigue</div>
+        <div style="font-size:13px;">e1RM: ${pvf.currentE1RM.toFixed(1)} kg</div>
+        ${trendLine}${rpeLine}${recoveryLine}${statusLine}
+      </div>`;
+  }
+
+  const body = `
+    <div style="margin-bottom:14px;">
+      <div class="settings-label" style="margin-bottom:8px;">Bedste præstationer</div>
+      ${repRows}${volRow}
+    </div>
+    <div>
+      <div class="settings-label" style="margin-bottom:8px;">Seneste sessioner</div>
+      ${historyRows}
+    </div>
+    ${reliabilityHtml}
+    ${pvfHtml}
+  `;
+  showModal(exName, body, closeModal);
+}
+
 // Epley formula: estimated 1RM
 function epley(kg, reps) {
   if (reps === 1) return kg;
@@ -5080,7 +5637,7 @@ function startLiveTimingUpdater() {
   liveTimingInterval = setInterval(() => {
     const block = document.getElementById('live-timing-block');
     if (!block) { clearInterval(liveTimingInterval); liveTimingInterval = null; return; }
-    const t = state.sessionTimes?.[logKey()];
+    const t = aState().sessionTimes?.[logKey()];
     if (!t?.sessionStart) { clearInterval(liveTimingInterval); liveTimingInterval = null; return; }
     const nowMs = Date.now();
     const totalEl = document.getElementById('live-total-mins');
@@ -5109,12 +5666,15 @@ function fmtTime(s) {
 
 let timerLiftName = '';
 
-function startTimer(duration, liftName) {
+let timerNextSetInfo = null;
+
+function startTimer(duration, liftName, nextSetInfo) {
   if (timerInterval) clearInterval(timerInterval);
   timerTotal = duration;
   timerEndAt = Date.now() + duration * 1000;
   timerRemaining = duration;
   timerLiftName = liftName || '';
+  timerNextSetInfo = nextSetInfo || null;
   const overlay = document.getElementById('timer-overlay');
   const display = document.getElementById('timer-display');
   const ring = document.getElementById('timer-ring');
@@ -5123,9 +5683,32 @@ function startTimer(duration, liftName) {
   nameEl.textContent = liftName || '';
   overlay.classList.add('open');
   updateTimerUI(ring, display);
+  updateTimerNextSetDisplay();
 
   timerInterval = setInterval(() => tickTimer(), 1000);
   scheduleTimerNotifications(duration, timerLiftName);
+}
+
+// Viser næste sæt diskret under nedtællingen, med stigende tydelighed jo
+// tættere man kommer på 0 — rent kosmetisk, ændrer intet ved selve timeren.
+function updateTimerNextSetDisplay() {
+  const el = document.getElementById('timer-next-set');
+  if (!el) return;
+  if (!timerNextSetInfo) { el.textContent = ''; return; }
+
+  const { exName, kg, reps, isNewExercise } = timerNextSetInfo;
+  const target = `${kg} kg × ${reps}`;
+  const prefix = isNewExercise ? 'Næste øvelse' : 'Næste sæt';
+
+  if (timerRemaining <= 0) {
+    el.innerHTML = `<strong style="color:var(--gold);">NÆSTE SÆT</strong><br>${exName} — ${target}`;
+  } else if (timerRemaining <= 5) {
+    el.innerHTML = `<strong style="color:var(--gold);">Gør dig klar</strong><br>${exName} — ${target}`;
+  } else if (timerRemaining <= Math.max(30, timerTotal * 0.3)) {
+    el.innerHTML = `Gør næste sæt klar<br>${exName} — ${target}`;
+  } else {
+    el.innerHTML = `${prefix}: ${exName} — ${target}`;
+  }
 }
 
 // Planlægger push-notifikationer 30 sek før og ved pausens afslutning, via
@@ -5173,6 +5756,7 @@ function tickTimer() {
   const display = document.getElementById('timer-display');
   const ring = document.getElementById('timer-ring');
   timerRemaining = Math.max(0, Math.round((timerEndAt - Date.now()) / 1000));
+  updateTimerNextSetDisplay();
   if (timerRemaining <= 0) {
     timerRemaining = 0;
     updateTimerUI(ring, display);
@@ -5231,6 +5815,7 @@ function addTimerTime(secs) {
     document.getElementById('timer-ring'),
     document.getElementById('timer-display')
   );
+  updateTimerNextSetDisplay();
 }
 
 function setMaxPlate(maxPlate) {
@@ -5244,15 +5829,16 @@ function setMaxPlate(maxPlate) {
 window.setMaxPlate = setMaxPlate;
 
 function adjustTimer(type, delta) {
+  const as = aState();
   if (type === 'primary') {
-    state.timerPrimary = Math.max(60, Math.min(600, state.timerPrimary + delta));
-    document.getElementById('setting-timer-primary').textContent = fmtTime(state.timerPrimary);
+    as.timerPrimary = Math.max(60, Math.min(600, as.timerPrimary + delta));
+    document.getElementById('setting-timer-primary').textContent = fmtTime(as.timerPrimary);
   } else if (type === 'backdown') {
-    state.timerBackdown = Math.max(60, Math.min(600, (state.timerBackdown || 180) + delta));
-    document.getElementById('setting-timer-backdown').textContent = fmtTime(state.timerBackdown);
+    as.timerBackdown = Math.max(60, Math.min(600, (as.timerBackdown || 180) + delta));
+    document.getElementById('setting-timer-backdown').textContent = fmtTime(as.timerBackdown);
   } else {
-    state.timerAcc = Math.max(30, Math.min(300, state.timerAcc + delta));
-    document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
+    as.timerAcc = Math.max(30, Math.min(300, as.timerAcc + delta));
+    document.getElementById('setting-timer-acc').textContent = fmtTime(as.timerAcc);
   }
   saveState();
 }
