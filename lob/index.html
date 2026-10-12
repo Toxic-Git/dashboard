@@ -296,6 +296,35 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
 
   <!-- PERIODISERING -->
   <div class="view" id="view-periode">
+    <div class="card">
+      <h2>Mål<span class="accent"> · små og store</span></h2>
+      <div id="goals-list"></div>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer;color:var(--accent);">+ Tilføj mål</summary>
+        <label>Type</label>
+        <select id="gl-kind" onchange="updateGoalForm()">
+          <optgroup label="Distance">
+            <option value="weekKm">Km pr. uge</option>
+            <option value="monthKm">Km pr. måned</option>
+            <option value="yearKm">Km i år</option>
+            <option value="longest">Længste tur</option>
+            <option value="weekRuns">Løbeture pr. uge</option>
+            <option value="streak">Streak: uger i træk</option>
+          </optgroup>
+          <optgroup label="Tempo">
+            <option value="time">Tid på en distance (fx 5 km under 25:00)</option>
+            <option value="pace">Snittempo over distance (fx 8+ km under 5:30/km)</option>
+          </optgroup>
+        </select>
+        <div id="gl-target-wrap"><label id="gl-target-lbl">Mål (km)</label><input type="number" step="any" id="gl-target" inputmode="decimal"></div>
+        <div id="gl-extra-wrap" style="display:none;"><label id="gl-extra-lbl"></label><input type="number" step="any" id="gl-extra" inputmode="decimal"></div>
+        <div id="gl-time-wrap" style="display:none;"><label id="gl-time-lbl"></label><input type="text" id="gl-time" placeholder="mm:ss"></div>
+        <label>Deadline (valgfri)</label>
+        <input type="date" id="gl-deadline">
+        <button onclick="addGoal()">Tilføj mål</button>
+        <div class="note">Fremdrift regnes automatisk ud fra dine loggede løb. Race-mål (under Opsætning) styrer stadig selve træningsplanen — her kan du have mange mål ved siden af.</div>
+      </details>
+    </div>
     <div id="race-goal-card"></div>
     <div class="card">
       <h2>Periodiseringsstatus</h2>
@@ -525,7 +554,8 @@ function defaultState(){
       onboarded:false,
       goalBaselineVDOT:null, goalBaselineDate:null, goalTargetPct:8,
       dismissedGapFor:null, // dato for sidste løb da bruger valgte "behold planen" ved et hul
-      raceGoal:{ active:false, distance:null, date:null, niveau:'mellem', activatedDate:null }
+      raceGoal:{ active:false, distance:null, date:null, niveau:'mellem', activatedDate:null },
+      goals:[] // små og store mål, se GOAL_KINDS
     },
     runs:[], // {id,date,distanceKm,durationSec,avgHR,maxHR,elev,feeling,notat}
     notFeeling100:{}, // { 'YYYY-MM-DD': true }
@@ -543,6 +573,7 @@ function loadState(key){
     if(!parsed.weekPlanOverrides) parsed.weekPlanOverrides = {};
     if(parsed.profile.dismissedGapFor === undefined) parsed.profile.dismissedGapFor = null;
     if(!parsed.profile.raceGoal) parsed.profile.raceGoal = { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null };
+    if(!Array.isArray(parsed.profile.goals)) parsed.profile.goals = [];
     return parsed;
   }catch(e){
     console.error('Kunne ikke indlæse state', e);
@@ -1367,7 +1398,8 @@ function saveOnboarding(){
     goalBaselineVDOT: baselineVdot, goalBaselineDate: baselineVdot? startdato : null,
     goalTargetPct: 8,
     dismissedGapFor: null,
-    raceGoal: { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null }
+    raceGoal: { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null },
+    goals: (aState().profile.goals || [])
   };
   saveState();
   document.getElementById('view-onboarding').classList.remove('active');
@@ -2312,6 +2344,190 @@ function haversine(lat1,lon1,lat2,lon2){
 }
 
 /* ================= RENDER ALL ================= */
+/* ================= MÅL (små og store) ====================================
+   Alle mål regnes automatisk ud fra de løb, der allerede er logget — intet
+   skal opdateres manuelt. Gemmes i profile.goals (synkes/backup'es med resten).
+   kind: weekKm|monthKm|yearKm|longest|weekRuns|streak (distance)
+         time|pace (tempo). Kun ét race-mål styrer stadig planen (se raceGoal).
+   Periodiske mål (uge/måned) er tilbagevendende og markeres ikke som "nået for
+   altid"; øvrige får achievedDate første gang de opfyldes. */
+const GOAL_KINDS = {
+  weekKm:   { label:'Km pr. uge',            recurring:true },
+  monthKm:  { label:'Km pr. måned',          recurring:true },
+  yearKm:   { label:'Km i år',               recurring:false },
+  longest:  { label:'Længste tur (km)',      recurring:false },
+  weekRuns: { label:'Løbeture pr. uge',      recurring:true },
+  streak:   { label:'Streak: uger i træk',   recurring:false },
+  time:     { label:'Tid på en distance',    recurring:false },
+  pace:     { label:'Snittempo over distance', recurring:false }
+};
+function weekEndStr(ws){ const d = new Date(ws+'T00:00:00'); d.setDate(d.getDate()+6); return localDateStr(d); }
+function monthBoundsStr(todayStr){
+  const y = Number(todayStr.slice(0,4)), m = Number(todayStr.slice(5,7));
+  return { from: todayStr.slice(0,7)+'-01', to: localDateStr(new Date(y, m, 0)) };
+}
+function fmtKmNum(km){ return (Math.round(km*10)/10).toString().replace('.',','); }
+function goalTitle(g){
+  const t = g.target;
+  switch(g.kind){
+    case 'weekKm':   return fmtKmNum(t)+' km pr. uge';
+    case 'monthKm':  return fmtKmNum(t)+' km pr. måned';
+    case 'yearKm':   return fmtKmNum(t)+' km i år';
+    case 'longest':  return 'Længste tur: '+fmtKmNum(t)+' km';
+    case 'weekRuns': return t+' løbeture pr. uge';
+    case 'streak':   return t+' uger i træk med mindst '+(g.perWeek||2)+' løb';
+    case 'time':     return fmtKmNum(g.distKm)+' km under '+fmtClock(g.targetSec);
+    case 'pace':     return fmtKmNum(g.distKm)+'+ km i snit under '+fmtPace(g.targetSec);
+  }
+  return 'Mål';
+}
+/* Ren beregning: {curLabel, targetLabel, pct (0-100), done, validUntil|null} */
+function goalProgress(g, runs, todayStr){
+  runs = runs || [];
+  const sum = a => a.reduce((x,r)=>x+r.distanceKm, 0);
+  let cur = 0, pct = 0, done = false, curLabel = '', targetLabel = '', validUntil = null;
+  const ratio = (c,t) => (t>0 ? Math.max(0, Math.min(100, c/t*100)) : 0);
+  if(g.kind==='weekKm' || g.kind==='weekRuns'){
+    const ws = getWeekStart(todayStr), we = weekEndStr(ws);
+    const wk = runs.filter(r=>r.date>=ws && r.date<=we);
+    validUntil = we;
+    if(g.kind==='weekKm'){ cur = sum(wk); curLabel = fmtKmNum(cur)+' km'; targetLabel = fmtKmNum(g.target)+' km'; }
+    else { cur = wk.length; curLabel = cur+' løb'; targetLabel = g.target+' løb'; }
+    pct = ratio(cur, g.target); done = cur >= g.target;
+  } else if(g.kind==='monthKm'){
+    const b = monthBoundsStr(todayStr); validUntil = b.to;
+    cur = sum(runs.filter(r=>r.date>=b.from && r.date<=b.to));
+    curLabel = fmtKmNum(cur)+' km'; targetLabel = fmtKmNum(g.target)+' km';
+    pct = ratio(cur, g.target); done = cur >= g.target;
+  } else if(g.kind==='yearKm'){
+    const y = todayStr.slice(0,4);
+    cur = sum(runs.filter(r=>r.date.slice(0,4)===y));
+    curLabel = fmtKmNum(cur)+' km'; targetLabel = fmtKmNum(g.target)+' km';
+    pct = ratio(cur, g.target); done = cur >= g.target; validUntil = y+'-12-31';
+  } else if(g.kind==='longest'){
+    cur = runs.reduce((m,r)=>Math.max(m,r.distanceKm), 0);
+    curLabel = fmtKmNum(cur)+' km'; targetLabel = fmtKmNum(g.target)+' km';
+    pct = ratio(cur, g.target); done = cur >= g.target;
+  } else if(g.kind==='streak'){
+    const per = g.perWeek || 2;
+    let ws = getWeekStart(todayStr), n = 0;
+    const meets = w => runs.filter(r=>r.date>=w && r.date<=weekEndStr(w)).length >= per;
+    const back = w => { const d = new Date(w+'T00:00:00'); d.setDate(d.getDate()-7); return localDateStr(d); };
+    if(!meets(ws)) ws = back(ws); // indeværende uge er ikke slut endnu — den bryder ikke en streak
+    while(n < 520 && meets(ws)){ n++; ws = back(ws); }
+    cur = n; curLabel = n+' uger'; targetLabel = g.target+' uger';
+    pct = ratio(cur, g.target); done = cur >= g.target;
+  } else if(g.kind==='time'){
+    const lo = g.distKm*0.98, hi = g.distKm*1.05;
+    const c = runs.filter(r=>r.distanceKm>=lo && r.distanceKm<=hi).map(r=>r.durationSec*g.distKm/r.distanceKm);
+    const best = c.length ? Math.min.apply(null, c) : null;
+    cur = best; curLabel = best ? fmtClock(best) : '—'; targetLabel = fmtClock(g.targetSec);
+    pct = best ? ratio(g.targetSec, best) : 0; done = !!best && best <= g.targetSec;
+  } else if(g.kind==='pace'){
+    const c = runs.filter(r=>r.distanceKm>=g.distKm).map(r=>r.durationSec/r.distanceKm);
+    const best = c.length ? Math.min.apply(null, c) : null;
+    cur = best; curLabel = best ? fmtPace(best) : '—'; targetLabel = fmtPace(g.targetSec);
+    pct = best ? ratio(g.targetSec, best) : 0; done = !!best && best <= g.targetSec;
+  }
+  return { cur, curLabel, targetLabel, pct, done, validUntil };
+}
+function isValidGoal(g){
+  if(!g || !GOAL_KINDS[g.kind]) return false;
+  if(g.kind==='time' || g.kind==='pace') return g.distKm>0 && g.targetSec>0;
+  return g.target>0;
+}
+function addGoal(){
+  const kind = document.getElementById('gl-kind').value;
+  const target = Number(String(document.getElementById('gl-target').value).replace(',','.'));
+  const extra = Number(String(document.getElementById('gl-extra').value).replace(',','.'));
+  const tidSec = parseTidToSec(document.getElementById('gl-time').value.trim());
+  const deadline = document.getElementById('gl-deadline').value || null;
+  const g = { id:'g'+Date.now()+Math.floor(Math.random()*1000), kind, createdDate:localDateStr(), deadline, achievedDate:null };
+  if(kind==='time' || kind==='pace'){ g.distKm = extra; g.targetSec = tidSec; }
+  else { g.target = target; if(kind==='streak') g.perWeek = extra>0 ? Math.round(extra) : 2; }
+  if(!isValidGoal(g)){ alert('Udfyld målet med gyldige tal (over 0).'); return; }
+  if((kind==='weekRuns' || kind==='streak') && g.target>50){ alert('Det virker urealistisk højt — tjek tallet.'); return; }
+  if(deadline && deadline < g.createdDate){ alert('Deadline skal ligge i fremtiden.'); return; }
+  const as = aState();
+  if(!Array.isArray(as.profile.goals)) as.profile.goals = [];
+  as.profile.goals.push(g);
+  saveState();
+  ['gl-target','gl-extra','gl-time','gl-deadline'].forEach(id=>{ const e = document.getElementById(id); if(e) e.value=''; });
+  renderAll();
+}
+function removeGoal(id){
+  if(!confirm('Fjern dette mål?')) return;
+  const as = aState();
+  as.profile.goals = (as.profile.goals||[]).filter(g=>g.id!==id);
+  saveState();
+  renderAll();
+}
+function updateGoalForm(){
+  const k = document.getElementById('gl-kind').value;
+  const set = (id, txt) => { const e = document.getElementById(id); if(e) e.textContent = txt; };
+  const show = (id, on) => { const e = document.getElementById(id); if(e) e.style.display = on ? '' : 'none'; };
+  const tempo = (k==='time' || k==='pace');
+  show('gl-target-wrap', !tempo);
+  show('gl-extra-wrap', k==='streak' || tempo);
+  show('gl-time-wrap', tempo);
+  if(k==='weekKm' || k==='monthKm' || k==='yearKm' || k==='longest') set('gl-target-lbl','Mål (km)');
+  if(k==='weekRuns') set('gl-target-lbl','Antal løb pr. uge');
+  if(k==='streak'){ set('gl-target-lbl','Antal uger i træk'); set('gl-extra-lbl','Mindst så mange løb pr. uge'); }
+  if(k==='time'){ set('gl-extra-lbl','Distance (km)'); set('gl-time-lbl','Måltid (mm:ss eller t:mm:ss)'); }
+  if(k==='pace'){ set('gl-extra-lbl','Mindste distance (km)'); set('gl-time-lbl','Måltempo pr. km (mm:ss)'); }
+}
+function goalRowHtml(g, p){
+  const color = p.done ? 'var(--green)' : 'var(--accent)';
+  const pct = Math.round(p.pct);
+  let meta = '';
+  if(g.deadline){
+    const today = localDateStr();
+    meta = (g.deadline < today && !p.done) ? ' · deadline overskredet ('+fmtDate(g.deadline)+')' : ' · deadline '+fmtDate(g.deadline);
+  }
+  const rec = GOAL_KINDS[g.kind].recurring ? ' · gentages' : '';
+  return `<div style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="font-weight:600;">${p.done?'✓ ':''}${goalTitle(g)}</div>
+      <button class="small secondary" onclick="removeGoal('${g.id}')" aria-label="Fjern mål">×</button>
+    </div>
+    <div class="zone-bar" style="margin-top:6px;"><div style="width:${pct}%;background:${color};"></div><div style="width:${100-pct}%;background:var(--surface2);"></div></div>
+    <div class="note" style="margin-top:4px;">${p.curLabel} af ${p.targetLabel} · ${pct}%${rec}${meta}</div>
+  </div>`;
+}
+/* Beregner alle mål, markerer nåede (sticky) og gemmer et resumé til dashboardet. */
+function renderGoals(){
+  const el = document.getElementById('goals-list');
+  const as = aState();
+  const goals = Array.isArray(as.profile.goals) ? as.profile.goals.filter(isValidGoal) : [];
+  const today = localDateStr();
+  let changed = false;
+  const rows = goals.map(g=>{
+    const p = goalProgress(g, as.runs, today);
+    if(p.done && !g.achievedDate && !GOAL_KINDS[g.kind].recurring){ g.achievedDate = today; changed = true; }
+    return { g, p };
+  });
+  if(changed) saveState();
+  const open = rows.filter(r=>!r.g.achievedDate);
+  const won  = rows.filter(r=>r.g.achievedDate);
+  if(el){
+    let html = open.length ? open.map(r=>goalRowHtml(r.g, r.p)).join('') : '<div class="empty">Ingen aktive mål endnu — tilføj et lille eller stort mål herunder.</div>';
+    if(won.length){
+      html += '<div class="note" style="margin-top:6px;"><b>Nåede mål</b></div>' + won.map(r=>
+        `<div class="note" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span>✓ ${goalTitle(r.g)} · ${fmtDate(r.g.achievedDate)}</span>
+          <button class="small secondary" onclick="removeGoal('${r.g.id}')" aria-label="Fjern mål">×</button></div>`).join('');
+    }
+    el.innerHTML = html;
+  }
+  // Resumé til dashboardet (kun lokalt, synkes ikke): de 3 nærmeste aktive mål
+  try{
+    const top = open.filter(r=>!r.p.validUntil || r.p.validUntil >= today)
+      .sort((a,b)=>b.p.pct-a.p.pct).slice(0,3)
+      .map(r=>({ title:goalTitle(r.g), curLabel:r.p.curLabel, targetLabel:r.p.targetLabel, pct:Math.round(r.p.pct), done:r.p.done, validUntil:r.p.validUntil }));
+    localStorage.setItem('lob_goals_summary_'+activeProfile, JSON.stringify({ date:today, goals:top }));
+  }catch(e){}
+}
+
 function renderAll(){
   document.getElementById('headerSub').textContent = aState().profile.navn
     ? aState().profile.navn+' · Sæson-uge '+seasonWeekNumber()
@@ -2323,6 +2539,7 @@ function renderAll(){
   renderWeekOverview();
   renderAnalyse();
   renderPeriode();
+  renderGoals();
   renderSettingsForm();
 }
 

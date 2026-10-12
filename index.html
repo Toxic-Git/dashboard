@@ -457,8 +457,13 @@ function readLob(which){
     const p = JSON.parse(localStorage.getItem('lob_today_plan_' + (which === 'main' ? 'main' : 'partner')));
     if (p && p.date === todayStr && p.distance) plan = p;
   } catch(e) {}
+  let goals = [];
+  try {
+    const gs = JSON.parse(localStorage.getItem('lob_goals_summary_' + (which === 'main' ? 'main' : 'partner')));
+    if (gs && Array.isArray(gs.goals)) goals = gs.goals.filter(g => !g.validUntil || g.validUntil >= todayStr);
+  } catch(e) {}
   return {
-    plan,
+    plan, goals,
     discipline:'lob', week: info.posInBlock, totalWeeks: 12, block: null, isTest:false,
     deload: info.isDeload,
     day: { short: badge, type:'workout', desc: info.isDeload ? 'Let uge — ca. 60% volumen, fokus på restitution.' : LOB_PHASE_DESC[info.phase] },
@@ -530,6 +535,9 @@ function renderCard(status, discipline, kind){
   const planHtml = (discipline==='lob' && status.plan && status.plan.distance)
     ? `<div class="deferred-note" style="margin-top:8px;">📏 <b>${status.plan.title}</b> — ${status.plan.distance}</div>`
     : '';
+  const goalsHtml = (discipline==='lob' && status.goals && status.goals.length)
+    ? `<div class="deferred-note" style="margin-top:8px;">🎯 <b>Mål</b>${status.goals.map(g=>`<div style="margin-top:4px;">${g.done?'✓ ':''}${g.title} — ${g.curLabel} / ${g.targetLabel} (${g.pct}%)</div>`).join('')}</div>`
+    : '';
   const warmup = isRest ? '' : (discipline==='lob' ? LOB_WARMUP : (WARMUP_SUGGESTIONS[status.day.short] || ''));
   const warmupHtml = warmup ? `<div class="deferred-note" style="margin-top:8px;">🔥 ${warmup}</div>` : '';
   return `<div class="card ${kind}">
@@ -542,6 +550,7 @@ function renderCard(status, discipline, kind){
       <div class="next-day">${status.day.short || status.day.name}</div>
       ${isRest ? `<div class="rest-note">💤 Hviledag</div>` : `<div class="next-desc">${desc}</div>`}
       ${planHtml}
+      ${goalsHtml}
       ${warmupHtml}
       ${stretchHtml}
       <div class="progress-wrap">
@@ -1773,7 +1782,9 @@ function refreshLobPlanIfNeeded(){
     if(raw.notFeeling100 && raw.notFeeling100[today]) return;
     const active = localStorage.getItem('lob_active_profile') || 'main';
     const p = JSON.parse(localStorage.getItem('lob_today_plan_'+active) || 'null');
-    if(p && p.date === today) return;
+    const gsum = JSON.parse(localStorage.getItem('lob_goals_summary_'+active) || 'null');
+    const hasGoals = Array.isArray(raw.profile.goals) && raw.profile.goals.length > 0;
+    if(p && p.date === today && (!hasGoals || (gsum && gsum.date === today))) return;
     if(document.getElementById('lob-plan-frame')) return;
     const f = document.createElement('iframe');
     f.id = 'lob-plan-frame';

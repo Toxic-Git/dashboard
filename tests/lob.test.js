@@ -127,6 +127,88 @@ T('Worker: 401 uden token, 200 med token (hele handler)', async () => {
   assert.strictEqual((await W.handler.fetch(mk('Bearer k'), env)).status, 200);
 });
 
+const R = (date, km, sec) => ({ id: date + km, date, distanceKm: km, durationSec: sec });
+T('Mål: km pr. uge tæller kun indeværende uge (man–søn)', () => {
+  const runs = [R('2026-10-04', 10, 3000), R('2026-10-05', 5, 1500), R('2026-10-11', 4, 1200), R('2026-10-12', 9, 2700)];
+  const p = goalProgress({ kind: 'weekKm', target: 10 }, runs, '2026-10-08');
+  assert.strictEqual(Math.round(p.cur), 9); assert.strictEqual(p.done, false);
+  assert.strictEqual(p.validUntil, '2026-10-11');
+  assert.strictEqual(goalProgress({ kind: 'weekKm', target: 9 }, runs, '2026-10-08').done, true);
+});
+T('Mål: km pr. måned og i år', () => {
+  const runs = [R('2026-09-30', 20, 6000), R('2026-10-01', 5, 1500), R('2026-10-31', 5, 1500)];
+  assert.strictEqual(goalProgress({ kind: 'monthKm', target: 10 }, runs, '2026-10-15').cur, 10);
+  assert.strictEqual(goalProgress({ kind: 'monthKm', target: 10 }, runs, '2026-10-15').validUntil, '2026-10-31');
+  assert.strictEqual(goalProgress({ kind: 'yearKm', target: 100 }, runs, '2026-10-15').cur, 30);
+  assert.strictEqual(goalProgress({ kind: 'yearKm', target: 100 }, [R('2025-12-31', 50, 15000)], '2026-01-02').cur, 0);
+});
+T('Mål: længste tur og løb pr. uge', () => {
+  const runs = [R('2026-10-05', 12, 4000), R('2026-10-07', 6, 2000), R('2026-10-09', 8, 2500)];
+  assert.strictEqual(goalProgress({ kind: 'longest', target: 15 }, runs, '2026-10-10').cur, 12);
+  assert.strictEqual(Math.round(goalProgress({ kind: 'longest', target: 15 }, runs, '2026-10-10').pct), 80);
+  assert.strictEqual(goalProgress({ kind: 'weekRuns', target: 3 }, runs, '2026-10-10').done, true);
+});
+T('Mål: streak ignorerer ufærdig indeværende uge, brydes af tom uge', () => {
+  const runs = [R('2026-09-21', 5, 1500), R('2026-09-23', 5, 1500), R('2026-09-28', 5, 1500), R('2026-09-30', 5, 1500)];
+  // tirsdag i ny uge, kun 0 løb endnu → streak = 2 (ugerne 21/9 og 28/9)
+  assert.strictEqual(goalProgress({ kind: 'streak', target: 4, perWeek: 2 }, runs, '2026-10-06').cur, 2);
+  // uge 5/10 med 2 løb tæller med → 3
+  const r2 = runs.concat([R('2026-10-05', 5, 1500), R('2026-10-06', 5, 1500)]);
+  assert.strictEqual(goalProgress({ kind: 'streak', target: 4, perWeek: 2 }, r2, '2026-10-06').cur, 3);
+  // hul i ugen 14/9 bryder ikke noget bagud: kun sammenhængende tæller
+  const r3 = r2.concat([R('2026-09-08', 5, 1500), R('2026-09-09', 5, 1500)]);
+  assert.strictEqual(goalProgress({ kind: 'streak', target: 4, perWeek: 2 }, r3, '2026-10-06').cur, 3);
+});
+T('Mål: tid på distance (5 km under 25:00) skalerer tæt-på-distancer', () => {
+  const g = { kind: 'time', distKm: 5, targetSec: 1500 };
+  let p = goalProgress(g, [R('2026-10-01', 5.0, 1560)], '2026-10-10');
+  assert.strictEqual(p.done, false); assert.strictEqual(Math.round(p.pct), 96); assert.strictEqual(p.curLabel, '26:00');
+  p = goalProgress(g, [R('2026-10-01', 5.0, 1560), R('2026-10-02', 5.1, 1500)], '2026-10-10'); // 5,1 km på 25:00 → ~24:30 pr. 5 km
+  assert.strictEqual(p.done, true);
+  p = goalProgress(g, [R('2026-10-01', 8, 1000)], '2026-10-10'); // for lang distance tæller ikke
+  assert.strictEqual(p.curLabel, '—'); assert.strictEqual(p.pct, 0);
+});
+T('Mål: snittempo over mindste distance', () => {
+  const g = { kind: 'pace', distKm: 8, targetSec: 330 }; // 5:30/km
+  let p = goalProgress(g, [R('2026-10-01', 10, 3400), R('2026-10-02', 5, 1200)], '2026-10-10');
+  assert.strictEqual(p.curLabel, '5:40/km'); assert.strictEqual(p.done, false); // 5 km-turen er for kort
+  p = goalProgress(g, [R('2026-10-01', 8, 2600)], '2026-10-10');
+  assert.strictEqual(p.done, true);
+});
+T('Mål: addGoal/removeGoal og validering', () => {
+  state = defaultState(); activeProfile = 'main'; partnerState = defaultState();
+  const vals = { 'gl-kind': 'time', 'gl-target': '', 'gl-extra': '5', 'gl-time': '25:00', 'gl-deadline': '' };
+  document.getElementById = (id) => ({ value: vals[id] !== undefined ? vals[id] : '', style: {}, innerHTML: '', textContent: '' });
+  global.alert = () => {}; global.confirm = () => true; global.renderAll = () => {};
+  addGoal();
+  assert.strictEqual(state.profile.goals.length, 1);
+  assert.strictEqual(state.profile.goals[0].targetSec, 1500); assert.strictEqual(state.profile.goals[0].distKm, 5);
+  vals['gl-time'] = '';
+  addGoal(); assert.strictEqual(state.profile.goals.length, 1, 'ugyldigt mål afvises');
+  assert.strictEqual(goalTitle(state.profile.goals[0]), '5 km under 25:00');
+  const id = state.profile.goals[0].id;
+  removeGoal(id); assert.strictEqual(state.profile.goals.length, 0);
+});
+T('Mål: loadState tilføjer goals til gamle states', () => {
+  const old = defaultState(); delete old.profile.goals;
+  localStorage.setItem('lob_state_x', JSON.stringify(old));
+  assert.deepStrictEqual(loadState('lob_state_x').profile.goals, []);
+});
+T('Mål: renderGoals markerer nået mål (sticky) og gemmer dashboard-resumé', () => {
+  state = defaultState(); activeProfile = 'main'; partnerState = defaultState();
+  const today = localDateStr();
+  state.runs = [R(today, 6, 1800)];
+  state.profile.goals = [{ id: 'g1', kind: 'longest', target: 5, createdDate: today }, { id: 'g2', kind: 'weekKm', target: 50, createdDate: today }];
+  document.getElementById = () => ({ innerHTML: '', style: {}, value: '' });
+  renderGoals();
+  assert(state.profile.goals[0].achievedDate, 'longest nået');
+  assert(!state.profile.goals[1].achievedDate, 'periodisk mål markeres ikke permanent');
+  const sum = JSON.parse(localStorage.getItem('lob_goals_summary_main'));
+  assert.strictEqual(sum.goals.length, 1); assert.strictEqual(sum.goals[0].pct, 12);
+  state.runs = []; renderGoals();
+  assert(state.profile.goals[0].achievedDate, 'forbliver nået selv hvis løbet slettes');
+});
+
 (async () => {
   let fail = 0;
   for (const [name, fn] of tests) {
