@@ -141,8 +141,19 @@ button.small{width:auto; padding:6px 12px; font-size:13px; margin-top:0;}
 .empty{text-align:center; color:var(--text-dim); padding:24px 10px; font-size:13px;}
 canvas{width:100%; background:var(--surface2); border-radius:8px;}
 .hidden{display:none !important;}
+.pace-callout{background:#2a2410; border:1px solid var(--accent-dim); border-radius:8px; padding:9px 11px; font-size:14px; font-weight:600; margin-top:10px; color:var(--accent);}
 .warn-box{background:#3a2a1a; border:1px solid #6a4a2a; border-radius:8px; padding:10px; font-size:13px; margin-top:8px; color:#f0c078;}
 .ok-box{background:#1a3a2a; border:1px solid #2a6a4a; border-radius:8px; padding:10px; font-size:13px; margin-top:8px; color:#8fd0a8;}
+.week-ov-row{display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--border); font-size:13px;}
+.week-ov-row:last-child{border-bottom:none;}
+.week-ov-row.is-today .week-ov-day{color:var(--accent); font-weight:700;}
+.week-ov-day{width:76px; flex-shrink:0; color:var(--text-dim); font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; font-size:11px; letter-spacing:0.03em;}
+.week-ov-main{flex:1; text-align:right;}
+.week-ov-tag{display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:700; text-transform:uppercase; margin-left:6px;}
+.week-ov-tag.done{background:#1a3a2a; color:#8fd0a8;}
+.week-ov-tag.quality{background:#5a2a2a; color:#f0a08f;}
+.week-ov-tag.easy{background:#2a4a6a; color:#8fc4f0;}
+.week-ov-tag.skip{background:#333; color:#888;}
 .profile-switch{display:flex; gap:8px; margin-top:10px;}
 .profile-btn{flex:1; padding:8px 4px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text-dim); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:pointer;}
 .profile-btn.active{background:var(--accent); color:#181a1f; border-color:var(--accent);}
@@ -233,6 +244,12 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
     </div>
 
     <div class="card">
+      <h2>Resten af ugen</h2>
+      <div id="week-overview"></div>
+      <div class="note">En prognose for resten af ugen, baseret på din fase og hvad du allerede har kørt. Tryk på en kommende dag for at låse den til Kvalitet, Let eller Hvile — eller "Auto" for at lade appen vurdere igen. Ændrer kun denne oversigt, ikke "Næste løbetur" ovenfor, som altid regner ud fra dine faktiske løb.</div>
+    </div>
+
+    <div class="card">
       <h2>Historik</h2>
       <div id="run-list"></div>
     </div>
@@ -241,16 +258,16 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
   <!-- ANALYSE -->
   <div class="view" id="view-analyse">
     <div class="card">
-      <h2>VO2max-estimat</h2>
+      <h2>VO2max — estimater (ikke målt)</h2>
       <div class="stat-grid">
-        <div class="stat"><div class="val" id="an-vo2-hr">—</div><div class="lbl">HR-metode (Uth et al.)</div></div>
-        <div class="stat"><div class="val" id="an-vo2-vdot">—</div><div class="lbl">VDOT (Daniels-Gilbert)</div></div>
+        <div class="stat"><div class="val" id="an-vo2-hr">—</div><div class="lbl">HR-metode (estimat, Uth et al.)</div></div>
+        <div class="stat"><div class="val" id="an-vo2-vdot">—</div><div class="lbl">VDOT (estimat, Daniels-Gilbert)</div></div>
       </div>
-      <div class="note">HR-metoden bruger kun maxpuls/hvilepuls og er en grov tommelfingerregel. VDOT beregnes fra din bedste sammenhængende løbetur (≥15 min) og er mere præcis for faktisk løbeform. De to vil ikke stemme perfekt overens — det er normalt.</div>
+      <div class="note"><b>Begge tal er modelestimater, ikke laboratoriemålinger.</b> HR-metoden bruger kun maxpuls/hvilepuls og er en grov tommelfingerregel. VDOT beregnes fra din bedste sammenhængende løbetur (≥15 min) og er mere præcis for faktisk løbeform. De to vil ikke stemme perfekt overens — det er normalt.</div>
     </div>
 
     <div class="card">
-      <h2>Mål: VDOT-fremgang</h2>
+      <h2>Mål: VDOT-fremgang (estimat)</h2>
       <div id="goal-body"></div>
     </div>
 
@@ -279,6 +296,7 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
 
   <!-- PERIODISERING -->
   <div class="view" id="view-periode">
+    <div id="race-goal-card"></div>
     <div class="card">
       <h2>Periodiseringsstatus</h2>
       <div class="stat-grid">
@@ -300,6 +318,37 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
     <div class="card">
       <h2>10%-reglen</h2>
       <div class="note">Ugentlig km-stigning bør ikke overstige 10% af forrige uges volumen (undtagen i planlagt deload/opbygning efter deload). Advarsel vises under Log-fanen hvis reglen brydes.</div>
+    </div>
+  </div>
+
+  <!-- TIMER -->
+  <div class="view" id="view-timer">
+    <div class="card" id="timer-setup-card">
+      <h2>Styret session</h2>
+      <div class="note">Opsæt opvarmning, intervaller og pauser, og få talte påmindelser undervejs (fx "næste interval om 2 minutter"). Hold skærmen tændt under sessionen — browseren kan stoppe lyden hvis telefonen låser.</div>
+      <button class="secondary" onclick="autofillTimerFromSuggestion()">Autofyld fra dagens forslag</button>
+      <div id="timer-autofill-note"></div>
+      <label>Opvarmning (min)</label>
+      <input type="number" id="tm-warmup" value="10">
+      <div class="row">
+        <div><label>Antal intervaller</label><input type="number" id="tm-reps" value="1" min="1"></div>
+        <div><label>Arbejde (mm:ss)</label><input type="text" id="tm-work" placeholder="4:00"></div>
+      </div>
+      <label>Pause mellem intervaller (mm:ss)</label>
+      <input type="text" id="tm-rest" placeholder="2:00">
+      <label>Nedkøling (min, valgfri)</label>
+      <input type="number" id="tm-cooldown" value="5">
+      <button onclick="startTimerSession()">Start session</button>
+    </div>
+
+    <div class="card hidden" id="timer-run-card">
+      <h2 id="tm-phase-label">—</h2>
+      <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:56px;font-weight:700;color:var(--accent);margin:10px 0;" id="tm-countdown">00:00</div>
+      <div class="note" id="tm-progress-note" style="text-align:center;"></div>
+      <div class="row">
+        <button class="secondary" id="tm-pause-btn" onclick="toggleTimerPause()">Pause</button>
+        <button class="danger" onclick="stopTimerSession()">Stop</button>
+      </div>
     </div>
   </div>
 
@@ -325,6 +374,28 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
     </div>
 
     <div class="card">
+      <h2>Race-mål (valgfrit)</h2>
+      <div class="note">Sæt et konkret løb som mål — planen i Log-fanen og Periode-fanen skifter så til at tælle baglæns mod den dato i stedet for den generelle 12-ugers VDOT-cyklus.</div>
+      <label>Distance</label>
+      <select id="rg-distance">
+        <option value="">Intet race-mål</option>
+        <option value="5k">5 km</option>
+        <option value="10k">10 km</option>
+        <option value="half">Halvmarathon</option>
+      </select>
+      <label>Racedato</label>
+      <input type="date" id="rg-dato">
+      <label>Niveau</label>
+      <select id="rg-niveau">
+        <option value="begynder">Begynder</option>
+        <option value="mellem" selected>Mellem</option>
+        <option value="øvet">Øvet</option>
+      </select>
+      <button onclick="saveRaceGoal()">Gem og aktivér race-mål</button>
+      <button class="secondary" onclick="clearRaceGoal()">Fjern race-mål</button>
+    </div>
+
+    <div class="card">
       <h2>Zoner (baseret på % af maxpuls)</h2>
       <div id="zone-table"></div>
     </div>
@@ -338,8 +409,22 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
     </div>
 
     <div class="card">
+      <h2>Synkronisering</h2>
+      <div class="note">Hvis din sync-Worker er sat op med en adgangskode (SYNC_TOKEN), skal samme kode indtastes her. Den gemmes kun på denne enhed og deles automatisk med SBD-trackeren og dashboardet på samme domæne.</div>
+      <label>Sync-adgangskode</label>
+      <input type="password" id="st-synctoken" autocomplete="off" placeholder="Samme som SYNC_TOKEN i Cloudflare">
+      <button class="secondary" onclick="saveSyncToken()">Gem adgangskode</button>
+      <div id="sync-status"></div>
+    </div>
+
+    <div class="card">
       <h2>Data</h2>
-      <button class="secondary" onclick="exportData()">Eksportér alt data (JSON)</button>
+      <div class="note">Backup gemmer begge profiler i én fil. Tag en backup jævnligt — hvis browserdata ryddes, er filen din eneste redning.</div>
+      <button class="secondary" onclick="exportData()">Download backup (begge profiler, JSON)</button>
+      <label style="margin-top:12px;">Gendan fra backup</label>
+      <input type="file" id="backup-file" accept=".json,application/json">
+      <button class="secondary" onclick="importBackup()">Gendan backup</button>
+      <div id="backup-result"></div>
       <button class="danger" onclick="resetSeason()">Nulstil sæson (ny sæson-start)</button>
       <button class="danger" onclick="wipeAll()">Slet alt data</button>
     </div>
@@ -351,6 +436,7 @@ canvas{width:100%; background:var(--surface2); border-radius:8px;}
   <div class="tab active" data-view="log" onclick="switchTab('log')">Log</div>
   <div class="tab" data-view="analyse" onclick="switchTab('analyse')">Analyse</div>
   <div class="tab" data-view="periode" onclick="switchTab('periode')">Periode</div>
+  <div class="tab" data-view="timer" onclick="switchTab('timer')">Timer</div>
   <div class="tab" data-view="settings" onclick="switchTab('settings')">Opsætning</div>
 </div>
 
@@ -365,11 +451,21 @@ let activeProfile = 'main';
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
 // URL her efter deploy (se sync-worker/DEPLOY.md).
-// Lokal dato som YYYY-MM-DD — toISOString() giver UTC-datoen og kan
-// forskyde datoer i dansk tid.
-function localISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
+
+// Delt adgangskode til sync-Worker'en. Gemmes i localStorage under 'sync_token'
+// (samme domæne → deles automatisk af SBD, løb og dashboard). Sættes i løb → Opsætning.
+function getSyncToken(){
+  try{ return localStorage.getItem('sync_token') || ''; }catch(e){ return ''; }
+}
+function syncHeaders(extra){
+  const h = Object.assign({}, extra||{});
+  const t = getSyncToken();
+  if(t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
 let _syncPushTimers = {};
+let _syncAuthFailed = false;
 
 function syncEnabled(){
   return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
@@ -378,8 +474,10 @@ function syncEnabled(){
 async function syncPull(key){
   if(!syncEnabled()) return false;
   try{
-    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store' });
+    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store', headers: syncHeaders() });
+    if(res.status===401){ _syncAuthFailed = true; return false; }
     if(!res.ok) return false;
+    _syncAuthFailed = false;
     const data = await res.json();
     if(data.value == null) return false;
     const localUpdatedAt = parseInt(localStorage.getItem(key+'__updatedAt') || '0');
@@ -403,10 +501,12 @@ function syncPush(key){
       const raw = localStorage.getItem(key);
       if(raw == null) return;
       const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, {
-        method:'PUT', headers:{'Content-Type':'application/json'},
+        method:'PUT', headers: syncHeaders({'Content-Type':'application/json'}),
         body: JSON.stringify({ value: JSON.parse(raw) }),
       });
-      if(res.ok){
+      if(res.status===401){ _syncAuthFailed = true; }
+      else if(res.ok){
+        _syncAuthFailed = false;
         const data = await res.json();
         localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
       }
@@ -421,13 +521,15 @@ function defaultState(){
     profile:{
       navn:'', maxHR:null, restHR:null,
       testKm:null,
-      seasonStart: localISO(new Date()),
+      seasonStart: localDateStr(),
       onboarded:false,
       goalBaselineVDOT:null, goalBaselineDate:null, goalTargetPct:8,
-      dismissedGapFor:null // dato for sidste løb da bruger valgte "behold planen" ved et hul
+      dismissedGapFor:null, // dato for sidste løb da bruger valgte "behold planen" ved et hul
+      raceGoal:{ active:false, distance:null, date:null, niveau:'mellem', activatedDate:null }
     },
     runs:[], // {id,date,distanceKm,durationSec,avgHR,maxHR,elev,feeling,notat}
-    notFeeling100:{} // { 'YYYY-MM-DD': true }
+    notFeeling100:{}, // { 'YYYY-MM-DD': true }
+    weekPlanOverrides:{} // { 'YYYY-MM-DD': 'quality'|'easy'|'rest' } — manuelt valgt i "Resten af ugen"
   };
 }
 
@@ -438,7 +540,9 @@ function loadState(key){
     const parsed = JSON.parse(raw);
     if(!parsed.profile || !parsed.runs) return defaultState();
     if(!parsed.notFeeling100) parsed.notFeeling100 = {};
+    if(!parsed.weekPlanOverrides) parsed.weekPlanOverrides = {};
     if(parsed.profile.dismissedGapFor === undefined) parsed.profile.dismissedGapFor = null;
+    if(!parsed.profile.raceGoal) parsed.profile.raceGoal = { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null };
     return parsed;
   }catch(e){
     console.error('Kunne ikke indlæse state', e);
@@ -497,6 +601,53 @@ function fmtDate(d){
 }
 function uid(){ return 'r'+Date.now()+Math.floor(Math.random()*1000); }
 
+/* Lokal kalenderdato som "YYYY-MM-DD" — IKKE d.toISOString().slice(0,10).
+   toISOString() konverterer til UTC først, og i Danmark (UTC+1/+2) betyder
+   det at en dato beregnet ved lokal midnat (fx getWeekStart, ugelister)
+   altid blev skrevet en dag for tidligt. getFullYear/getMonth/getDate
+   bruger derimod browserens lokale tid, så datoen matcher kalenderen. */
+function localDateStr(d){
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+/* ================= DATAVALIDERING ========================================
+   Pace, distance, puls og varighed fodrer direkte ind i VDOT, zoner, TRIMP/
+   CTL/ATL og anbefalingsmotoren — en enkelt fejltastning (fx 42 i stedet for
+   4.2 km, eller ombyttede minutter/sekunder) kan derfor skævvride både
+   statistikken og "næste løbetur"-forslaget i ugevis. errors blokerer
+   (umulige værdier); warnings er usædvanlige-men-mulige værdier brugeren
+   selv skal bekræfte eller en import kan markere i stedet for at stoppe. */
+function checkRunPlausibility({distanceKm, durationSec, avgHR, maxHR, elev, date}){
+  const errors = [];
+  const warnings = [];
+
+  if(avgHR!=null && (avgHR<30 || avgHR>230)) errors.push(`Gennemsnitspuls (${avgHR}) skal være mellem 30 og 230 bpm.`);
+  if(maxHR!=null && (maxHR<30 || maxHR>230)) errors.push(`Makspuls (${maxHR}) skal være mellem 30 og 230 bpm.`);
+  if(avgHR!=null && maxHR!=null && avgHR>maxHR) errors.push(`Gennemsnitspuls (${avgHR}) kan ikke være højere end makspuls (${maxHR}) for samme løb.`);
+  if(elev!=null && elev<0) errors.push('Højdemeter kan ikke være negativ.');
+
+  const profMax = Number(aState().profile.maxHR)||null;
+  if(profMax){
+    if(avgHR!=null && avgHR>profMax+5) warnings.push(`Gennemsnitspuls (${avgHR}) er højere end din indstillede maxpuls (${profMax}) i Opsætning.`);
+    if(maxHR!=null && maxHR>profMax+5) warnings.push(`Makspuls (${maxHR}) er højere end din indstillede maxpuls (${profMax}) i Opsætning.`);
+  }
+
+  if(distanceKm>0 && durationSec>0){
+    const paceSecPerKm = durationSec/distanceKm;
+    if(paceSecPerKm < 150) warnings.push(`Tempoet (${fmtPace(paceSecPerKm)}) er usædvanligt hurtigt for et løb — tjek om distance og tid er byttet om eller fejltastet.`);
+    if(paceSecPerKm > 900) warnings.push(`Tempoet (${fmtPace(paceSecPerKm)}) er meget langsomt — tjek om distance og tid er korrekte.`);
+  }
+  if(distanceKm>100) warnings.push(`Distancen (${distanceKm} km) er usædvanlig stor — tjek om decimalpunktet er korrekt.`);
+  if(durationSec>12*3600) warnings.push('Varigheden er over 12 timer — tjek om tiden er indtastet korrekt.');
+  if(date && date>localDateStr()) warnings.push('Datoen ligger i fremtiden.');
+
+  return { errors, warnings };
+}
+
 function getZoneBounds(){
   const max = Number(aState().profile.maxHR)||0;
   return [
@@ -549,7 +700,7 @@ function getGoalStatus(){
   const vdotNow = computeVDOT();
   if(!aState().profile.goalBaselineVDOT && vdotNow){
     aState().profile.goalBaselineVDOT = vdotNow;
-    aState().profile.goalBaselineDate = localISO(new Date());
+    aState().profile.goalBaselineDate = localDateStr();
     saveState();
   }
   const baseline = aState().profile.goalBaselineVDOT;
@@ -571,7 +722,7 @@ function startNewGoalCycle(){
   }
   if(!confirm('Start en ny 12-ugers målcyklus med din nuværende VDOT ('+vdotNow.toFixed(1)+') som ny baseline?')) return;
   aState().profile.goalBaselineVDOT = vdotNow;
-  aState().profile.goalBaselineDate = localISO(new Date());
+  aState().profile.goalBaselineDate = localDateStr();
   saveState();
   renderAll();
 }
@@ -606,7 +757,7 @@ function computeCtlAtlSeries(){
   let ctl=0, atl=0;
   const series=[];
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
-    const key = localISO(d);
+    const key = localDateStr(d);
     const load = map[key]||0;
     ctl = ctl + (load-ctl)/CTL_TAU;
     atl = atl + (load-atl)/ATL_TAU;
@@ -621,10 +772,10 @@ function getWeekStart(dateStr){
   const day = d.getDay(); // 0=søn
   const diff = (day===0? -6 : 1-day); // mandag som start
   d.setDate(d.getDate()+diff);
-  return localISO(d);
+  return localDateStr(d);
 }
 function currentWeekRuns(){
-  const todayWeekStart = getWeekStart(localISO(new Date()));
+  const todayWeekStart = getWeekStart(localDateStr());
   return aState().runs.filter(r => getWeekStart(r.date)===todayWeekStart);
 }
 function weekKmTotals(){
@@ -642,7 +793,75 @@ function seasonWeekNumber(){
   const diffDays = Math.floor((now-start)/(1000*3600*24));
   return Math.max(1, Math.floor(diffDays/7)+1);
 }
+function raceLabel(d){ return {'5k':'5 km','10k':'10 km','half':'halvmarathon'}[d] || 'løb'; }
+
+/* Race-specifik periodisering: tæller baglæns fra racedato i stedet for den
+   generelle, repeterende 12-ugers VDOT-cyklus. Aktiveres via et race-mål i
+   Opsætning (distance + dato + niveau). */
+function computeRacePhaseInfo(){
+  const rg = aState().profile.raceGoal;
+  if(!rg || !rg.active || !rg.date || !rg.distance) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const raceDate = new Date(rg.date+'T00:00:00');
+  const startDate = new Date((rg.activatedDate||rg.date)+'T00:00:00');
+  const WEEK = 7*86400000;
+
+  const daysToRace = Math.ceil((raceDate-today)/86400000);
+  const weeksToRace = Math.max(0, Math.ceil(daysToRace/7));
+
+  let totalWeeks = Math.round((raceDate-startDate)/WEEK);
+  if(!isFinite(totalWeeks) || totalWeeks<1) totalWeeks = 1;
+
+  const beginnerBonus = rg.niveau==='begynder' ? 1 : 0;
+  let taperW = (rg.distance==='half' ? 2 : 1) + beginnerBonus;
+  taperW = Math.min(taperW, Math.max(1, totalWeeks-1));
+  const peakW = Math.min(3, Math.max(0, totalWeeks-taperW-1));
+  const baseBuildWeeks = Math.max(0, totalWeeks-taperW-peakW);
+  const baseW = Math.round(baseBuildWeeks*0.55);
+  const buildW = baseBuildWeeks-baseW;
+
+  const daysElapsed = Math.floor((today-startDate)/86400000);
+  const weekIndex = Math.max(1, Math.floor(daysElapsed/7)+1);
+
+  let phase;
+  if(daysToRace<=0) phase='Race';
+  else if(weekIndex<=baseW) phase='Base';
+  else if(weekIndex<=baseW+buildW) phase='Build';
+  else if(weekIndex<=baseW+buildW+peakW) phase='Peak';
+  else phase='Taper';
+
+  const isDeload = (phase==='Base'||phase==='Build') && (weekIndex % 4 === 0);
+
+  return {weekIndex, totalWeeks, baseW, buildW, peakW, taperW, phase, isDeload, weeksToRace, daysToRace, distance:rg.distance, niveau:rg.niveau};
+}
+
+function raceVariants(distance, kind){
+  const table = {
+    '5k': {
+      build: ['8 x 2 min i Zone 4 med 90 sek pause.','5 x 1000 m i Zone 4 med 2 min pause.','20 min fartlek: 1 min hårdt / 1 min let, gentaget.'],
+      peak: ['6 x 800 m i 5km-race-pace med 2 min pause.','4 x 1200 m i 5km-race-pace med 2-3 min pause.','3 x 1600 m i 5km-race-pace med 3 min pause.']
+    },
+    '10k': {
+      build: ['6 x 1000 m i Zone 4 med 90 sek pause.','20 min tempo i Zone 3-4.','4 x 1500 m i Zone 4 med 2 min pause.'],
+      peak: ['5 x 1000 m i 10km-race-pace med 2 min pause.','3 x 2000 m i 10km-race-pace med 3 min pause.','2 x 3000 m i 10km-race-pace med 4 min pause.']
+    },
+    'half': {
+      build: ['90 min lang tur i Zone 2, sidste 20 min i Zone 3.','3 x 15 min i Zone 3 med 3 min let jog imellem.','70 min med 20 min i halvmarathon-tempo midt i turen.'],
+      peak: ['16 km lang tur med sidste 6 km i halvmarathon race-pace.','2 x 20 min i halvmarathon race-pace med 3 min pause.','3 x 15 min i race-pace med 2 min pause.']
+    }
+  };
+  return (table[distance] && table[distance][kind]) || null;
+}
+
 function currentPhaseInfo(){
+  const race = computeRacePhaseInfo();
+  if(race){
+    return {
+      week: race.weekIndex, phase: race.phase, isDeload: race.isDeload,
+      posInBlock: ((race.weekIndex-1) % 12)+1,
+      raceMode:true, weeksToRace: race.weeksToRace, distance: race.distance, niveau: race.niveau
+    };
+  }
   const wk = seasonWeekNumber();
   const isDeload = wk % 4 === 0;
   // simple 3-phase split across a 12-week block (repeating): weeks 1-5 base, 6-9 build, 10-12 peak — cyclical
@@ -651,7 +870,7 @@ function currentPhaseInfo(){
   if(posInBlock<=5) phase='Base';
   else if(posInBlock<=9) phase='Build';
   else phase='Peak';
-  return {week:wk, phase, isDeload, posInBlock};
+  return {week:wk, phase, isDeload, posInBlock, raceMode:false};
 }
 
 /* ================= NÆSTE ANBEFALING ================= */
@@ -664,6 +883,113 @@ function isHardRun(r){
 }
 
 function avgArr(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+/* ================= MÅLTEMPO (Daniels-Gilbert VDOT-tempozoner) =============
+   Udleder konkrete tempi (min/km) fra den løbende VDOT, så forslagene kan
+   sige "4:35/km" i stedet for bare "Zone 3-4". Samme VO2-formel som
+   vdotFromDistanceTime, bare løst baglæns (hastighed ud fra VO2). */
+function vo2ToVelocity(vo2){
+  // Løser 0.000104v² + 0.182258v - (4.60+vo2) = 0 for v (m/min)
+  const a=0.000104, b=0.182258, c=-(4.60+vo2);
+  return (-b + Math.sqrt(b*b - 4*a*c)) / (2*a);
+}
+function pctVO2maxForTime(tMin){
+  return 0.8 + 0.1894393*Math.exp(-0.012778*tMin) + 0.2989558*Math.exp(-0.1932605*tMin);
+}
+/* Iterativ race-tid-prognose: tempo der ville give netop din nuværende VDOT
+   over den angivne distance (samme metode Daniels' egne VDOT-tabeller bruger). */
+function predictRacePace(vdot, distanceMeters){
+  if(!vdot || !distanceMeters) return null;
+  let v = vo2ToVelocity(vdot);
+  let t = distanceMeters / v; // min
+  for(let i=0;i<6;i++){
+    const vo2target = vdot * pctVO2maxForTime(t);
+    v = vo2ToVelocity(vo2target);
+    t = distanceMeters / v;
+  }
+  return { secPerKm: 60000/v, totalSec: Math.round(t*60) };
+}
+function raceDistanceMeters(d){ return {'5k':5000,'10k':10000,'half':21097.5}[d] || null; }
+function fmtClock(totalSec){
+  totalSec = Math.max(0, Math.round(totalSec));
+  const h = Math.floor(totalSec/3600), m = Math.floor((totalSec%3600)/60), s = totalSec%60;
+  return (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(s).padStart(2,'0');
+}
+/* Tempozoner som % af hastigheden ved VDOT (vVO2max) — grove, velkendte
+   Daniels-bånd. Ikke eksakte tabelopslag, men langt mere konkret end en
+   ren pulszone. */
+function paceZones(){
+  const vdot = computeVDOT();
+  if(!vdot) return null;
+  const vVO2 = vo2ToVelocity(vdot);
+  const pace = pct => 60000/(vVO2*pct);
+  return {
+    vdot,
+    easyLo: pace(0.59), easyHi: pace(0.74),   // roligt, Zone 1-2
+    marathon: pace(0.82),                      // Zone 2-3, lang tur m. tempo
+    threshold: pace(0.88),                     // Zone 3-4, tempoløb
+    interval: pace(0.98),                      // Zone 4-5, intervaller
+    repetition: pace(1.08)                     // Zone 5, korte/skarpe
+  };
+}
+function repTimeLabel(distanceMeters, secPerKm){
+  const sec = Math.round(distanceMeters/1000*secPerKm);
+  const distLabel = distanceMeters>=1000 ? (distanceMeters/1000)+' km' : distanceMeters+' m';
+  return `${fmtPace(secPerKm)} (~${fmtClock(sec)} pr. ${distLabel})`;
+}
+
+/* ================= ESTIMERET DISTANCE ===================================
+   Ikke kun "hvor hurtigt", men "hvor langt" — udleder en konkret km-mængde
+   for dagens forslag, enten fra kendte reps/tider i forslaget selv, eller
+   (for lette ture uden fast struktur) fra din egen seneste løbe-historik. */
+function roundKm(km){ return Math.round(km*10)/10; }
+function kmTimeLabel(km, paceSecPerKm){
+  if(!km || km<=0) return null;
+  const k = roundKm(km);
+  return paceSecPerKm ? `~${k} km (~${fmtClock(k*paceSecPerKm)})` : `~${k} km`;
+}
+function recentDistanceStats(){
+  const runs = [...aState().runs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,20);
+  if(!runs.length) return null;
+  const easy = runs.filter(r=>!isHardRun(r) && r.distanceKm>0);
+  const pool = easy.length ? easy : runs.filter(r=>r.distanceKm>0);
+  if(!pool.length) return null;
+  return {
+    avgEasyKm: avgArr(pool.map(r=>r.distanceKm)),
+    maxEasyKm: Math.max(...pool.map(r=>r.distanceKm))
+  };
+}
+/* Samme regex-tilgang som Timer-autofyld (parser "N x M min/sek/m", pause og
+   opvarmning ud af forslagets egen tekst), men bruges her til at summere en
+   samlet distance i stedet for kun at opsætte en timer. */
+function parseWorkoutStructure(desc){
+  let reps=null, workSec=null, workMeters=null, restSec=null, warmupMin=null;
+  let m = desc.match(/(\d+)\s*x\s*(\d+)\s*min/i);
+  if(m){ reps=Number(m[1]); workSec=Number(m[2])*60; }
+  if(!m){ m = desc.match(/(\d+)\s*x\s*(\d+)\s*sek/i); if(m){ reps=Number(m[1]); workSec=Number(m[2]); } }
+  if(!m){ m = desc.match(/(\d+)\s*x\s*(\d+)\s*m\b/i); if(m){ reps=Number(m[1]); workMeters=Number(m[2]); } }
+  let pm = desc.match(/(\d+)(?:-(\d+))?\s*min\s*(?:let jog\s*)?(?:som\s*)?pause/i) || desc.match(/(\d+)(?:-(\d+))?\s*min\s*(?:let jog\s*)?imellem/i);
+  if(pm){ restSec = Number(pm[2]||pm[1])*60; }
+  if(!pm){ pm = desc.match(/(\d+)\s*sek\s*pause/i); if(pm) restSec = Number(pm[1]); }
+  let wm = desc.match(/varm op\s*(\d+)(?:-(\d+))?\s*min/i) || desc.match(/(\d+)(?:-(\d+))?\s*min\s*opvarmning/i);
+  if(wm){ warmupMin = Number(wm[2]||wm[1]); }
+  return {reps, workSec, workMeters, restSec, warmupMin};
+}
+/* Summerer km for en "N x ..." struktur ud fra forslagets egen tekst.
+   workPace bruges til arbejds-stykkerne, easyPace til opvarmning/pauser.
+   Returnerer null hvis teksten ikke matcher et genkendeligt mønster
+   (fx fartlek/stigende tempo) — bedre at vise intet end et gættet tal. */
+function estimateSessionKm(desc, workPace, easyPace){
+  const st = parseWorkoutStructure(desc);
+  if(!st.reps || (!st.workSec && !st.workMeters)) return null;
+  let km = 0;
+  if(st.warmupMin && easyPace) km += (st.warmupMin*60)/easyPace;
+  const workKmEach = st.workMeters ? st.workMeters/1000 : (workPace ? st.workSec/workPace : null);
+  if(workKmEach==null) return null;
+  km += workKmEach*st.reps;
+  if(st.restSec && st.reps>1 && easyPace) km += ((st.reps-1)*st.restSec)/easyPace;
+  return km>0 ? km : null;
+}
 
 function detectPlateau(runsSorted){
   const easyRuns = runsSorted.filter(r=> r.avgHR && zoneForHR(r.avgHR) <= 1 && r.distanceKm >= 3);
@@ -679,7 +1005,7 @@ function detectPlateau(runsSorted){
 }
 
 function suggestNextWorkout(){
-  const todayStr = localISO(new Date());
+  const todayStr = localDateStr();
   if(aState().notFeeling100 && aState().notFeeling100[todayStr]){
     return {
       type:'Let løb', title:'Lyt til kroppen',
@@ -690,6 +1016,10 @@ function suggestNextWorkout(){
 
   const info = currentPhaseInfo();
   const wk = info.week;
+  const pz = paceZones();
+  const easyPaceStr = pz ? `${fmtPace(pz.easyLo)}–${fmtPace(pz.easyHi)}` : null;
+  const easyMidPace = pz ? (pz.easyLo+pz.easyHi)/2 : null;
+  const dstats = recentDistanceStats();
 
   if(aState().runs.length===0){
     return {
@@ -704,37 +1034,49 @@ function suggestNextWorkout(){
   const daysSinceLast = Math.floor((new Date() - new Date(lastRun.date+'T00:00:00')) / 86400000);
 
   if(daysSinceLast > 5){
+    const km = dstats ? Math.max(3, roundKm(dstats.avgEasyKm*0.6)) : null;
     return {
       type:'Let løb', title:'Genstart let',
       desc:'Kør et kort, let løb i Zone 1-2 for at komme i gang igen — spring ikke direkte til en kvalitetsøkt efter en pause.',
-      reason:`${daysSinceLast} dage siden sidste løbetur.`
+      reason:`${daysSinceLast} dage siden sidste løbetur.`,
+      pace: easyPaceStr,
+      distance: km ? kmTimeLabel(km, easyMidPace) : null
     };
   }
 
   if(info.isDeload){
+    const km = dstats ? roundKm(dstats.avgEasyKm*0.6) : null;
     return {
       type:'Let løb', title:'Deload-uge',
       desc:'Løb let i Zone 1-2, ca. 60% af din normale distance. Fokus er restitution, ikke fremgang denne uge.',
-      reason:`Uge ${wk} er en planlagt deload-uge (hver 4. uge).`
+      reason:`Uge ${wk} er en planlagt deload-uge (hver 4. uge).`,
+      pace: easyPaceStr,
+      distance: km ? kmTimeLabel(km, easyMidPace) : null
     };
   }
 
   const secondLastRun = runsSorted[runsSorted.length-2];
   if(isHardRun(lastRun) && isHardRun(secondLastRun)){
+    const km = dstats ? Math.max(2, roundKm(dstats.avgEasyKm*0.5)) : null;
     return {
       type:'Restitution', title:'Restitutionsløb',
       desc:'De sidste to løbeture har begge været hårde (høj puls, tung følelse eller kuperet terræn). Kør et kort, meget let løb eller hold helt fri.',
-      reason:'To hårde løbeture i træk uden restitution imellem.'
+      reason:'To hårde løbeture i træk uden restitution imellem.',
+      pace: easyPaceStr,
+      distance: km ? kmTimeLabel(km, easyMidPace) : null
     };
   }
 
   const {ctl, atl} = computeCtlAtlSeries();
   const form = ctl - atl;
   if(isFinite(form) && form < -15){
+    const km = dstats ? Math.max(2, roundKm(dstats.avgEasyKm*0.5)) : null;
     return {
       type:'Restitution', title:'Restitutionsløb',
       desc:'Kør et kort, meget let løb i Zone 1 — eller tag en hviledag helt. Din akutte belastning overstiger din kroniske markant lige nu.',
-      reason:`Form er ${form.toFixed(0)} — betydeligt i underskud.`
+      reason:`Form er ${form.toFixed(0)} — betydeligt i underskud.`,
+      pace: easyPaceStr,
+      distance: km ? kmTimeLabel(km, easyMidPace) : null
     };
   }
 
@@ -742,10 +1084,13 @@ function suggestNextWorkout(){
     let why = 'gns. puls i Zone 3+';
     if(lastRun.feeling && lastRun.feeling<=2 && (!lastRun.avgHR || zoneForHR(lastRun.avgHR)<2)) why = 'du noterede en tung/udkørt følelse';
     else if(lastRun.elev && lastRun.distanceKm>0 && (lastRun.elev/lastRun.distanceKm)>15 && (!lastRun.avgHR || zoneForHR(lastRun.avgHR)<2)) why = 'kuperet terræn med meget højdemeter';
+    const km = dstats ? roundKm(dstats.avgEasyKm*0.85) : null;
     return {
       type:'Let løb', title:'Let løb / restitution',
       desc:'Kør denne tur let i Zone 1-2, så kroppen når at restituere mellem kvalitetsøkter.',
-      reason:`Sidste løb var belastende (${why}).`
+      reason:`Sidste løb var belastende (${why}).`,
+      pace: easyPaceStr,
+      distance: km ? kmTimeLabel(km, easyMidPace) : null
     };
   }
 
@@ -754,6 +1099,35 @@ function suggestNextWorkout(){
   if(recentWithHR.length >= 4){
     const z3count = recentWithHR.filter(r=> zoneForHR(r.avgHR)===2).length;
     z3heavy = (z3count/recentWithHR.length) > 0.4;
+  }
+
+  const raceDistM = info.raceMode ? raceDistanceMeters(info.distance) : null;
+  const racePred = (pz && raceDistM) ? predictRacePace(pz.vdot, raceDistM) : null;
+  const racePaceStr = racePred ? `${fmtPace(racePred.secPerKm)} (estimeret ~${fmtClock(racePred.totalSec)} for ${raceLabel(info.distance)})` : null;
+
+  if(info.raceMode && (info.phase==='Taper' || info.phase==='Race')){
+    if(info.phase==='Race'){
+      return {
+        type:'Løbsdag', title:`${raceLabel(info.distance)} er her`,
+        desc:'Hvis løbet ikke allerede er afholdt: kort, let jog i dag eller helt fri, så benene er friske. Stol på de ugers arbejde du har lagt i det.',
+        reason:'Din valgte racedato er nået eller overstået.',
+        pace: racePaceStr ? `Dit forventede race-tempo lige nu: ${racePaceStr}.` : null,
+        distance: raceDistM ? kmTimeLabel(raceDistM/1000, racePred?racePred.secPerKm:null) + ' — selve løbet.' : null
+      };
+    }
+    const taperVariants = [
+      { desc:'Kort løb i Zone 1-2 med 4-6 x 20 sek strides i race-pace, fuld restitution imellem.', km: dstats?roundKm(dstats.avgEasyKm*0.5):null },
+      { desc:'20-30 min let i Zone 2, afslut med 3 x 1 min i race-pace.', km: easyMidPace ? roundKm((25*60)/easyMidPace + (racePred?3*60/racePred.secPerKm:0)) : null },
+      { desc:'Helt let løb eller fri — fokus på søvn og benfriskhed op til løbet.', km: null }
+    ];
+    const chosenTaper = taperVariants[wk % taperVariants.length];
+    return {
+      type:'Taper', title:'Taper-uge',
+      desc: chosenTaper.desc,
+      reason:`${info.weeksToRace} uge(r) til dit ${raceLabel(info.distance)}-mål — reducér volumen markant, behold kort skarphed.`,
+      pace: easyPaceStr && racePaceStr ? `Roligt: ${easyPaceStr}. Race-pace-stænkene: ${racePaceStr}.` : easyPaceStr,
+      distance: chosenTaper.km ? kmTimeLabel(chosenTaper.km, easyMidPace) : null
+    };
   }
 
   const plateaued = (info.phase==='Base' || info.phase==='Build') && detectPlateau(runsSorted);
@@ -766,11 +1140,12 @@ function suggestNextWorkout(){
     return {
       type:'Kvalitet', title:'Stimulusskifte',
       desc: variants[wk % variants.length],
-      reason:'Din pace i lette løb er ikke rykket sig i mindst 3 uger, selvom du har trænet. Et nyt stimulus kan bryde et plateau frem for endnu en tur i samme mønster.'
+      reason:'Din pace i lette løb er ikke rykket sig i mindst 3 uger, selvom du har trænet. Et nyt stimulus kan bryde et plateau frem for endnu en tur i samme mønster.',
+      pace: null // strides/bakker/fartlek er indsats-styret, ikke fast tempo — et tal her ville være falsk præcision
     };
   }
 
-  if(info.posInBlock === 10){
+  if(!info.raceMode && info.posInBlock === 10){
     return {
       type:'Test', title:'20-min tempotest',
       desc:'Løb 20 min for fuld, jævn indsats (så hårdt du kan holde konstant hele vejen). Log distancen som en almindelig løbetur — det opdaterer dit VDOT-mål med et rent sammenligneligt datapunkt ved starten af Peak-fasen.',
@@ -779,95 +1154,117 @@ function suggestNextWorkout(){
   }
 
   if(info.phase === 'Base'){
+    const km = dstats ? roundKm(dstats.maxEasyKm*1.15) : null;
     return {
       type:'Kvalitet', title:'Lang, jævn tur',
       desc:'Forlæng din normale distance med 10-20%, og hold hele vejen i Zone 2. Formålet er at udvide det aerobe fundament — ikke fart.',
-      reason:'Base-fase: fokus er volumen i lav intensitet.'
+      reason: info.raceMode
+        ? `Base-fase mod dit ${raceLabel(info.distance)}-mål (${info.weeksToRace} uger tilbage) — byg fundamentet før tempoarbejdet.`
+        : 'Base-fase: fokus er volumen i lav intensitet.',
+      pace: pz ? `${fmtPace(pz.easyHi)} (øvre ende af let tempo — hold det jævnt, ikke accelererende).` : easyPaceStr,
+      distance: km ? kmTimeLabel(km, pz?pz.easyHi:easyMidPace) + ` (10-20% over din længste seneste lette tur på ${roundKm(dstats.maxEasyKm)} km).` : null
     };
   }
 
   if(info.phase === 'Build'){
+    if(info.raceMode){
+      const variants = raceVariants(info.distance,'build');
+      const chosen = variants[wk % variants.length];
+      let pace = null, distance = null;
+      if(pz){
+        const workPace = info.distance==='half' ? pz.marathon : pz.threshold;
+        if(info.distance==='half') pace = `${fmtPace(pz.marathon)} i den lette del, ${fmtPace(pz.threshold)} i tempo-stykket.`;
+        else pace = `${repTimeLabel(1000, pz.threshold)} for en 1000m-reference ved tærskeltempo — brug det som pejlemærke for intervallerne/tempoet ovenfor.`;
+        const km = estimateSessionKm(chosen, workPace, pz.easyHi);
+        distance = km ? kmTimeLabel(km, null) + ' i alt for økten.' : null;
+      }
+      return {
+        type:'Kvalitet', title: info.distance==='half' ? 'Lang tur m. tempo' : 'Tempo/intervaller',
+        desc: chosen,
+        reason:`Build-fase mod dit ${raceLabel(info.distance)}-mål (${info.weeksToRace} uger tilbage).`,
+        pace, distance
+      };
+    }
     if(z3heavy){
       const variants = [
-        '6 x 800 m i Zone 4-5 med 2-3 min let jog som pause.',
-        '4 x 1000 m i Zone 4 med 2 min pause.',
-        '8 x 400 m i Zone 5 med 90 sek pause.'
+        { desc:'6 x 800 m i Zone 4-5 med 2-3 min let jog som pause.', dist:800, reps:6, restSec:150 },
+        { desc:'4 x 1000 m i Zone 4 med 2 min pause.', dist:1000, reps:4, restSec:120 },
+        { desc:'8 x 400 m i Zone 5 med 90 sek pause.', dist:400, reps:8, restSec:90 }
       ];
+      const chosen = variants[wk % variants.length];
+      let distance = null;
+      if(pz){
+        const km = (12.5*60)/pz.easyHi + (chosen.dist/1000)*chosen.reps + (chosen.reps-1)*chosen.restSec/pz.easyHi;
+        distance = kmTimeLabel(km, null) + ' i alt (opvarmning + intervaller + rolige pauser).';
+      }
       return {
         type:'Kvalitet', title:'Intervaller (Zone 4-5)',
-        desc: variants[wk % variants.length] + ' Varm op 10-15 min i Zone 1-2 først.',
-        reason:'For meget Zone 3 i dine seneste løb — skift til skarpere intervaller frem for endnu et tempoløb for at polarisere mere.'
+        desc: chosen.desc + ' Varm op 10-15 min i Zone 1-2 først.',
+        reason:'For meget Zone 3 i dine seneste løb — skift til skarpere intervaller frem for endnu et tempoløb for at polarisere mere.',
+        pace: pz ? repTimeLabel(chosen.dist, pz.interval) : null,
+        distance
       };
     }
     const variants = [
-      '20 min i Zone 3-4 tempo, efter 10 min opvarmning i Zone 1-2.',
-      '3 x 10 min i Zone 3 med 3 min let jog imellem.',
-      '15 min stigende fra Zone 3 til Zone 4.'
+      { desc:'20 min i Zone 3-4 tempo, efter 10 min opvarmning i Zone 1-2.', km: pz ? (10*60)/pz.easyHi + (20*60)/pz.threshold : null },
+      { desc:'3 x 10 min i Zone 3 med 3 min let jog imellem.', km: pz ? 3*(10*60)/pz.marathon + 2*(3*60)/pz.easyHi : null },
+      { desc:'15 min stigende fra Zone 3 til Zone 4.', km: pz ? (15*60)/((pz.marathon+pz.threshold)/2) : null }
     ];
+    const chosenTempo = variants[wk % variants.length];
     return {
       type:'Kvalitet', title:'Tempoløb',
-      desc: variants[wk % variants.length],
-      reason:'Build-fase: introducér tempoarbejde i Zone 3-4.'
+      desc: chosenTempo.desc,
+      reason:'Build-fase: introducér tempoarbejde i Zone 3-4.',
+      pace: pz ? `${fmtPace(pz.threshold)} (tærskeltempo — "komfortabelt hårdt", kan holdes ~1 time).` : null,
+      distance: chosenTempo.km ? kmTimeLabel(chosenTempo.km, null) + ' i alt for økten.' : null
     };
   }
 
   // Peak
+  if(info.raceMode){
+    const variants = raceVariants(info.distance,'peak');
+    const chosen = variants[wk % variants.length];
+    const km = racePred ? estimateSessionKm(chosen, racePred.secPerKm, pz?pz.easyHi:null) : null;
+    return {
+      type:'Kvalitet', title:'Race-pace',
+      desc: chosen + ' Hold volumen lavere denne uge — kvalitet frem for mængde.',
+      reason:`Peak-fase mod dit ${raceLabel(info.distance)}-mål (${info.weeksToRace} uger tilbage).`,
+      pace: racePaceStr ? `Målrace-tempo: ${racePaceStr} — det er det tempo intervallerne ovenfor skal ramme.` : null,
+      distance: km ? kmTimeLabel(km, null) + ' i alt for økten.' : null
+    };
+  }
   const variants = [
-    '5 x 1000 m i race-pace (Zone 5) med 2 min pause.',
-    '3 x 1600 m i race-pace med 3 min pause.',
-    '2 x 3000 m i Zone 4-5 med 4 min pause.'
+    { desc:'5 x 1000 m i race-pace (Zone 5) med 2 min pause.', dist:1000, reps:5, restSec:120 },
+    { desc:'3 x 1600 m i race-pace med 3 min pause.', dist:1600, reps:3, restSec:180 },
+    { desc:'2 x 3000 m i Zone 4-5 med 4 min pause.', dist:3000, reps:2, restSec:240 }
   ];
+  const chosenPeak = variants[wk % variants.length];
+  const peakKm = pz ? (chosenPeak.dist/1000)*chosenPeak.reps + (chosenPeak.reps-1)*chosenPeak.restSec/pz.easyHi : null;
   return {
     type:'Kvalitet', title:'Race-pace intervaller',
-    desc: variants[wk % variants.length] + ' Hold volumen lavere denne uge — kvalitet frem for mængde.',
-    reason:'Peak-fase: skarphed mod dit mål.'
+    desc: chosenPeak.desc + ' Hold volumen lavere denne uge — kvalitet frem for mængde.',
+    reason:'Peak-fase: skarphed mod dit mål.',
+    pace: pz ? repTimeLabel(chosenPeak.dist, pz.interval) : null,
+    distance: peakKm ? kmTimeLabel(peakKm, null) + ' for selve intervallerne (ekskl. opvarmning).' : null
   };
-}
-
-// ── Konkrete mål: distance + tempo beregnet ud fra dine seneste løb ───────
-// Median-pace og -distance fra de seneste (lette) ture bruges som baseline,
-// så målet automatisk følger med, når formen flytter sig.
-function paceStr(sec){
-  if(!isFinite(sec)||sec<=0) return null;
-  const m=Math.floor(sec/60), s=Math.round(sec%60);
-  return m+':'+String(s).padStart(2,'0');
-}
-function paceRange(sec, spread){ return paceStr(sec)+'–'+paceStr(sec+(spread||15))+' min/km'; }
-function roundKm(km){ return (Math.round(km*2)/2).toLocaleString('da-DK'); }
-function recentRunStats(){
-  const runs=[...aState().runs].filter(r=>r.distanceKm>0.5&&r.durationSec>0).sort((a,b)=>a.date.localeCompare(b.date)).slice(-10);
-  if(runs.length<2) return null;
-  const easy=runs.filter(r=>!r.avgHR||zoneForHR(r.avgHR)<=1);
-  const base=(easy.length>=3?easy:runs);
-  const med=a=>{const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
-  return { easyPace: med(base.map(r=>r.durationSec/r.distanceKm)), typDist: med(base.map(r=>r.distanceKm)) };
-}
-function concreteTarget(s){
-  const st=recentRunStats();
-  if(!st) return null;
-  const E=st.easyPace, D=st.typDist, t=(s.title||'')+' '+(s.type||'');
-  if(t.includes('Lang')) return `Løb ${roundKm(D*1.15)}–${roundKm(D*1.25)} km i ${paceRange(E+10,20)} — Zone 2 hele vejen.`;
-  if(t.includes('Tempoløb')) return `I alt ca. ${roundKm(Math.max(5,D*0.9))} km — tempo-delen i ${paceRange(E-55,15)}.`;
-  if(t.includes('Intervaller')||t.includes('Race-pace')) return `Intervallerne i ${paceRange(E-75,15)} — jog-pauserne helt rolige (${paceStr(E+45)}+ min/km).`;
-  if(t.includes('Stimulusskifte')) return `Basen: ${roundKm(D)} km i dit lette tempo (${paceRange(E,15)}).`;
-  if(t.includes('Deload')) return `Løb ${roundKm(D*0.6)} km i ${paceRange(E+20,20)} — kortere og roligere end normalt.`;
-  if(t.includes('tempotest')) return `Efter opvarmning: 20 min jævnt for fuld indsats — sigt omkring ${paceRange(E-65,15)} og notér distancen.`;
-  if(t.includes('Restitution')) return `Højst ${roundKm(D*0.6)} km i ${paceRange(E+40,20)} — det må gerne føles for langsomt.`;
-  if(t.includes('Genstart')||t.includes('Let løb')) return `Løb ${roundKm(D*0.8)}–${roundKm(D)} km i ${paceRange(E,20)}.`;
-  return `Løb ca. ${roundKm(D)} km i ${paceRange(E,20)}.`;
 }
 
 function renderSuggestion(){
   const s = suggestNextWorkout();
-  const target = concreteTarget(s);
   document.getElementById('sug-type').textContent = s.type;
+  const distHtml = s.distance ? `<div class="pace-callout">📏 Distance: ${s.distance}</div>` : '';
+  const paceHtml = s.pace
+    ? `<div class="pace-callout">🎯 Måltempo: ${s.pace}</div>`
+    : (computeVDOT() ? '' : `<div class="note" style="margin-top:6px;">Log et løb på mindst 15 min for at få konkrete måltempi og distancer her (kræver en VDOT-baseline).</div>`);
   document.getElementById('sug-body').innerHTML =
     `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${s.title}</div>
      <div class="note">${s.desc}</div>
-     ${target ? `<div class="ok-box">🎯 Sæt dig for: ${target}</div>` : ''}
+     ${distHtml}
+     ${paceHtml}
+     ${(s.pace||s.distance) ? '<div class="note" style="margin-top:4px;font-size:11px;">Tempo og distance er beregnede estimater ud fra dit seneste bedste løb — brug dem som retning, ikke facit.</div>' : ''}
      <div class="note" style="margin-top:6px;"><i>${s.reason}</i></div>`;
 
-  const todayStr = localISO(new Date());
+  const todayStr = localDateStr();
   const isOn = !!(aState().notFeeling100 && aState().notFeeling100[todayStr]);
   const btn = document.getElementById('not100-btn');
   btn.textContent = isOn ? '✓ Ikke 100% i dag — tryk for at fjerne' : 'Ikke 100% i dag?';
@@ -876,7 +1273,7 @@ function renderSuggestion(){
 }
 
 function toggleNotFeeling100(){
-  const todayStr = localISO(new Date());
+  const todayStr = localDateStr();
   const as = aState();
   if(!as.notFeeling100) as.notFeeling100 = {};
   as.notFeeling100[todayStr] = !as.notFeeling100[todayStr];
@@ -906,7 +1303,7 @@ function applyPlanAdjustment(){
   const as = aState();
   const d = new Date(as.profile.seasonStart+'T00:00:00');
   d.setDate(d.getDate() + gap.daysSince);
-  as.profile.seasonStart = localISO(d);
+  as.profile.seasonStart = localDateStr(d);
   as.profile.dismissedGapFor = null; // ny plan, intet at ignorere længere
   saveState();
   renderAll();
@@ -950,7 +1347,7 @@ function saveOnboarding(){
   const maxHR = Number(document.getElementById('ob-maxhr').value);
   const restHR = Number(document.getElementById('ob-resthr').value);
   const testKm = Number(document.getElementById('ob-testkm').value)||null;
-  const startdato = document.getElementById('ob-startdato').value || localISO(new Date());
+  const startdato = document.getElementById('ob-startdato').value || localDateStr();
 
   if(!maxHR || !restHR){
     alert('Udfyld mindst maxpuls og hvilepuls for at fortsætte.');
@@ -962,7 +1359,9 @@ function saveOnboarding(){
     testKm: testKm,
     seasonStart: startdato, onboarded:true,
     goalBaselineVDOT: baselineVdot, goalBaselineDate: baselineVdot? startdato : null,
-    goalTargetPct: 8
+    goalTargetPct: 8,
+    dismissedGapFor: null,
+    raceGoal: { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null }
   };
   saveState();
   document.getElementById('view-onboarding').classList.remove('active');
@@ -982,7 +1381,7 @@ function calcPacePreview(){
 }
 
 function saveRun(){
-  const dato = document.getElementById('lg-dato').value || localISO(new Date());
+  const dato = document.getElementById('lg-dato').value || localDateStr();
   const dist = Number(document.getElementById('lg-dist').value);
   const tidSec = parseTidToSec(document.getElementById('lg-tid').value);
   const avgHR = Number(document.getElementById('lg-avghr').value)||null;
@@ -994,6 +1393,15 @@ function saveRun(){
 
   if(!dist || dist<=0){ alert('Indtast en distance større end 0.'); return; }
   if(!tidSec || tidSec<=0){ alert('Indtast en gyldig tid (mm:ss).'); return; }
+
+  const check = checkRunPlausibility({distanceKm:dist, durationSec:tidSec, avgHR, maxHR, elev, date:dato});
+  if(check.errors.length){
+    alert('Kan ikke gemme:\n- ' + check.errors.join('\n- '));
+    return;
+  }
+  if(check.warnings.length){
+    if(!confirm('Tjek lige før du gemmer:\n- ' + check.warnings.join('\n- ') + '\n\nGem alligevel?')) return;
+  }
 
   aState().runs.push({
     id: uid(), date: dato, distanceKm: dist, durationSec: tidSec,
@@ -1025,15 +1433,148 @@ function renderRunList(){
   el.innerHTML = sorted.map(r=>{
     const pace = fmtPace(r.durationSec/r.distanceKm);
     const min = Math.floor(r.durationSec/60), sec = r.durationSec%60;
+    const flagTitle = r.flagged? (r.flagNote||'Markeret til gennemsyn').replace(/"/g,'&quot;') : '';
     return `<div class="run-item" onclick="deleteRun('${r.id}')">
       <div class="rd">
-        <div class="date">${fmtDate(r.date)}</div>
+        <div class="date">${fmtDate(r.date)} ${r.flagged? `<span title="${flagTitle}" style="color:#e0a030;font-size:11px;">⚠ til gennemsyn</span>`:''}</div>
         <div class="main">${r.distanceKm.toFixed(2)} km · ${min}:${String(sec).padStart(2,'0')}</div>
       </div>
       <div class="rp">
         <div class="pace">${pace}</div>
         <div style="font-size:11px;color:var(--text-dim);">${r.avgHR? r.avgHR+' bpm':'—'}</div>
       </div>
+    </div>`;
+  }).join('');
+}
+
+/* ================= RESTEN AF UGEN (prognose) ================= */
+const WEEK_OV_DAYNAMES = ['Mandag','Tirsdag','Onsdag','Torsdag','Fredag','Lørdag','Søndag'];
+
+function qualitySlotsForPhase(info){
+  if(info.isDeload) return 0;
+  if(info.raceMode && (info.phase==='Taper' || info.phase==='Race')) return 1;
+  if(info.phase==='Base') return 1;
+  if(info.phase==='Build') return 2;
+  if(info.phase==='Peak') return 2;
+  return 1;
+}
+
+function projectWeekOverview(){
+  const todayStr = localDateStr();
+  const weekStart = getWeekStart(todayStr);
+  const dates = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(weekStart+'T00:00:00');
+    d.setDate(d.getDate()+i);
+    dates.push(localDateStr(d));
+  }
+
+  const runsByDate = {};
+  aState().runs.forEach(r=>{ (runsByDate[r.date] = runsByDate[r.date]||[]).push(r); });
+
+  const info = currentPhaseInfo();
+  const quota = qualitySlotsForPhase(info);
+
+  // Hvor mange hårde dage er der allerede kørt i denne uge, og hvad var status på sidste kendte dag (til at undgå to hårde dage i træk)?
+  let hardSoFar = 0;
+  let lastHard = false;
+  const sortedAll = [...aState().runs].sort((a,b)=>a.date.localeCompare(b.date));
+  const lastOverall = sortedAll[sortedAll.length-1];
+  if(lastOverall && lastOverall.date < weekStart) lastHard = isHardRun(lastOverall);
+
+  dates.forEach(dateStr=>{
+    const dayRuns = runsByDate[dateStr];
+    if(dayRuns && dayRuns.length){
+      const hard = dayRuns.some(isHardRun);
+      if(hard) hardSoFar++;
+      lastHard = hard;
+    }
+  });
+
+  let remainingQuality = Math.max(0, quota - hardSoFar);
+  const overrides = aState().weekPlanOverrides || {};
+
+  const rows = dates.map(dateStr=>{
+    const dayRuns = runsByDate[dateStr];
+    const isToday = dateStr === todayStr;
+    const isPast = dateStr < todayStr;
+    if(dayRuns && dayRuns.length){
+      const km = dayRuns.reduce((s,r)=>s+r.distanceKm,0);
+      const hard = dayRuns.some(isHardRun);
+      return { dateStr, isToday, status:'done', km, hard, editable:false };
+    }
+    if(isPast){
+      return { dateStr, isToday, status:'skip', editable:false };
+    }
+    // Fremtidig (eller i dag, ikke logget endnu) — enten manuelt valgt, eller projicér en slot
+    const override = overrides[dateStr];
+    if(override){
+      if(override==='quality'){ remainingQuality=Math.max(0,remainingQuality-1); lastHard=true; }
+      else lastHard=false;
+      return { dateStr, isToday, status: override, editable:true, manual:true };
+    }
+    let slot;
+    if(remainingQuality>0 && !lastHard){
+      slot = 'quality';
+      remainingQuality--;
+      lastHard = true;
+    } else {
+      slot = 'easy';
+      lastHard = false;
+    }
+    return { dateStr, isToday, status: slot, editable:true, manual:false };
+  });
+
+  return { rows, info };
+}
+
+/* Klik på en dag i "Resten af ugen" cykler gennem Auto → Kvalitet → Let →
+   Hvile → Auto. Ændrer kun selve ugeoversigten/prognosen — den lagrede
+   værdi i weekPlanOverrides — og rører IKKE suggestNextWorkout()'s egen,
+   reaktive logik for "dagens forslag", som stadig regner ud fra faktisk
+   loggede løb og form, ikke fra denne plan. */
+function cycleWeekOverride(dateStr){
+  const seq = [undefined,'quality','easy','rest'];
+  const as = aState();
+  if(!as.weekPlanOverrides) as.weekPlanOverrides = {};
+  const cur = as.weekPlanOverrides[dateStr];
+  const idx = seq.indexOf(cur);
+  const next = seq[(idx+1) % seq.length];
+  if(next===undefined) delete as.weekPlanOverrides[dateStr];
+  else as.weekPlanOverrides[dateStr] = next;
+  saveState();
+  renderWeekOverview();
+}
+
+function openTodayInTimer(){
+  switchTab('timer');
+  autofillTimerFromSuggestion();
+}
+
+function renderWeekOverview(){
+  const el = document.getElementById('week-overview');
+  if(!el) return;
+  const { rows } = projectWeekOverview();
+  el.innerHTML = rows.map(r=>{
+    const dayName = WEEK_OV_DAYNAMES[new Date(r.dateStr+'T00:00:00').getDay()===0 ? 6 : new Date(r.dateStr+'T00:00:00').getDay()-1];
+    let main;
+    if(r.status==='done'){
+      main = `${r.km.toFixed(1)} km <span class="week-ov-tag done">${r.hard?'Hård':'Let'}</span>`;
+    } else if(r.status==='skip'){
+      main = `<span class="week-ov-tag skip">—</span>`;
+    } else if(r.status==='rest'){
+      main = `${r.isToday?'Hvile i dag':'Hvile (valgt)'} <span class="week-ov-tag skip">Hvile</span>`;
+    } else if(r.status==='quality'){
+      main = `${r.isToday?'Kvalitet i dag':(r.manual?'Kvalitet (valgt)':'Kvalitet mulig')} <span class="week-ov-tag quality">Kvalitet</span>`;
+    } else {
+      main = `${r.isToday?'Let/hvile i dag':(r.manual?'Let (valgt)':'Let/hvile')} <span class="week-ov-tag easy">Let</span>`;
+    }
+    const timerBtn = (r.isToday && (r.status==='quality'||r.status==='easy'))
+      ? `<button class="small secondary" style="margin-left:8px;" onclick="event.stopPropagation(); openTodayInTimer();">Timer</button>` : '';
+    const clickable = r.editable ? ` onclick="cycleWeekOverride('${r.dateStr}')" style="cursor:pointer;"` : '';
+    return `<div class="week-ov-row ${r.isToday?'is-today':''}"${clickable}>
+      <div class="week-ov-day">${dayName}${r.isToday?' · nu':''}</div>
+      <div class="week-ov-main">${main}${timerBtn}</div>
     </div>`;
   }).join('');
 }
@@ -1049,10 +1590,10 @@ function renderWeekCard(){
 
   // 10% rule check
   const totals = weekKmTotals();
-  const thisWeekStart = getWeekStart(localISO(new Date()));
+  const thisWeekStart = getWeekStart(localDateStr());
   const prevWeekStart = new Date(thisWeekStart+'T00:00:00');
   prevWeekStart.setDate(prevWeekStart.getDate()-7);
-  const prevKey = localISO(prevWeekStart);
+  const prevKey = localDateStr(prevWeekStart);
   const prevKm = totals[prevKey]||0;
   const warnEl = document.getElementById('log-progression-warn');
   if(prevKm>0 && !info.isDeload && km > prevKm*1.10 + 0.05){
@@ -1160,7 +1701,7 @@ function renderGoal(){
   const doneColor = g.progressPct>=100 ? 'var(--green)' : 'var(--accent)';
   el.innerHTML = `
     <div class="stat-grid">
-      <div class="stat"><div class="val">${g.baseline.toFixed(1)}</div><div class="lbl">Baseline VDOT</div></div>
+      <div class="stat"><div class="val">${g.baseline.toFixed(1)}</div><div class="lbl">Baseline VDOT (est.)</div></div>
       <div class="stat"><div class="val">${g.current.toFixed(1)}</div><div class="lbl">Nu</div></div>
     </div>
     <div class="stat" style="margin-top:8px;"><div class="val">${g.target.toFixed(1)}</div><div class="lbl">Mål (+${g.targetPct}% over 12 uger)</div></div>
@@ -1201,17 +1742,239 @@ function renderPeriode(){
   const descs = {
     Base:'Fokus: aerob kapacitet. Høj volumen i Zone 1-2, lav intensitet. Byg fundamentet før tempoarbejde introduceres.',
     Build:'Fokus: tempoarbejde. Zone 3-4 intervaller kommer ind, volumen stabiliseres.',
-    Peak:'Fokus: konkurrenceforberedelse. Reduceret volumen, høj kvalitet i Zone 4-5.'
+    Peak:'Fokus: konkurrenceforberedelse. Reduceret volumen, høj kvalitet i Zone 4-5.',
+    Taper:'Fokus: skarphed og restitution. Volumen reduceres markant, men kort race-pace arbejde holder kroppen klar.',
+    Race:'Løbsdagen er nået (eller overstået). God tur!'
   };
-  document.getElementById('pe-fase-desc').textContent = info.isDeload
+  document.getElementById('pe-fase-desc').textContent = (info.isDeload && info.phase!=='Taper' && info.phase!=='Race')
     ? 'Denne uge er en deload-uge: reducér volumen med ca. 40% ift. sidste uge, men hold intensiteten. Formålet er restitution, ikke stilstand i formen.'
     : descs[info.phase];
 
-  document.getElementById('pe-deload-note').textContent =
-    `Næste deload-uge: uge ${Math.ceil(info.week/4)*4}.`;
+  document.getElementById('pe-deload-note').textContent = info.raceMode
+    ? ''
+    : `Næste deload-uge: uge ${Math.ceil(info.week/4)*4}.`;
+
+  renderRaceGoalCard(info);
+}
+
+function renderRaceGoalCard(info){
+  const el = document.getElementById('race-goal-card');
+  if(!info.raceMode){ el.innerHTML=''; return; }
+  const race = computeRacePhaseInfo();
+  const rg = aState().profile.raceGoal;
+  const dateStr = fmtDate(rg.date);
+  const statusLine = race.daysToRace<=0
+    ? 'Racedagen er nået eller overstået.'
+    : `${race.weeksToRace} uge(r) til løbsdag (${race.daysToRace} dage).`;
+  el.innerHTML = `<div class="card">
+    <h2>Race-mål<span class="accent"> · ${raceLabel(race.distance)}</span></h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="val">${race.weeksToRace}</div><div class="lbl">uger til løb</div></div>
+      <div class="stat"><div class="val">${dateStr}</div><div class="lbl">racedato</div></div>
+    </div>
+    <div class="note">${statusLine}</div>
+    <div class="note">Plan fordelt over ${race.totalWeeks} uge(r): Base ${race.baseW} · Build ${race.buildW} · Peak ${race.peakW} · Taper ${race.taperW}. Niveau: ${rg.niveau}.</div>
+    <div class="note">Administrér eller fjern målet under Opsætning.</div>
+  </div>`;
+}
+
+/* ================= STYRET SESSION (TIMER + AUDIO CUES) ================= */
+// Transient — gemmes aldrig i state. Taler via browserens indbyggede
+// talesyntese (Web Speech API), kræver ingen backend eller ekstern lyd.
+let tmState = null;
+
+function fmtMMSS(sec){
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+function speak(text){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel(); // afbryd evt. igangværende sætning så cues ikke lægger sig i kø
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'da-DK';
+    u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+  }catch(e){ console.log('Tale kunne ikke afspilles:', e); }
+}
+
+function buildPhaseList(warmupMin, reps, workSec, restSec, cooldownMin){
+  const phases = [];
+  if(warmupMin>0) phases.push({label:'Opvarmning', type:'warmup', seconds: warmupMin*60});
+  for(let i=0;i<reps;i++){
+    phases.push({label:`Interval ${i+1} af ${reps}`, type:'work', seconds: workSec});
+    if(i<reps-1 && restSec>0) phases.push({label:'Pause', type:'rest', seconds: restSec});
+  }
+  if(cooldownMin>0) phases.push({label:'Nedkøling', type:'cooldown', seconds: cooldownMin*60});
+  return phases;
+}
+
+function phaseSpokenName(phase){
+  if(phase.type==='warmup') return 'Opvarmning';
+  if(phase.type==='cooldown') return 'Nedkøling';
+  if(phase.type==='rest') return 'Pause';
+  return phase.label;
+}
+
+function estimateSecPerKmFromRuns(){
+  const quality = aState().runs.filter(r=>r.avgHR && zoneForHR(r.avgHR)>=2 && r.distanceKm>0)
+    .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const pool = quality.length ? quality : aState().runs.filter(r=>r.distanceKm>0).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  if(!pool.length) return null;
+  return avgArr(pool.map(r=>r.durationSec/r.distanceKm));
+}
+
+function autofillTimerFromSuggestion(){
+  const s = suggestNextWorkout();
+  const desc = s.desc||'';
+  const noteEl = document.getElementById('timer-autofill-note');
+
+  let reps=null, workSec=null, restSec=null, warmupMin=null;
+
+  let m = desc.match(/(\d+)\s*x\s*(\d+)\s*min/i);
+  if(m){ reps=Number(m[1]); workSec=Number(m[2])*60; }
+
+  if(!m){
+    m = desc.match(/(\d+)\s*x\s*(\d+)\s*sek/i);
+    if(m){ reps=Number(m[1]); workSec=Number(m[2]); }
+  }
+
+  if(!m){
+    m = desc.match(/(\d+)\s*x\s*(\d+)\s*m\b/i);
+    if(m){
+      reps=Number(m[1]);
+      const meters=Number(m[2]);
+      // Foretræk VDOT-udledt intervaltempo (samme tal som vises i "Måltempo"-linjen);
+      // fald tilbage til gennemsnit af seneste kvalitetsløb hvis der endnu ingen VDOT er.
+      const pz = paceZones();
+      const pace = pz ? pz.interval : estimateSecPerKmFromRuns();
+      workSec = pace ? Math.round((meters/1000)*pace) : null;
+    }
+  }
+
+  let pm = desc.match(/(\d+)(?:-(\d+))?\s*min\s*(?:let jog\s*)?(?:som\s*)?pause/i) || desc.match(/(\d+)(?:-(\d+))?\s*min\s*(?:let jog\s*)?imellem/i);
+  if(pm){ restSec = Number(pm[2]||pm[1])*60; }
+  if(!pm){
+    pm = desc.match(/(\d+)\s*sek\s*pause/i);
+    if(pm) restSec = Number(pm[1]);
+  }
+
+  let wm = desc.match(/varm op\s*(\d+)(?:-(\d+))?\s*min/i) || desc.match(/(\d+)(?:-(\d+))?\s*min\s*opvarmning/i);
+  if(wm){ warmupMin = Number(wm[2]||wm[1]); }
+
+  document.getElementById('tm-reps').value = reps || 1;
+  document.getElementById('tm-work').value = workSec ? fmtMMSS(workSec) : '';
+  document.getElementById('tm-rest').value = restSec ? fmtMMSS(restSec) : '';
+  document.getElementById('tm-warmup').value = (warmupMin!=null) ? warmupMin : 10;
+
+  if(reps && workSec){
+    noteEl.innerHTML = `<div class="ok-box">Tolkede "${s.title}" til ${reps} x ${fmtMMSS(workSec)}${restSec?' med '+fmtMMSS(restSec)+' pause':''}. Tjek tallene og justér hvis noget ser forkert ud.</div>`;
+  } else {
+    noteEl.innerHTML = `<div class="warn-box">Kunne ikke tolke dagens forslag ("${s.title}") automatisk til intervaller — udfyld felterne manuelt.</div>`;
+  }
+}
+
+function startTimerSession(){
+  const warmupMin = Number(document.getElementById('tm-warmup').value)||0;
+  const reps = Math.max(1, Number(document.getElementById('tm-reps').value)||1);
+  const workSec = parseTidToSec(document.getElementById('tm-work').value);
+  const restSec = parseTidToSec(document.getElementById('tm-rest').value);
+  const cooldownMin = Number(document.getElementById('tm-cooldown').value)||0;
+
+  if(!workSec){ alert('Udfyld arbejdsintervallets længde (mm:ss).'); return; }
+
+  const phases = buildPhaseList(warmupMin, reps, workSec, restSec, cooldownMin);
+  tmState = { phases, idx:0, remaining: phases[0].seconds, paused:false, warnedThisPhase:false, handle:null };
+
+  document.getElementById('timer-setup-card').classList.add('hidden');
+  document.getElementById('timer-run-card').classList.remove('hidden');
+  speak(`${phaseSpokenName(phases[0])} start.`);
+  renderTimerTick();
+  tmState.handle = setInterval(timerTick, 1000);
+}
+
+function timerTick(){
+  if(!tmState || tmState.paused) return;
+  tmState.remaining--;
+
+  const phase = tmState.phases[tmState.idx];
+  const warnAt = phase.seconds >= 240 ? 120 : (phase.seconds >= 60 ? 30 : null);
+  if(warnAt!=null && tmState.remaining===warnAt && !tmState.warnedThisPhase){
+    tmState.warnedThisPhase = true;
+    const nextPhase = tmState.phases[tmState.idx+1];
+    const warnMin = Math.round(warnAt/60);
+    const warnTxt = warnAt>=60 ? `${warnMin} minut${warnMin===1?'':'ter'}` : `${warnAt} sekunder`;
+    if(nextPhase) speak(`${phaseSpokenName(nextPhase)} om ${warnTxt}.`);
+  }
+
+  if(tmState.remaining<=0){
+    tmState.idx++;
+    if(tmState.idx>=tmState.phases.length){
+      speak('Session færdig. Godt arbejde.');
+      stopTimerSession();
+      return;
+    }
+    tmState.warnedThisPhase=false;
+    const next = tmState.phases[tmState.idx];
+    tmState.remaining = next.seconds;
+    speak(`${phaseSpokenName(next)} start.`);
+  }
+  renderTimerTick();
+}
+
+function renderTimerTick(){
+  if(!tmState) return;
+  const phase = tmState.phases[tmState.idx];
+  document.getElementById('tm-phase-label').textContent = phaseSpokenName(phase);
+  document.getElementById('tm-countdown').textContent = fmtMMSS(tmState.remaining);
+  document.getElementById('tm-progress-note').textContent = `Fase ${tmState.idx+1} af ${tmState.phases.length}`;
+}
+
+function toggleTimerPause(){
+  if(!tmState) return;
+  tmState.paused = !tmState.paused;
+  document.getElementById('tm-pause-btn').textContent = tmState.paused ? 'Fortsæt' : 'Pause';
+  if(tmState.paused) speak('Pauset.');
+}
+
+function stopTimerSession(){
+  if(tmState && tmState.handle) clearInterval(tmState.handle);
+  tmState = null;
+  document.getElementById('timer-run-card').classList.add('hidden');
+  document.getElementById('timer-setup-card').classList.remove('hidden');
 }
 
 /* ================= OPSÆTNING ================= */
+
+function renderSyncStatus(){
+  const inp = document.getElementById('st-synctoken');
+  const el = document.getElementById('sync-status');
+  if(inp && !inp.value) inp.value = getSyncToken();
+  if(!el) return;
+  if(!syncEnabled()) el.innerHTML = '<div class="note">Sync er ikke slået til (ingen Worker-URL sat i appen).</div>';
+  else if(_syncAuthFailed) el.innerHTML = '<div class="warn-box">Worker\'en afviste adgangskoden (401). Tjek koden — data synkroniseres ikke før den er rigtig.</div>';
+  else el.innerHTML = '';
+}
+
+async function saveSyncToken(){
+  const inp = document.getElementById('st-synctoken');
+  if(!inp) return;
+  try{ localStorage.setItem('sync_token', inp.value.trim()); }
+  catch(e){ alert('Kunne ikke gemme adgangskoden i browseren.'); return; }
+  // Test med det samme: hent én nøgle og se om Worker'en accepterer koden.
+  if(syncEnabled()){
+    try{
+      const res = await fetch(`${SYNC_BASE_URL}/kv/${STORE_KEY}`, { cache:'no-store', headers: syncHeaders() });
+      _syncAuthFailed = (res.status===401);
+    }catch(e){ console.log('Sync-test fejlede (offline?):', e); }
+  }
+  renderSyncStatus();
+  const el = document.getElementById('sync-status');
+  if(el && !_syncAuthFailed && syncEnabled()) el.innerHTML = '<div class="ok-box">Adgangskode gemt og accepteret.</div>';
+}
+
 function renderSettingsForm(){
   document.getElementById('st-maxhr').value = aState().profile.maxHR||'';
   document.getElementById('st-resthr').value = aState().profile.restHR||'';
@@ -1225,6 +1988,9 @@ function renderSettingsForm(){
       <div class="rp"><div class="pace">${Math.round(z.lo)}–${Math.round(z.hi)} bpm</div></div>
     </div>`
   ).join('');
+
+  renderRaceGoalForm();
+  renderSyncStatus();
 }
 
 function saveSettings(){
@@ -1238,18 +2004,116 @@ function saveSettings(){
   alert('Gemt.');
 }
 
+function renderRaceGoalForm(){
+  const rg = aState().profile.raceGoal || {};
+  document.getElementById('rg-distance').value = rg.distance||'';
+  document.getElementById('rg-dato').value = rg.date||'';
+  document.getElementById('rg-niveau').value = rg.niveau||'mellem';
+}
+
+function saveRaceGoal(){
+  const distance = document.getElementById('rg-distance').value;
+  const date = document.getElementById('rg-dato').value;
+  const niveau = document.getElementById('rg-niveau').value || 'mellem';
+  if(!distance || !date){
+    alert('Vælg både distance og dato for at aktivere et race-mål.');
+    return;
+  }
+  if(new Date(date+'T00:00:00') <= new Date()){
+    alert('Racedatoen skal ligge i fremtiden.');
+    return;
+  }
+  const prev = aState().profile.raceGoal || {};
+  const changed = prev.distance!==distance || prev.date!==date;
+  aState().profile.raceGoal = {
+    active:true, distance, date, niveau,
+    activatedDate: (changed || !prev.activatedDate) ? localDateStr() : prev.activatedDate
+  };
+  saveState();
+  renderAll();
+  alert('Race-mål gemt og aktiveret — planen peger nu mod denne dato.');
+}
+
+function clearRaceGoal(){
+  if(!confirm('Fjern race-målet og gå tilbage til den generelle VDOT-cyklus?')) return;
+  aState().profile.raceGoal = { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null };
+  saveState();
+  renderAll();
+}
+
+/* Backup: begge profiler i én versioneret fil. Gamle eksporter (ren state for
+   én profil) kan stadig gendannes — de lægges ind i den aktive profil. */
 function exportData(){
-  const blob = new Blob([JSON.stringify(aState(),null,2)], {type:'application/json'});
+  const payload = {
+    app:'lob-tracker', version:1, exportedAt:new Date().toISOString(),
+    main: state, partner: partnerState
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href=url; a.download='lobetraening-data.json';
+  a.href=url; a.download='lobetraening-backup-'+localDateStr()+'.json';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
+function isValidLobState(s){
+  return !!(s && typeof s==='object' && s.profile && typeof s.profile==='object'
+    && Array.isArray(s.runs)
+    && s.runs.every(r=> r && typeof r.date==='string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date)
+        && Number.isFinite(r.distanceKm) && r.distanceKm>0
+        && Number.isFinite(r.durationSec) && r.durationSec>0));
+}
+
+/* Lægger en state ind via localStorage → loadState, så de samme migreringer
+   som ved normal opstart kører (weekPlanOverrides, raceGoal osv.). */
+function adoptState(key, raw){
+  localStorage.setItem(key, JSON.stringify(raw));
+  return loadState(key);
+}
+
+function importBackup(){
+  const input = document.getElementById('backup-file');
+  const resultEl = document.getElementById('backup-result');
+  if(!input || !resultEl) return;
+  const file = input.files && input.files[0];
+  if(!file){ resultEl.innerHTML = '<div class="warn-box">Vælg en backup-fil først.</div>'; return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      let mainRaw = null, partnerRaw = null, legacy = false;
+      if(data && data.app==='lob-tracker' && data.version===1){
+        mainRaw = data.main; partnerRaw = data.partner;
+      } else if(data && data.profile && data.runs){
+        legacy = true;               // gammel enkelt-profil-eksport
+        if(activeProfile==='partner') partnerRaw = data; else mainRaw = data;
+      } else {
+        throw new Error('Filen ligner ikke en løbe-backup.');
+      }
+      if(mainRaw && !isValidLobState(mainRaw)) throw new Error('Hovedprofilen i filen er ugyldig eller beskadiget.');
+      if(partnerRaw && !isValidLobState(partnerRaw)) throw new Error('Partnerprofilen i filen er ugyldig eller beskadiget.');
+
+      const parts = [];
+      if(mainRaw) parts.push(`hovedprofil: ${mainRaw.runs.length} løb`);
+      if(partnerRaw) parts.push(`partnerprofil: ${partnerRaw.runs.length} løb`);
+      const where = legacy? ' (gammel enkelt-profil-fil → lægges i den aktive profil)' : '';
+      if(!confirm(`Gendan backup${where}?\n${parts.join('\n')}\n\nDette ERSTATTER de nuværende data for de nævnte profiler.`)) return;
+
+      if(mainRaw) state = adoptState(STORE_KEY, mainRaw);
+      if(partnerRaw) partnerState = adoptState(STORE_KEY_PARTNER, partnerRaw);
+      saveState();
+      resultEl.innerHTML = `<div class="ok-box">Backup gendannet (${parts.join(', ')}).</div>`;
+      renderAll();
+    }catch(err){
+      resultEl.innerHTML = `<div class="warn-box">Kunne ikke gendanne: ${String(err.message||err).replace(/</g,'&lt;')}</div>`;
+    }
+  };
+  reader.readAsText(file);
+}
+
 function resetSeason(){
   if(!confirm('Start en ny sæson? Dette nulstiller kun sæson-start-datoen, ikke din løbelog.')) return;
-  aState().profile.seasonStart = localISO(new Date());
+  aState().profile.seasonStart = localDateStr();
   saveState();
   renderAll();
 }
@@ -1297,10 +2161,36 @@ function handleImport(){
         resultEl.innerHTML = '<div class="warn-box">Ingen løbeture fundet i filen.</div>';
         return;
       }
-      imported.forEach(r=> aState().runs.push(r));
+      // Valider hver importeret løbetur: spring hårde fejl over (tæl dem),
+      // men marker advarsler i stedet for at blokere en bulk-import.
+      let skipped = 0;
+      const skippedReasons = new Set();
+      let flagged = 0;
+      const toAdd = [];
+      imported.forEach(r=>{
+        const check = checkRunPlausibility({
+          distanceKm: r.distanceKm, durationSec: r.durationSec,
+          avgHR: r.avgHR, maxHR: r.maxHR, elev: r.elev, date: r.date
+        });
+        if(check.errors.length){
+          skipped++;
+          check.errors.forEach(e=>skippedReasons.add(e));
+          return;
+        }
+        if(check.warnings.length){
+          r.flagged = true;
+          r.flagNote = check.warnings.join(' · ');
+          flagged++;
+        }
+        toAdd.push(r);
+      });
+      toAdd.forEach(r=> aState().runs.push(r));
       aState().runs.sort((a,b)=>a.date.localeCompare(b.date));
       saveState();
-      resultEl.innerHTML = `<div class="ok-box">${imported.length} løbetur(e) importeret.</div>`;
+      let msg = `${toAdd.length} løbetur(e) importeret.`;
+      if(flagged) msg += ` ${flagged} markeret til gennemsyn (se løbehistorik).`;
+      if(skipped) msg += ` ${skipped} sprunget over pga. usandsynlige værdier (${Array.from(skippedReasons).join(', ')}).`;
+      resultEl.innerHTML = `<div class="${skipped? 'warn-box':'ok-box'}">${msg}</div>`;
       renderAll();
     }catch(err){
       console.error(err);
@@ -1369,7 +2259,7 @@ function parseGPX(text){
   });
   if(totalDist<=0 || times.length<2) return [];
   const durationSec = Math.round((times[times.length-1]-times[0])/1000);
-  const date = localISO(times[0]);
+  const date = localDateStr(times[0]);
   return [{
     id: uid(), date, distanceKm: totalDist, durationSec,
     avgHR: hrCount? Math.round(hrSum/hrCount) : null,
@@ -1397,7 +2287,7 @@ function parseTCX(text){
     if(maxHrEl){ const v = maxHrEl.getElementsByTagName('Value')[0]; if(v){ const hr=parseFloat(v.textContent); if(hr>maxHrVal) maxHrVal=hr; } }
   });
   if(totalDist<=0 || totalTime<=0) return [];
-  const date = dateStr? localISO(new Date(dateStr)) : localISO(new Date());
+  const date = dateStr? localDateStr(new Date(dateStr)) : localDateStr();
   return [{
     id: uid(), date, distanceKm: totalDist/1000, durationSec: Math.round(totalTime),
     avgHR: hrCount? Math.round(hrSum/hrCount) : null,
@@ -1424,6 +2314,7 @@ function renderAll(){
   renderSuggestion();
   renderRunList();
   renderWeekCard();
+  renderWeekOverview();
   renderAnalyse();
   renderPeriode();
   renderSettingsForm();
@@ -1440,7 +2331,7 @@ async function init(){
   document.getElementById('btn-partner').classList.toggle('active', activeProfile==='partner');
 
   if(!document.getElementById('lg-dato').value){
-    document.getElementById('lg-dato').value = localISO(new Date());
+    document.getElementById('lg-dato').value = localDateStr();
   }
   if(!aState().profile.onboarded){
     document.getElementById('view-onboarding').classList.add('active');
@@ -1455,8 +2346,8 @@ async function init(){
       // Når en ny service worker overtager siden (efter en opdatering), er
       // den allerede åbne PWA-instans stadig styret af den gamle udgave af
       // JS'en, indtil siden genindlæses — genindlæs derfor automatisk én
-      // gang, så nye funktioner (som konkrete løbe-mål) slår igennem uden
-      // at man selv skal huske at lukke og genåbne appen.
+      // gang, så nye funktioner slår igennem uden at man selv skal huske at
+      // lukke og genåbne appen.
       let _swReloaded=false;
       navigator.serviceWorker.addEventListener('controllerchange', function(){
         if(_swReloaded) return;

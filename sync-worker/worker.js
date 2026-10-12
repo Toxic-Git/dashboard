@@ -1,8 +1,10 @@
 // ══════════════════════════════════════════════════════════════════════════
 // Træning-sync — Cloudflare Worker
 // Simpel key-value sync til SBD- og løbe-trackeren + dashboardet.
-// Ingen adgangskontrol (bevidst valg) — Worker-URL'en er den eneste
-// "adgangskode".
+// Adgangskontrol: sæt hemmeligheden SYNC_TOKEN (wrangler secret put SYNC_TOKEN).
+// Når den er sat, kræver alle /kv-kald headeren  Authorization: Bearer <token>.
+// Er den IKKE sat, er Worker'en åben som før (så eksisterende opsætning ikke
+// går i stykker, før du har deployet og indtastet token i appen).
 // ══════════════════════════════════════════════════════════════════════════
 
 const ALLOWED_KEYS = new Set(['sbd_state', 'sbd_partner', 'lob_state', 'lob_partner']);
@@ -10,7 +12,7 @@ const ALLOWED_KEYS = new Set(['sbd_state', 'sbd_partner', 'lob_state', 'lob_part
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 function json(data, status = 200) {
@@ -20,8 +22,27 @@ function json(data, status = 200) {
   });
 }
 
+// Sammenligning i konstant tid, så tokenet ikke kan gættes via svartid.
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let diff = a.length ^ b.length;
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
+function isAuthorized(request, env) {
+  if (!env.SYNC_TOKEN) return true; // ikke konfigureret endnu → åben (bagudkompatibel)
+  const header = request.headers.get('Authorization') || '';
+  const m = header.match(/^Bearer (.+)$/);
+  return !!m && safeEqual(m[1], env.SYNC_TOKEN);
+}
+
 // ── /kv/:key — bruges af SBD/løb/dashboard til cross-device sync ──────────
 async function handleKv(request, env, key) {
+  if (!isAuthorized(request, env)) return json({ error: 'uautoriseret' }, 401);
   if (!ALLOWED_KEYS.has(key)) return json({ error: 'ukendt nøgle' }, 400);
 
   if (request.method === 'GET') {

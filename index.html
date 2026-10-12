@@ -1716,6 +1716,18 @@ function setProfile(name){
 // URL her efter deploy (se sync-worker/DEPLOY.md).
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 
+// Delt adgangskode til sync-Worker'en. Gemmes i localStorage under 'sync_token'
+// (samme domæne → deles automatisk af SBD, løb og dashboard). Sættes i løb → Opsætning.
+function getSyncToken(){
+  try{ return localStorage.getItem('sync_token') || ''; }catch(e){ return ''; }
+}
+function syncHeaders(extra){
+  const h = Object.assign({}, extra||{});
+  const t = getSyncToken();
+  if(t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+
 function syncEnabled(){
   return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
 }
@@ -1723,7 +1735,7 @@ function syncEnabled(){
 async function syncPull(key){
   if(!syncEnabled()) return false;
   try{
-    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store' });
+    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store', headers: syncHeaders() });
     if(!res.ok) return false;
     const data = await res.json();
     if(data.value == null) return false;
