@@ -208,6 +208,21 @@ T('Mål: renderGoals markerer nået mål (sticky) og gemmer dashboard-resumé', 
   state.runs = []; renderGoals();
   assert(state.profile.goals[0].achievedDate, 'forbliver nået selv hvis løbet slettes');
 });
+T('Plan-justering: tryk én gang skubber planen og fjerner banneret (ingen dobbelt-skub)', () => {
+  state = defaultState(); activeProfile = 'main'; partnerState = defaultState();
+  document.getElementById = () => ({ innerHTML: '', style: {}, value: '', textContent: '' });
+  global.alert = () => {}; global.renderAll = () => {};
+  const old = new Date(); old.setDate(old.getDate() - 20);
+  state.profile.seasonStart = '2026-01-05';
+  state.runs = [R(localDateStr(old), 5, 1500)];
+  assert(detectPlanGap(), 'hul opdaget');
+  applyPlanAdjustment();
+  const after = state.profile.seasonStart;
+  assert.strictEqual(after, localDateStr(new Date(new Date('2026-01-05T00:00:00').setDate(5 + 20 - 0 + 0 - 0 + 0))) , 'skubbet 20 dage');
+  assert.strictEqual(detectPlanGap(), null, 'banner væk efter skub');
+  applyPlanAdjustment();
+  assert.strictEqual(state.profile.seasonStart, after, 'andet tryk skubber ikke igen');
+});
 
 (async () => {
   let fail = 0;

@@ -580,6 +580,8 @@ function loadState(key){
     if(parsed.profile.dismissedGapFor === undefined) parsed.profile.dismissedGapFor = null;
     if(!parsed.profile.raceGoal) parsed.profile.raceGoal = { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null };
     if(!Array.isArray(parsed.profile.goals)) parsed.profile.goals = [];
+    // Selvreparation: en sæson-start i fremtiden (fx efter gentagne tryk på "Skub planen") giver uge 1 for evigt
+    if(parsed.profile.seasonStart && parsed.profile.seasonStart > localDateStr()) parsed.profile.seasonStart = localDateStr();
     return parsed;
   }catch(e){
     console.error('Kunne ikke indlæse state', e);
@@ -1346,8 +1348,10 @@ function applyPlanAdjustment(){
   const as = aState();
   const d = new Date(as.profile.seasonStart+'T00:00:00');
   d.setDate(d.getDate() + gap.daysSince);
-  as.profile.seasonStart = localDateStr(d);
-  as.profile.dismissedGapFor = null; // ny plan, intet at ignorere længere
+  as.profile.seasonStart = localDateStr(d > new Date() ? new Date() : d); // aldrig i fremtiden
+  // Planen er nu skubbet. Marker hullet som håndteret, ellers står banneret stadig (sidste løb
+  // ligger jo stadig langt tilbage) og hvert tryk ville skubbe planen endnu en gang.
+  as.profile.dismissedGapFor = gap.lastRunDate;
   saveState();
   renderAll();
 }
