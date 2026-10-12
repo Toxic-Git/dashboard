@@ -452,7 +452,13 @@ function readLob(which){
 
   const info = lobPhaseInfo(s.profile.seasonStart);
   const badge = info.isDeload ? 'Deload' : info.phase;
+  let plan = null;
+  try {
+    const p = JSON.parse(localStorage.getItem('lob_today_plan_' + (which === 'main' ? 'main' : 'partner')));
+    if (p && p.date === todayStr && p.distance) plan = p;
+  } catch(e) {}
   return {
+    plan,
     discipline:'lob', week: info.posInBlock, totalWeeks: 12, block: null, isTest:false,
     deload: info.isDeload,
     day: { short: badge, type:'workout', desc: info.isDeload ? 'Let uge — ca. 60% volumen, fokus på restitution.' : LOB_PHASE_DESC[info.phase] },
@@ -521,6 +527,9 @@ function renderCard(status, discipline, kind){
     : '';
   const stretch = isRest ? '' : (discipline==='lob' ? LOB_STRETCH : (STRETCH_SUGGESTIONS[status.day.short] || ''));
   const stretchHtml = stretch ? `<div class="deferred-note" style="margin-top:8px;">🧘 ${stretch}</div>` : '';
+  const planHtml = (discipline==='lob' && status.plan && status.plan.distance)
+    ? `<div class="deferred-note" style="margin-top:8px;">📏 <b>${status.plan.title}</b> — ${status.plan.distance}</div>`
+    : '';
   const warmup = isRest ? '' : (discipline==='lob' ? LOB_WARMUP : (WARMUP_SUGGESTIONS[status.day.short] || ''));
   const warmupHtml = warmup ? `<div class="deferred-note" style="margin-top:8px;">🔥 ${warmup}</div>` : '';
   return `<div class="card ${kind}">
@@ -532,6 +541,7 @@ function renderCard(status, discipline, kind){
       <div class="next-label">Næste træningsdag</div>
       <div class="next-day">${status.day.short || status.day.name}</div>
       ${isRest ? `<div class="rest-note">💤 Hviledag</div>` : `<div class="next-desc">${desc}</div>`}
+      ${planHtml}
       ${warmupHtml}
       ${stretchHtml}
       <div class="progress-wrap">

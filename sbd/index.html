@@ -913,6 +913,25 @@ function getPeakDay() {
   return Math.min(6, Math.max(0, dayInWeek));
 }
 
+// Udstræk efter træning — samme forslag som dashboardet (vises nederst i dagens træning)
+const SBD_STRETCH = {
+  'CST':   'Dørkarm-stræk for bryst/skuldre, 2×30 sek pr. side.',
+  'Lower': 'Hoftebøjer- og hamstring-stræk, 2×30 sek pr. side.',
+  'B&B':   'Hængende lat-stræk + cat-cow, 2×30 sek.',
+  'SQ MAX':'Hoftebøjer- og hamstring-stræk, 2×30 sek pr. side.',
+  'DL MAX':'Hængende lat-stræk + cat-cow, 2×30 sek.',
+  'BP MAX':'Dørkarm-stræk for bryst/skuldre, 2×30 sek pr. side.',
+  'SBD':   'Fuldkrops-stræk: bryst, hofte, lat — 20 sek hver.',
+};
+function stretchCardHtml(day) {
+  const txt = day && SBD_STRETCH[day.short];
+  if (!txt) return '';
+  return `<div style="margin:0 18px 12px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;border-left:3px solid var(--gold);">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:4px;">🧘 Udstræk efter træning</div>
+    <div style="font-size:13px;font-weight:300;line-height:1.5;">${txt}</div>
+  </div>`;
+}
+
 function isPeakWeek() {
   return isTest(getWeek());
 }
@@ -2417,6 +2436,7 @@ function renderToday() {
     html += `</div>`;
   });
 
+  html += stretchCardHtml(day);
   const allDone = log.exercises.every(ex => (ex.sets || []).every(s => s.done));
   html += `<button class="finish-btn" onclick="finishWorkout()" ${!allDone && !alreadyDone ? '' : ''} id="finish-btn">
     ${alreadyDone ? '✓ Afsluttet — Næste dag →' : 'Afslut træning →'}
@@ -4624,6 +4644,7 @@ function renderPeakDay(day, week) {
     html += `</div>`;
   });
 
+  html += stretchCardHtml(day);
   // Finish button
   const isComplete = lifts.every(({ lift }) =>
     [1,2,3].some(i => as.peakResults?.[`${lift}_${i}`])

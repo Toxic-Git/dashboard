@@ -1251,6 +1251,12 @@ function suggestNextWorkout(){
 
 function renderSuggestion(){
   const s = suggestNextWorkout();
+  // Gem dagens forslag så dashboardet kan vise distancen (kun lokalt, synkes ikke)
+  try {
+    localStorage.setItem('lob_today_plan_'+activeProfile, JSON.stringify({
+      date: localDateStr(), title: s.title || '', type: s.type || '', distance: s.distance || null
+    }));
+  } catch(e) {}
   document.getElementById('sug-type').textContent = s.type;
   const distHtml = s.distance ? `<div class="pace-callout">📏 Distance: ${s.distance}</div>` : '';
   const paceHtml = s.pace
