@@ -1156,9 +1156,9 @@ const ACC_TEMPLATES = {
     { name:'Romanian Deadlift',          badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:80   },
     { name:'Hip Thrust (Barbell)',       badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:85   },
     { name:'Hip Adduction (Machine)',    badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:70   },
-    { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:82.5 },
+    { name:'Seated Leg Curl (Machine) — Volumen', badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:82.5 },
     { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
-    { name:'Lateral Raise (Machine)',    badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:50,  note:'Let — ekstra skulder-frekvens.' },
+    { name:'Lateral Raise (Machine) — Let',    badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:50,  note:'Let — ekstra skulder-frekvens.' },
   ],
   // B&B sekundær (dag 8) — Deficit DL fokus, variation fra dag 4
   bb2: [
@@ -1167,7 +1167,7 @@ const ACC_TEMPLATES = {
     { name:'Neutral Grip Pulldown',              badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:70,  note:'Neutralt greb rammer lower lats anderledes end bredt greb.' },
     { name:'Jefferson Curl',                     badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:40,  note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
     { name:'Preacher Curl (DB)',                 badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:22.9 },
-    { name:'Overhead Triceps Ext. (Cable)',      badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:20,  note:'Let — ekstra triceps-frekvens for bench.' },
+    { name:'Overhead Triceps Ext. (Cable) — Let',      badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:20,  note:'Let — ekstra triceps-frekvens for bench.' },
   ],
 };
 
@@ -1204,9 +1204,9 @@ const PARTNER_TEMPLATES = {
     { name:'Romanian Deadlift',              sets:3, reps:8, repsRange:'6–10',kg:40    },
     { name:'Hip Thrust (Barbell)',           sets:3, reps:5, repsRange:'4–6', kg:50    },
     { name:'Hip Adduction (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:40    },
-    { name:'Seated Leg Curl (Machine)',      sets:3, reps:10,repsRange:'8–12',kg:30    },
+    { name:'Seated Leg Curl (Machine) — Volumen',      sets:3, reps:10,repsRange:'8–12',kg:30    },
     { name:'Cable Crunch',                   sets:3, reps:12,repsRange:'10–15',kg:20   },
-    { name:'Lateral Raise (Machine)',        sets:2, reps:10,repsRange:'8–12',kg:20    },
+    { name:'Lateral Raise (Machine) — Let',        sets:2, reps:10,repsRange:'8–12',kg:20    },
   ],
   bb2: [
     { name:'Weighted Pull-up',               sets:3, reps:5, repsRange:'4–6', kg:0,    note:'Start med kropsvægt. Tilføj vægt når 6 reps er let.' },
@@ -1214,7 +1214,7 @@ const PARTNER_TEMPLATES = {
     { name:'Neutral Grip Pulldown',          sets:3, reps:8, repsRange:'6–10',kg:35    },
     { name:'Jefferson Curl',                 sets:3, reps:8, repsRange:'6–10',kg:15,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
     { name:'Preacher Curl (DB)',             sets:3, reps:10,repsRange:'8–12',kg:8     },
-    { name:'Overhead Triceps Ext. (Cable)',  sets:2, reps:10,repsRange:'8–12',kg:8     },
+    { name:'Overhead Triceps Ext. (Cable) — Let',  sets:2, reps:10,repsRange:'8–12',kg:8     },
   ],
 };
 
@@ -1320,7 +1320,8 @@ function _getExercises(dayId, week) {
     const template = PARTNER_TEMPLATES[dayId] || [];
     const b = getBlock(week);
     const dl = isDeload(week);
-    const FIXED_RANGE = new Set(['Calf Raise (Machine)','Jefferson Curl','Cable Crunch','Box Jump']);
+    const FIXED_RANGE = new Set(['Calf Raise (Machine)','Jefferson Curl','Cable Crunch','Box Jump',
+      'Lateral Raise (Machine) — Let','Overhead Triceps Ext. (Cable) — Let']);
     const COMPOUND_ACC = new Set([
       'Romanian Deadlift','Hack Squat (Machine)','Hip Thrust (Barbell)',
       'Hip Adduction (Machine)','Smith Machine Row','Lat Pulldown Wide Grip',
@@ -1366,6 +1367,7 @@ function _getExercises(dayId, week) {
       const FIXED_RANGE = new Set([
         'Calf Raise (Machine)', 'Single Leg Calf Raise (BB)',
         'Jefferson Curl', 'Cable Crunch', 'Box Jump',
+        'Lateral Raise (Machine) — Let', 'Overhead Triceps Ext. (Cable) — Let',
       ]);
       // Compound accessories: 4-6 range, periodise as compound
       const COMPOUND_ACC = new Set([
@@ -1594,6 +1596,68 @@ if (!state.migrated) {
   migrateExerciseNames(state.logs);
   migrateExerciseNames(partnerState.logs);
   state.migrated = true;
+  saveState();
+}
+
+// ── STØTTE-/VOLUMEN-VARIANTER MED EGET NAVN ─────────────────────────────────
+// Samme øvelse kan optræde to gange i programmet med forskellig rolle (tung vs.
+// let støtte / lav-rep vs. volumen). Historik, PR, trend, plateau og autoreg
+// er alle nøglet på øvelsens navn, så de to blev blandet sammen. Den lette/
+// volumen-udgave har derfor fået eget navn (se ACC_TEMPLATES). Her flyttes
+// gamle logs og autoreg-historik over, ud fra hvilken programdag de hører til.
+const VARIANT_SPLIT = {
+  low2: {
+    'Lateral Raise (Machine)':    'Lateral Raise (Machine) — Let',
+    'Seated Leg Curl (Machine)':  'Seated Leg Curl (Machine) — Volumen',
+  },
+  bb2: {
+    'Overhead Triceps Ext. (Cable)': 'Overhead Triceps Ext. (Cable) — Let',
+  },
+};
+
+function variantMapForDay(as, dayNum) {
+  const ov = as.dayOverrides ? as.dayOverrides[dayNum] : undefined;
+  const idx = (ov !== undefined) ? ov : dayNum % 8;
+  const c = CYCLE[idx];
+  return (c && VARIANT_SPLIT[c.id]) || null;
+}
+
+function migrateVariantNames(as) {
+  if (!as) return;
+  Object.keys(as.logs || {}).forEach(k => {
+    const log = as.logs[k];
+    const dayNum = parseInt(k.replace('day', ''));
+    if (isNaN(dayNum) || !log || !Array.isArray(log.exercises)) return;
+    const map = variantMapForDay(as, dayNum);
+    if (!map) return;
+    log.exercises.forEach(ex => { if (map[ex.name]) ex.name = map[ex.name]; });
+  });
+  const adj = as.autoregAdj;
+  if (!adj) return;
+  const oldNames = new Set();
+  Object.values(VARIANT_SPLIT).forEach(m => Object.keys(m).forEach(n => oldNames.add(n)));
+  oldNames.forEach(oldName => {
+    const entry = adj[oldName];
+    if (!entry || !Array.isArray(entry.sessions)) return;
+    const keep = [];
+    entry.sessions.forEach(sess => {
+      const map = typeof sess.day === 'number' ? variantMapForDay(as, sess.day) : null;
+      const newName = map && map[oldName];
+      if (newName) {
+        if (!adj[newName]) adj[newName] = { sessions: [] };
+        adj[newName].sessions.push(sess);
+      } else {
+        keep.push(sess);
+      }
+    });
+    entry.sessions = keep;
+  });
+}
+
+if (!state.variantsMigrated) {
+  migrateVariantNames(state);
+  migrateVariantNames(partnerState);
+  state.variantsMigrated = true;
   saveState();
 }
 
@@ -5129,10 +5193,10 @@ const MUSCLE_MAP = {
   'Chest Fly (Machine)': 'Bryst', 'DB Bench (variation)': 'Bryst',
   // Shoulders
   'OHP': 'Skulder', 'DB Skulder Press': 'Skulder',
-  'Lateral Raise (Machine)': 'Skulder', 'Rear Delt Reverse Fly (Machine)': 'Skulder',
+  'Lateral Raise (Machine)': 'Skulder', 'Lateral Raise (Machine) — Let': 'Skulder', 'Rear Delt Reverse Fly (Machine)': 'Skulder',
   'Face Pull': 'Skulder', 'Face Pull (Cable)': 'Skulder',
   // Triceps
-  'Overhead Triceps Ext. (Cable)': 'Triceps', 'Triceps Extension (Cable)': 'Triceps',
+  'Overhead Triceps Ext. (Cable)': 'Triceps', 'Overhead Triceps Ext. (Cable) — Let': 'Triceps', 'Triceps Extension (Cable)': 'Triceps',
   'Skull Crusher': 'Triceps',
   // Quads
   'Squat': 'Quad', 'Squat — 1RM Forsøg': 'Quad',
@@ -5142,7 +5206,7 @@ const MUSCLE_MAP = {
   'Deadlift (Conv.)': 'Post. Chain', 'Deadlift — 1RM Forsøg': 'Post. Chain',
   'Deficit Deadlift (2 cm)': 'Post. Chain',
   'Romanian Deadlift': 'Post. Chain', 'Hip Thrust (Barbell)': 'Post. Chain',
-  'Seated Leg Curl (Machine)': 'Post. Chain', 'Nordic Curl': 'Post. Chain',
+  'Seated Leg Curl (Machine)': 'Post. Chain', 'Seated Leg Curl (Machine) — Volumen': 'Post. Chain', 'Nordic Curl': 'Post. Chain',
   'Jefferson Curl': 'Post. Chain',
   // Back
   'Smith Machine Row': 'Ryg', 'Barbell Row': 'Ryg',
