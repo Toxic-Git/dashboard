@@ -106,6 +106,12 @@ button.small{width:auto; padding:6px 12px; font-size:13px; margin-top:0;}
   text-transform:uppercase; letter-spacing:0.02em; cursor:pointer; font-family:'Barlow Condensed',sans-serif;
 }
 .tab.active{color:var(--accent); border-top:2px solid var(--accent);}
+/* Desktop-bundmenu skal stå EFTER base-reglerne ovenfor, ellers vinder left:0/right:0
+   over left:50% og translateX(-50%) skubber menuen halvt ud af skærmen. */
+@media (min-width:760px){
+  .tabs{ left:50%; right:auto; transform:translateX(-50%); width:100%; max-width:520px; bottom:14px;
+    border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 10px 32px rgba(0,0,0,0.5); }
+}
 .view{display:none;}
 .view.active{display:block;}
 .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
