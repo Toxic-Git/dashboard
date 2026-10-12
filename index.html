@@ -1762,9 +1762,39 @@ async function syncPull(key){
   }
 }
 
+// Dagens løbeforslag regnes kun i lob/index.html. Mangler dagens forslag, loader vi
+// løbeappen usynligt (samme origin, deler localStorage) så den gemmer forslaget,
+// og gen-renderer dashboardet — ingen duplikeret logik.
+function refreshLobPlanIfNeeded(){
+  try{
+    const today = localISO(new Date());
+    const raw = JSON.parse(localStorage.getItem('lob_state'));
+    if(!raw || !raw.profile || !raw.profile.onboarded) return;
+    if(raw.notFeeling100 && raw.notFeeling100[today]) return;
+    const active = localStorage.getItem('lob_active_profile') || 'main';
+    const p = JSON.parse(localStorage.getItem('lob_today_plan_'+active) || 'null');
+    if(p && p.date === today) return;
+    if(document.getElementById('lob-plan-frame')) return;
+    const f = document.createElement('iframe');
+    f.id = 'lob-plan-frame';
+    f.src = './lob/index.html';
+    f.setAttribute('aria-hidden','true');
+    f.tabIndex = -1;
+    f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden;';
+    f.onload = function(){
+      setTimeout(function(){
+        render();
+        if(f.parentNode) f.parentNode.removeChild(f);
+      }, 1500);
+    };
+    document.body.appendChild(f);
+  }catch(e){ console.log('Løbeforslag kunne ikke opdateres:', e); }
+}
+
 async function boot(){
   registerSW();
   render(); // vis lokale data med det samme
+  refreshLobPlanIfNeeded();
   startReminderLoop();
   const results = await Promise.all([
     syncPull('sbd_state'), syncPull('sbd_partner'),
