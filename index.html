@@ -1363,18 +1363,21 @@ function toggleCatchupDate(personKey, dateStr){
   render();
 }
 
-// Finder mønster-slottet for en given dato ved at gå dag for dag fra ankeret:
-// - blokerede dage ("ryk alt") optager intet slot → alt efter dem skubbes
-// - indhentnings-dage optager intet slot OG markerer at næste ikke-SBD-slot
-//   skal springes over, så cyklussen genindhenter sig selv
-// Returnerer null for dage der selv er blokeret/indhentning (render viser
-// deres egen celle-tekst).
+// Finder mønster-slottet for en given dato ved at gå dag for dag fra ankeret.
+// "Ikke mulig"-knapperne gælder KUN styrke (SBD); løb er altid muligt og følger
+// det uforskudte mønster:
+// - blokerede dage ("ryk styrke") optager intet SBD-slot → styrken efter skubbes
+// - indhentnings-dage optager intet SBD-slot OG markerer at næste ikke-SBD-slot
+//   skal springes over i styrke-rækken, så styrken genindhenter sig selv
+// Returnerer altid {sbd, lob}; sbd er null på selve den blokerede dag (render
+// viser dens egen celle-tekst), lob er aldrig påvirket.
 function slotForDate(dateStr, anchor, personKey){
   const pattern=patternForPerson(personKey);
   const len=pattern.length;
   const d1=new Date(anchor+'T12:00:00'), d2=new Date(dateStr+'T12:00:00');
   const diff=Math.round((d2-d1)/86400000);
   if(diff<0) return pattern[((diff%len)+len)%len];
+  const plainLob = pattern[diff%len].lob; // løb følger altid det uforskudte mønster
   const blocked=new Set(getBlockedDates(personKey));
   const catchup=new Set(getCatchupDates(personKey));
   let cursor=0, pending=0;
@@ -1389,10 +1392,10 @@ function slotForDate(dateStr, anchor, personKey){
       slot=pattern[idx];
       cursor++;
     }
-    if(i===diff) return slot;
+    if(i===diff) return { sbd: slot ? slot.sbd : null, lob: plainLob };
     d.setDate(d.getDate()+1);
   }
-  return null;
+  return { sbd:null, lob:plainLob };
 }
 
 let scheduleWeekOffset = 0;
@@ -1456,9 +1459,9 @@ function renderSchedule(sRaw, lRaw, personKey){
       const c=sbdDone[dateStr];
       sbdCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏋️ ${c.short}</div><div class="week-day-sub">${c.type==='rest'?'Hviledag':(c.desc||'')}</div>`;
     } else if((isFuture||isToday) && isBlocked){
-      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Alt rykket én dag frem</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Fortryd</button>`;
+      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Styrke rykket én dag frem — løb uændret</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Fortryd</button>`;
     } else if((isFuture||isToday) && isCatchup){
-      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Indhentes — næste pause droppes, så du træner 2 dage i træk</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Fortryd</button>`;
+      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Styrke indhentes — næste ikke-styrkedag droppes, så du løfter 2 dage i træk. Løb er uændret</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Fortryd</button>`;
     } else if((isFuture||isToday) && slot.sbd && !isTestWeek && sRaw){
       let proj;
       if(slot.sbd.cycleId){
@@ -1470,7 +1473,7 @@ function renderSchedule(sRaw, lRaw, personKey){
       }
       const tag = slot.sbd.optional ? 'Valgfri' : (isToday?'I dag':'Planlagt');
       const optNote = slot.sbd.optional ? '<div class="week-day-sub">Spring over hvis du er for træt</div>' : (proj.desc?`<div class="week-day-sub">${proj.desc}</div>`:'');
-      sbdCell=`<span class="week-day-tag tag-planned">${tag}</span> <div class="week-day-badge">🏋️ ${proj.short}</div>${optNote}<button class="day-picker-btn" style="margin-top:6px;width:100%;font-size:9px;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Ikke mulig — indhent (drop næste pause)</button><button class="day-picker-btn" style="margin-top:4px;width:100%;font-size:9px;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Ikke mulig — ryk alt én dag</button>`;
+      sbdCell=`<span class="week-day-tag tag-planned">${tag}</span> <div class="week-day-badge">🏋️ ${proj.short}</div>${optNote}<button class="day-picker-btn" style="margin-top:6px;width:100%;font-size:9px;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Styrke ikke mulig — indhent (drop næste pause)</button><button class="day-picker-btn" style="margin-top:4px;width:100%;font-size:9px;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Styrke ikke mulig — ryk styrke én dag</button>`;
     } else if((isFuture||isToday) && !slot.sbd && !lobPlan){
       sbdCell=`<span class="week-day-tag tag-rest">😴 Hviledag</span>`;
     } else {
@@ -1636,7 +1639,7 @@ function renderCalendar(sRaw, lRaw, personKey){
     if(hasSbd) dots += `<span class="cal-dot sbd"></span>`;
     if(hasLob) dots += `<span class="cal-dot lob"></span>`;
     // Planlagte dage: vis rytmen frem i tiden (hule prikker)
-    if(dateStr>=todayStr && !blocked.includes(dateStr) && !catchup.includes(dateStr)){
+    if(dateStr>=todayStr){
       const slot=slotForDate(dateStr,anchor,personKey) || { sbd:null, lob:null };
       const weekdayIdx=new Date(dateStr+'T12:00:00').getDay();
       const lobPlan = personKey==='ellen'
