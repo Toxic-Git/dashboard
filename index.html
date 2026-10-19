@@ -435,6 +435,15 @@ const LOB_PHASE_DESC = {
   Build: 'Tempoarbejde i Zone 3-4 — åbn appen for dagens konkrete forslag.',
   Peak:  'Skarpe intervaller mod målet — åbn appen for dagens konkrete forslag.',
 };
+// Forkorter forslagstekster fra løbeappen til én kort linje på dashboardet
+// (fjerner forklarende halesnak som "(10-20% over din længste ...)" og "i alt for økten").
+function shortPlanText(t){
+  if(!t) return '';
+  let s = String(t).replace(/^Målrace-tempo:\s*/i,'');
+  s = s.replace(/\s+(i alt|for selve|\(10-20%|\(øvre ende|\(tærskeltempo|—\s).*$/i,'');
+  s = s.replace(/[.\s]+$/,'');
+  return s.length > 70 ? s.slice(0,67).trimEnd()+'…' : s;
+}
 function readLob(which){
   const key = which === 'main' ? 'lob_state' : 'lob_partner';
   let s;
@@ -455,7 +464,7 @@ function readLob(which){
   let plan = null;
   try {
     const p = JSON.parse(localStorage.getItem('lob_today_plan_' + (which === 'main' ? 'main' : 'partner')));
-    if (p && p.date === todayStr && p.distance) plan = p;
+    if (p && p.date === todayStr && (p.distance || p.pace)) plan = p;
   } catch(e) {}
   let goals = [];
   try {
@@ -532,8 +541,8 @@ function renderCard(status, discipline, kind){
     : '';
   const stretch = isRest ? '' : (discipline==='lob' ? LOB_STRETCH : (STRETCH_SUGGESTIONS[status.day.short] || ''));
   const stretchHtml = stretch ? `<div class="deferred-note" style="margin-top:8px;">🧘 ${stretch}</div>` : '';
-  const planHtml = (discipline==='lob' && status.plan && status.plan.distance)
-    ? `<div class="deferred-note" style="margin-top:8px;">📏 <b>${status.plan.title}</b> — ${status.plan.distance}</div>`
+  const planHtml = (discipline==='lob' && status.plan && (status.plan.distance || status.plan.pace))
+    ? `<div class="deferred-note" style="margin-top:8px;">🏃 <b>${status.plan.title||'Dagens løb'}</b>${status.plan.distance?`<div style="margin-top:4px;">📏 Distance: ${shortPlanText(status.plan.distance)}</div>`:''}${status.plan.pace?`<div style="margin-top:4px;">🎯 Tempo: ${shortPlanText(status.plan.pace)}</div>`:''}</div>`
     : '';
   const goalsHtml = (discipline==='lob' && status.goals && status.goals.length)
     ? `<div class="deferred-note" style="margin-top:8px;">🎯 <b>Mål</b>${status.goals.map(g=>`<div style="margin-top:4px;">${g.done?'✓ ':''}${g.title} — ${g.curLabel} / ${g.targetLabel} (${g.pct}%)</div>`).join('')}</div>`
@@ -1787,7 +1796,7 @@ function refreshLobPlanIfNeeded(){
     const p = JSON.parse(localStorage.getItem('lob_today_plan_'+active) || 'null');
     const gsum = JSON.parse(localStorage.getItem('lob_goals_summary_'+active) || 'null');
     const hasGoals = Array.isArray(raw.profile.goals) && raw.profile.goals.length > 0;
-    if(p && p.date === today && (!hasGoals || (gsum && gsum.date === today))) return;
+    if(p && p.date === today && ('pace' in p) && (!hasGoals || (gsum && gsum.date === today))) return;
     if(document.getElementById('lob-plan-frame')) return;
     const f = document.createElement('iframe');
     f.id = 'lob-plan-frame';
