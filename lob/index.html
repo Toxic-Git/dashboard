@@ -1296,6 +1296,15 @@ function renderSuggestion(){
       date: localDateStr(), title: s.title || '', type: s.type || '', distance: s.distance || null, pace: s.pace || null
     }));
   } catch(e) {}
+  // Typisk rolig tur (tempo + distance) til dashboardets ugeoversigt — kun lokalt, synkes ikke
+  try {
+    const pzS = paceZones(), dsS = recentDistanceStats();
+    localStorage.setItem('lob_easy_summary_'+activeProfile, JSON.stringify({
+      date: localDateStr(),
+      easyPace: pzS ? fmtPace(pzS.easyLo).replace('/km','')+'–'+fmtPace(pzS.easyHi) : null,
+      easyKm: dsS ? roundKm(dsS.avgEasyKm) : null
+    }));
+  } catch(e) {}
   document.getElementById('sug-type').textContent = s.type;
   const distHtml = s.distance ? `<div class="pace-callout">📏 Distance: ${s.distance}</div>` : '';
   const paceHtml = s.pace

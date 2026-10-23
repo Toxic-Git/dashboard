@@ -1436,6 +1436,32 @@ function lobCompletedByDate(lRaw){
   (lRaw.runs||[]).forEach(r=>{ if(!map[r.date]) map[r.date]=[]; map[r.date].push(r); });
   return map;
 }
+// Dagens løbeforslag + typisk rolig tur, som løbeappen gemmer lokalt (se lob/index.html).
+function lobExtrasFor(personKey){
+  const which = personKey==='ellen' ? 'partner' : 'main';
+  const out = { plan:null, easy:null };
+  try{
+    const p = JSON.parse(localStorage.getItem('lob_today_plan_'+which));
+    if(p && p.date===localISO(new Date()) && (p.distance || p.pace)) out.plan = p;
+  }catch(e){}
+  try{
+    const e = JSON.parse(localStorage.getItem('lob_easy_summary_'+which));
+    if(e && (e.easyPace || e.easyKm)) out.easy = e;
+  }catch(e2){}
+  return out;
+}
+function lobDetailHtml(lobPlan, isToday, extras){
+  if(isToday && extras.plan){
+    const p = extras.plan;
+    return (p.distance ? `<div class="week-day-sub">📏 ${shortPlanText(p.distance)}</div>` : '')
+         + (p.pace ? `<div class="week-day-sub">🎯 ${shortPlanText(p.pace)}</div>` : '');
+  }
+  if(lobPlan && lobPlan.easy && extras.easy){
+    const e = extras.easy;
+    return `<div class="week-day-sub">Typisk: ${e.easyKm ? '~'+e.easyKm+' km' : ''}${e.easyKm && e.easyPace ? ' · ' : ''}${e.easyPace || ''}</div>`;
+  }
+  return '';
+}
 function renderSchedule(sRaw, lRaw, personKey){
   const anchor=getScheduleAnchor();
   const dates=computeWeekDates(scheduleWeekOffset);
@@ -1444,6 +1470,7 @@ function renderSchedule(sRaw, lRaw, personKey){
   const sbdDone=sbdCompletedByDate(sRaw);
   const lobDone=lobCompletedByDate(lRaw);
   const pattern=patternForPerson(personKey);
+  const lobExtras=lobExtrasFor(personKey);
   const isTestWeek = sRaw ? (Math.min(12,Math.floor((sRaw.totalDays||0)/7)+1)===12) : false;
   let sbdCursor = sRaw ? (sRaw.totalDays||0) : 0; // bruges kun for slots uden fast cycleId
 
@@ -1502,7 +1529,7 @@ function renderSchedule(sRaw, lRaw, personKey){
       const info=lobPhaseInfo(lRaw.profile.seasonStart);
       const badge=lobPlan.easy ? 'Let' : (info.isDeload?'Deload':info.phase);
       const sub=lobPlan.easy ? '<div class="week-day-sub">Zone 1-2 — ligger tæt på en bendag</div>' : '';
-      lobCell=`<span class="week-day-tag tag-planned">${isToday?'I dag':'Planlagt'}</span> <div class="week-day-badge">🏃 ${badge}</div>${sub}`;
+      lobCell=`<span class="week-day-tag tag-planned">${isToday?'I dag':'Planlagt'}</span> <div class="week-day-badge">🏃 ${badge}</div>${sub}${lobDetailHtml(lobPlan,isToday,lobExtras)}`;
     } else {
       lobCell=`<span class="week-day-tag tag-rest">—</span>`;
     }
@@ -1796,7 +1823,7 @@ function refreshLobPlanIfNeeded(){
     const p = JSON.parse(localStorage.getItem('lob_today_plan_'+active) || 'null');
     const gsum = JSON.parse(localStorage.getItem('lob_goals_summary_'+active) || 'null');
     const hasGoals = Array.isArray(raw.profile.goals) && raw.profile.goals.length > 0;
-    if(p && p.date === today && ('pace' in p) && (!hasGoals || (gsum && gsum.date === today))) return;
+    if(p && p.date === today && ('pace' in p) && localStorage.getItem('lob_easy_summary_'+active) &&  (!hasGoals || (gsum && gsum.date === today))) return;
     if(document.getElementById('lob-plan-frame')) return;
     const f = document.createElement('iframe');
     f.id = 'lob-plan-frame';
