@@ -945,7 +945,7 @@ function invalidateCache() {
 // ─── DATA ───────────────────────────────────────────────────────────────────
 
 // These are read from state after init — see getSQ()/getBP()/getDL() below
-const STARTING_SQ = 117.02, STARTING_BP = 89.89, STARTING_DL = 178.19;
+const STARTING_SQ = 105, STARTING_BP = 95, STARTING_DL = 165;
 
 function getSQ() { return aState().oneRM?.sq || STARTING_SQ; }
 function getBP() { return aState().oneRM?.bp || STARTING_BP; }
@@ -1254,6 +1254,8 @@ const ACC_TEMPLATES = {
     { name:'Triceps Extension (Cable)',      badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:25    },
     { name:'Rear Delt Reverse Fly (Machine)',badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:120   },
     { name:'Face Pull (Cable)',              badge:'acc', sets:3, reps:15,repsRange:'12–20',kg:25   },
+    { name:'Lateral Raise (Kabel)',          badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:10,  note:'Nyt (volumen til sidedelt). Startvægt er et forsigtigt gæt — justér efter første session.' },
+    { name:'Incline DB Curl',                badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:12,  note:'Nyt (volumen til biceps, strakt position). Startvægt er et forsigtigt gæt — justér efter første session.' },
   ],
   // Lower sekundær (dag 7) — posterior chain fokus + hinge
   low2: [
@@ -1263,6 +1265,7 @@ const ACC_TEMPLATES = {
     { name:'Seated Leg Curl (Machine) — Volumen', badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:82.5 },
     { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
     { name:'Lateral Raise (Machine) — Let',    badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:50,  note:'Let — ekstra skulder-frekvens.' },
+    { name:'Standing Calf Raise',        badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:100, note:'Nyt (volumen til læg, knæ strakt). Fuld bevægelse med pause i bunden. Startvægt er et gæt — justér efter første session.' },
   ],
   // B&B sekundær (dag 8) — Deficit DL fokus, variation fra dag 4
   bb2: [
@@ -1470,7 +1473,7 @@ function _getExercises(dayId, week) {
     const template = PARTNER_TEMPLATES[dayId] || [];
     const b = getBlock(week);
     const dl = isDeload(week);
-    const FIXED_RANGE = new Set(['Calf Raise (Machine)','Jefferson Curl','Cable Crunch','Box Jump',
+    const FIXED_RANGE = new Set(['Calf Raise (Machine)','Standing Calf Raise','Jefferson Curl','Cable Crunch','Box Jump',
       'Lateral Raise (Machine) — Let','Overhead Triceps Ext. (Cable) — Let']);
     const COMPOUND_ACC = new Set([
       'Romanian Deadlift','Hack Squat (Machine)','Hip Thrust (Barbell)',
@@ -1515,7 +1518,7 @@ function _getExercises(dayId, week) {
 
       // Exercises with special rep schemes — never periodise these
       const FIXED_RANGE = new Set([
-        'Calf Raise (Machine)', 'Single Leg Calf Raise (BB)',
+        'Calf Raise (Machine)', 'Standing Calf Raise', 'Single Leg Calf Raise (BB)',
         'Jefferson Curl', 'Cable Crunch', 'Box Jump',
         'Lateral Raise (Machine) — Let', 'Overhead Triceps Ext. (Cable) — Let',
       ]);
@@ -1586,7 +1589,7 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   maxPlate: 25, // 25 or 20 — depends on what gym center has available
   checkpointExported: {}, // tracks which checkpoint weeks (4, 8) have been exported
   sessionTimes: {}, // { dayN: { start, end } }
-  oneRM: { sq: 117.02, bp: 89.89, dl: 178.19 },
+  oneRM: { sq: 105, bp: 95, dl: 165 },
   programStart1RM: null, // locked at program start, never changes mid-program
   programHistory: [], exerciseNotes: {}, profile: 'main',
   pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, bodyweight: {},
@@ -1599,7 +1602,7 @@ if (!state.maxPlate)       state.maxPlate       = 25;
 if (!state.checkpointExported) state.checkpointExported = {};
 if (!state.timerAcc)       state.timerAcc       = 120;
 if (!state.sessionTimes)   state.sessionTimes   = {};
-if (!state.oneRM)          state.oneRM          = { sq: 117.02, bp: 89.89, dl: 178.19 };
+if (!state.oneRM)          state.oneRM          = { sq: 105, bp: 95, dl: 165 };
 if (!state.exerciseNotes)  state.exerciseNotes  = {};
 if (!state.programHistory) state.programHistory = [];
 if (!state.profile)        state.profile        = 'main';
@@ -5599,7 +5602,8 @@ const MUSCLE_MAP = {
   // Calves
   'Cable Crunch': 'Core',
   'Box Jump': 'Core',
-  'Calf Raise (Machine)': 'Lægge', 'Single Leg Calf Raise (BB)': 'Lægge', 'Calf Raise': 'Lægge',
+  'Calf Raise (Machine)': 'Lægge', 'Single Leg Calf Raise (BB)': 'Lægge', 'Calf Raise': 'Lægge', 'Standing Calf Raise': 'Lægge',
+  'Lateral Raise (Kabel)': 'Skulder', 'Incline DB Curl': 'Biceps',
 };
 if (window.TP && TP.MUSCLE_EXTRA) Object.keys(TP.MUSCLE_EXTRA).forEach(k => { if (!(k in MUSCLE_MAP)) MUSCLE_MAP[k] = TP.MUSCLE_EXTRA[k]; });
 

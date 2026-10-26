@@ -117,4 +117,11 @@ T('evalPattern: gentagne mønstre giver forsigtige noter uden diagnose', () => {
   const r = TP.evalPattern(l); assert(r.notes.length >= 3);
   assert(r.notes.some(n => /ikke en diagnose/.test(n)));
 });
+
+T('nye volumenøvelser (sidedelt/biceps/læg) har 2 alternativer og kendt muskelgruppe', () => {
+  ['Lateral Raise (Kabel)', 'Incline DB Curl', 'Standing Calf Raise'].forEach(n => {
+    const L = TP.altsFor(n); assert.strictEqual(L.alts.length, 2, n);
+    L.alts.forEach(a => assert(TP.MUSCLE_EXTRA[a.name], n + ' → ' + a.name + ' mangler muskelgruppe'));
+  });
+});
 console.log(`\n${ok} bestået, ${bad} fejlet`); process.exit(bad ? 1 : 0);

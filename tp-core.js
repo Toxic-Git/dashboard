@@ -641,6 +641,16 @@
     'Preacher Curl (DB)': { g: 'Biceps', role: 'acc', alts: [
       A('Preacher Curl (Maskine)', 'Biceps', 'curl', 'maskine', 'Samme understøttede curl med fast bane.'),
       A('Incline Dumbbell Curl', 'Biceps', 'curl', 'hantler+bænk', 'Strakt-position curl — stor muskellængde.')] },
+    // ── Nye volumenøvelser (Fase 2-audit): sidedelt, biceps, læg ──
+    'Lateral Raise (Kabel)': { g: 'Skulder', role: 'acc', alts: [
+      A('Lateral Raise (Hantler)', 'Skulder', 'sidehæv', 'hantler', 'Klassisk sidehæv; mest spænding i toppen.'),
+      A('Lateral Raise (Machine)', 'Skulder', 'sidehæv', 'maskine', 'Samme midt-deltoid-fokus med fast bane.')] },
+    'Incline DB Curl': { g: 'Biceps', role: 'acc', alts: [
+      A('Preacher Curl (Maskine)', 'Biceps', 'curl', 'maskine', 'Understøttet curl med fast bane — lidt mere belastning tidligt i bevægelsen.'),
+      A('Bayesian Cable Curl', 'Biceps', 'curl', 'kabel', 'Curl med armen bagud — strakt biceps-position med konstant kabelspænding.')] },
+    'Standing Calf Raise': { g: 'Lægge', role: 'acc', alts: [
+      A('Seated Calf Raise', 'Lægge', 'lægge', 'maskine', 'Knæ bøjet — rammer soleus mere; gastrocnemius mindre end stående.'),
+      A('Single-Leg Calf Raise', 'Lægge', 'lægge', 'trin+hantel', 'Ensidig lægge-hæv med fuld bevægelse; let at dosere.')] },
     // ── Ingen jævnbyrdig erstatning: bevidst tom ──
     'Jefferson Curl': { g: 'Post. Chain', role: 'acc', alts: [], noAltWhy: 'Mobilitets-/rygøvelse under let belastning — ingen jævnbyrdig erstatning. Spring over eller behold.' }
   };

@@ -58,6 +58,22 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
   const startSession = async p => { await p.click('text=START TRÆNING'); await p.waitForSelector('#kg_0_0'); await p.waitForTimeout(200); };
   const open = async (p, rel) => { await p.goto(url + rel); await p.waitForTimeout(700); };
 
+  await check('Layout', 'Ugeskema @360/390: række med både styrke- og løbecelle — begge i indholdskolonnen (ikke 38 px-dagsnavnet), ingen vandret scroll', async () => {
+    for (const w of [360, 390]) {
+      const p = await newPage(w); await open(p, 'index.html'); await p.waitForTimeout(1500);
+      const r = await p.evaluate(() => {
+        const host = document.querySelector('.week-day-row').parentNode;
+        const row = document.createElement('div'); row.className = 'week-day-row today';
+        row.innerHTML = '<div class="week-day-name">Man</div><div class="week-day-content">Styrke: Tung bænk</div><div class="week-day-content">Løb: roligt 40 min Zone 2</div>';
+        host.appendChild(row);
+        const n = row.children[0].getBoundingClientRect(), a = row.children[1].getBoundingClientRect(), c = row.children[2].getBoundingClientRect();
+        return { aLeft: a.left - n.right, cLeft: c.left - n.right, cW: c.width, stacked: c.top >= a.bottom - 1, sw: document.documentElement.scrollWidth <= window.innerWidth + 1 };
+      });
+      ok(r.aLeft >= 0 && r.cLeft >= 0, 'celler under dagsnavnet @' + w + ' ' + JSON.stringify(r));
+      ok(r.cW > 150, 'løb-cellen er for smal @' + w + ': ' + r.cW);
+      ok(r.stacked && r.sw, 'stabling/scroll @' + w + ' ' + JSON.stringify(r)); eq(p.errors, []); await p.ctx.close();
+    }
+  });
   /* ───────── PROFILSKIFT & DATAISOLERING ───────── */
   await check('Profilskift', 'Dashboard: Oliver↔Ellen skifter indhold og vender tilbage identisk', async () => {
     const p = await newPage(); await open(p, 'index.html');
