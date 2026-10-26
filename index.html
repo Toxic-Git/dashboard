@@ -292,7 +292,7 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   .week-day-row .week-day-content:empty,
   .week-day-row .week-day-content.is-none{ display:none; }
 }
-.week-day-content.is-none{ visibility:hidden; }
+.week-day-content.is-none{ display:none; }
 .week-day-row.is-past{ opacity:.8; }
 .skip-menu{ margin-top:8px; }
 .skip-menu > summary{
@@ -355,6 +355,10 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   display:flex; gap:8px; font-size:var(--fs-sm); color:var(--text); line-height:1.5; font-style:italic;
   padding-top:10px; margin-top:10px; border-top:1px solid var(--border);
 }
+
+.next-row{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.next-row .next-label{ margin:0; }
+.next-row .next-day{ margin:0; font-size:var(--fs-xl); }
 </style>
 <link rel="stylesheet" href="ds.css">
 </head>
@@ -658,16 +662,12 @@ function renderCard(status, discipline, kind){
       <div class="week-pill">Uge ${status.week}/${status.totalWeeks} · ${badge}</div>
     </div>
     <div class="card-body">
-      <div class="next-label">Næste i trackeren</div>
-      <div class="next-day">${status.day.short || status.day.name}</div>
-      ${isRest ? `<div class="rest-note">💤 Hviledag</div>` : `<div class="next-desc">${desc}</div>`}
-      ${planHtml}
-      ${goalsHtml}
-      ${(warmup||stretch) ? `<details class="card-more"><summary>Opvarmning &amp; udstræk</summary>${warmupHtml}${stretchHtml}</details>` : ''}
+      <div class="next-row"><span class="next-label">Næste i trackeren</span><span class="next-day">${status.day.short || status.day.name}</span>${isRest ? `<span class="rest-note">💤 Hviledag</span>` : ''}</div>
       <div class="progress-wrap">
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         <div class="progress-label">${status.completed} gennemførte sessioner · ${pct}% af programmet</div>
       </div>
+      ${(isRest && !planHtml && !goalsHtml && !warmup && !stretch) ? '' : `<details class="card-more"><summary>Detaljer om næste pas</summary>${isRest ? '' : `<div class="next-desc">${desc}</div>`}${planHtml}${goalsHtml}${warmupHtml}${stretchHtml}</details>`}
       ${note}
       <a class="open-btn" href="${meta.url}">Åbn ${discipline==='lob'?'løbe-tracker':'SBD-tracker'}</a>
     </div>

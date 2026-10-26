@@ -544,6 +544,16 @@ html, body {
   .topbar{ padding-left:18px; padding-right:18px; }
 }
 
+
+/* Aktiv session: større trykflader (gym, én hånd) */
+.set-input{ min-height:48px; font-size:max(18px,1em); font-weight:600; border-color:var(--border-strong); }
+.check-btn{ width:52px; height:52px; border-color:var(--gold-dim); color:var(--gold); font-size:22px; }
+.check-btn:active{ transform:scale(.94); }
+.check-btn.done{ color:var(--on-gold); background:var(--success); border-color:var(--success); }
+.set-row-5col{ grid-template-columns:32px 1fr 1fr 56px 56px; min-height:64px; }
+.set-row.completed::after, .set-row-5col.completed::after{ content:none; }
+.rpe-input{ min-height:48px; font-size:max(16px,1em); }
+.rpe-input::placeholder{ font-size:13px; }
 </style>
 <link rel="stylesheet" href="../ds.css">
 </head>

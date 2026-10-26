@@ -196,6 +196,12 @@ input,select,textarea{ min-height:44px; border-radius:var(--r-sm); }
 
 code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
 .card{ min-width:0; }
+
+@media (min-width:1040px){
+  #view-analyse.active{ columns:auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 14px; align-items:start; }
+  #view-analyse > .card:last-child{ grid-column:1 / -1; }
+  #chart-form, #chart-pace{ width:100%; }
+}
 /* Aktiv timer: stort, læsbart på afstand */
 #timer-run-card{ text-align:center; padding:24px 16px; }
 #timer-run-card h2{ font-size:22px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2); }
