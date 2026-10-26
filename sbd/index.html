@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- PWA -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -51,12 +51,6 @@ html, body {
 .view { display:none; min-height:100vh; padding-bottom:calc(80px + var(--safe-bottom)); }
 .view.active { display:block; }
 
-/* ── COMPUTER/DESKTOP: centrér indhold i en læsbar kolonne ── */
-@media (min-width:760px){
-  .view{ padding-left:calc((100vw - 640px)/2); padding-right:calc((100vw - 640px)/2); }
-  .bottom-nav{ padding-left:calc((100vw - 640px)/2); padding-right:calc((100vw - 640px)/2); }
-}
-
 /* ── TOP BAR ── */
 .topbar {
   position:sticky; top:0; z-index:100;
@@ -69,7 +63,7 @@ html, body {
   font-family:'Barlow Condensed',sans-serif;
   font-size:20px; font-weight:900; letter-spacing:1px; text-transform:uppercase;
 }
-.topbar-sub { font-size:11px; color:var(--muted); margin-top:1px; }
+.topbar-sub { font-size:12px; color:var(--muted); margin-top:1px; }
 .topbar-badge {
   font-family:'Barlow Condensed',sans-serif;
   font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
@@ -99,7 +93,7 @@ html, body {
 }
 .nav-btn.active { color:var(--gold); }
 .nav-icon { font-size:22px; line-height:1; }
-.nav-label { font-size:10px; letter-spacing:1px; text-transform:uppercase; font-weight:600; }
+.nav-label { font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:600; }
 
 /* ── TODAY VIEW ── */
 .today-header {
@@ -157,7 +151,7 @@ html, body {
   white-space:normal;
 }
 .ex-badge {
-  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:1px; text-transform:uppercase; padding:3px 8px;
   border-radius:4px; flex-shrink:0;
 }
@@ -198,7 +192,7 @@ html, body {
 .set-input:focus { outline:none; border-color:var(--gold); }
 .set-input.completed-input { border-color:var(--green); color:var(--green); }
 
-.set-label { font-size:10px; color:var(--muted); text-align:center; margin-top:2px; letter-spacing:1px; }
+.set-label { font-size:12px; color:var(--muted); text-align:center; margin-top:2px; letter-spacing:1px; }
 
 /* Check button — 44px minimum touch target */
 .check-btn {
@@ -212,7 +206,7 @@ html, body {
 /* RPE pill */
 .rpe-pill {
   display:inline-flex; align-items:center; gap:4px;
-  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:1px; text-transform:uppercase;
   padding:3px 8px; border-radius:4px; border:1px solid;
 }
@@ -224,7 +218,7 @@ html, body {
 /* Equipment badges */
 .equip-badge {
   display:inline-flex; align-items:center; gap:2px;
-  font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase;
+  font-size:12px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase;
   padding:1px 5px; border-radius:3px; margin-left:5px; vertical-align:middle;
   font-family:'Barlow Condensed',sans-serif;
   background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
@@ -234,7 +228,7 @@ html, body {
 /* PR badges */
 .pr-badge {
   display:inline-flex; align-items:center; gap:3px;
-  font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:900;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:900;
   letter-spacing:1px; text-transform:uppercase;
   padding:2px 6px; border-radius:4px; margin-left:4px;
   animation: prPop .4s cubic-bezier(0.34,1.56,0.64,1) forwards;
@@ -317,7 +311,7 @@ html, body {
   padding:14px 16px;
 }
 .pr-summary-title {
-  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:10px;
 }
 .pr-summary-row {
@@ -331,7 +325,7 @@ html, body {
   gap:8px; padding:8px 16px 4px;
 }
 .set-col-label {
-  font-size:11px; color:var(--muted); letter-spacing:1px;
+  font-size:12px; color:var(--muted); letter-spacing:1px;
   text-transform:uppercase; text-align:center;
 }
 
@@ -367,7 +361,7 @@ html, body {
 .prog-week-status { font-size:18px; }
 .prog-block-header {
   padding:10px 18px 6px;
-  font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:3px; text-transform:uppercase;
 }
 .prog-block-header.b1 { color:var(--bp); }
@@ -395,7 +389,7 @@ html, body {
 /* ── SETTINGS VIEW ── */
 .settings-section { padding:20px 18px 8px; }
 .settings-label {
-  font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:12px;
 }
 .settings-card { background:var(--surface); border-radius:var(--radius); overflow:hidden; margin-bottom:12px; }
@@ -458,7 +452,7 @@ html, body {
 .progress-bar-wrap { padding:0 18px 14px; }
 .progress-track { height:4px; background:var(--surface2); border-radius:2px; overflow:hidden; }
 .progress-fill { height:100%; background:var(--gold); border-radius:2px; transition:width .4s ease; }
-.progress-label { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:5px; }
+.progress-label { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:5px; }
 
 /* ── REST TIMER OVERLAY ── */
 .timer-overlay {
@@ -469,7 +463,7 @@ html, body {
 }
 .timer-overlay.open { display:flex; }
 .timer-label {
-  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:4px; text-transform:uppercase; color:var(--muted); margin-bottom:20px;
 }
 .timer-ring-wrap { position:relative; width:220px; height:220px; margin-bottom:24px; }
@@ -507,7 +501,7 @@ html, body {
 /* ── PROGRESS CHART ── */
 .chart-wrap { margin:0 18px 12px; background:var(--surface); border-radius:var(--radius); padding:16px; }
 .chart-title {
-  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700;
   letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:12px;
 }
 .chart-tabs { display:flex; gap:0; margin-bottom:14px; border-radius:6px; overflow:hidden; background:var(--surface2); }
@@ -531,7 +525,27 @@ html, body {
 .suggestion-icon { font-size:20px; flex-shrink:0; }
 .suggestion-text { font-size:13px; color:var(--text); font-weight:300; line-height:1.5; flex:1; }
 .suggestion-text strong { color:var(--gold); font-weight:600; }
+/* ── COMPUTER/DESKTOP: centrér indhold i en læsbar kolonne ── */
+@media (min-width:760px){
+  .view{ padding-left:calc((100vw - 720px)/2); padding-right:calc((100vw - 720px)/2); }
+  .bottom-nav{ padding-left:calc((100vw - 720px)/2); padding-right:calc((100vw - 720px)/2); }
+}
+/* Desktop: navigation som venstre sidebjælke, bredere indholdskolonne */
+@media (min-width:1100px){
+  .view{ padding-left:calc(104px + (100vw - 104px - 920px)/2); padding-right:calc((100vw - 104px - 920px)/2); }
+  .bottom-nav{
+    top:0; bottom:0; right:auto; width:104px; padding:20px 8px; flex-direction:column; justify-content:flex-start; gap:6px;
+    border-top:0; border-right:1px solid var(--border);
+  }
+  .nav-btn{ flex:0 0 auto; min-height:72px; border-radius:var(--radius); width:100%; }
+  .nav-btn:hover{ background:var(--surface2); color:var(--text); }
+  .nav-btn.active{ background:var(--gold-soft); }
+  .view{ padding-bottom:40px; }
+  .topbar{ padding-left:18px; padding-right:18px; }
+}
+
 </style>
+<link rel="stylesheet" href="../ds.css">
 </head>
 <body>
 
@@ -614,7 +628,7 @@ html, body {
                    border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
                    font-size:14px;font-weight:700;padding:5px 8px;text-align:center;
                    -webkit-appearance:none;appearance:none;">
-          <span style="font-size:11px;color:var(--muted);">kg</span>
+          <span style="font-size:12px;color:var(--muted);">kg</span>
         </span>
       </div>
       <div class="chart-canvas-wrap">
@@ -715,7 +729,7 @@ html, body {
             cursor:pointer;background:var(--gold);color:var(--bg);">25 kg</button>
         </div>
       </div>
-      <div style="padding:0 16px 12px;font-size:11px;color:var(--muted);line-height:1.5;">
+      <div style="padding:0 16px 12px;font-size:12px;color:var(--muted);line-height:1.5;">
         Skift til 20 kg hvis dit center ikke har 25 kg skiver. Plade-udregningen tilpasses automatisk.
       </div>
     </div>
@@ -940,7 +954,7 @@ function stretchCardHtml(day) {
   const txt = day && SBD_STRETCH[day.short];
   if (!txt) return '';
   return `<div style="margin:0 18px 12px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;border-left:3px solid var(--gold);">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:4px;">🧘 Udstræk efter træning</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:4px;">🧘 Udstræk efter træning</div>
     <div style="font-size:13px;font-weight:300;line-height:1.5;">${txt}</div>
   </div>`;
 }
@@ -1860,7 +1874,7 @@ function renderToday() {
       const avgRPE = rCnt ? (rSum/rCnt).toFixed(1) : '—';
       const avgSlp = sCnt ? Math.round(sSum/sCnt) : '—';
       html += `<div class="suggestion-bar" style="background:rgba(212,168,67,0.06);border-color:rgba(212,168,67,0.2);flex-direction:column;gap:6px;align-items:flex-start;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--gold);">UGE ${prevWeek} OPSUMMERING</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--gold);">UGE ${prevWeek} OPSUMMERING</div>
         <div style="display:flex;gap:20px;font-size:13px;">
           <span>🏋️ <strong>${wk}</strong> træninger</span>
           <span>⚡ RPE <strong>${avgRPE}</strong></span>
@@ -1925,7 +1939,7 @@ function renderToday() {
           <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
             placeholder="108.0"
             onchange="saveBodyweight(parseFloat(this.value))"
-            style="width:72px;background:var(--surface2);border:1px solid var(--border);
+            style="width:84px;background:var(--surface2);border:1px solid var(--border);
                    border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
                    font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
                    -webkit-appearance:none;appearance:none;">
@@ -1964,7 +1978,7 @@ function renderToday() {
 
   const swapBtn = (!isPeakWeek() && day.type === 'workout')
     ? `<button onclick="showDaySwapModal()" style="
-        font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+        font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
         letter-spacing:1px;text-transform:uppercase;padding:5px 10px;
         border-radius:6px;border:1px solid var(--border);background:none;
         color:${hasOverride ? 'var(--gold)' : 'var(--muted)'};cursor:pointer;
@@ -1975,7 +1989,7 @@ function renderToday() {
 
   const undoBtn = canUndoAdvance()
     ? `<button onclick="undoAdvanceDay()" style="
-        font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+        font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
         letter-spacing:1px;text-transform:uppercase;padding:5px 10px;
         border-radius:6px;border:1px solid var(--dl);background:none;
         color:var(--dl);cursor:pointer;white-space:nowrap;">
@@ -1987,7 +2001,7 @@ function renderToday() {
     <div>
       <div class="today-day-label">${blockLabel(week)}</div>
       <div class="today-day-name">${day.name}</div>
-      ${timeStr ? `<div style="font-size:11px;color:${actualSecs ? 'var(--green)' : 'var(--muted)'};margin-top:3px;">${timeStr}</div>` : ''}
+      ${timeStr ? `<div style="font-size:12px;color:${actualSecs ? 'var(--green)' : 'var(--muted)'};margin-top:3px;">${timeStr}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div class="week-pill ${blockClass(week)}">${day.short}</div>
@@ -2020,15 +2034,15 @@ function renderToday() {
         html += `<div style="margin:0 18px 12px;background:var(--surface);border-radius:10px;
           padding:10px 14px;display:flex;gap:12px;align-items:center;" id="live-timing-block">
           <div style="flex:1;text-align:center;">
-            <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Total</div>
+            <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Total</div>
             <div id="live-total-mins" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--green);">${totalMins}m</div>
           </div>
           ${warmupMins !== null ? `<div style="flex:1;text-align:center;border-left:1px solid var(--border);">
-            <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Opvarmning</div>
+            <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Opvarmning</div>
             <div id="live-warmup-mins" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;">${warmupMins}m</div>
           </div>` : ''}
           ${workMins !== null ? `<div style="flex:1;text-align:center;border-left:1px solid var(--border);">
-            <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Arbejdssæt</div>
+            <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Arbejdssæt</div>
             <div id="live-work-mins" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;">${workMins}m</div>
           </div>` : ''}
         </div>`;
@@ -2043,7 +2057,7 @@ function renderToday() {
       const nextDay = PEAK_WEEK[nextIdx];
       if (nextDay?.type === 'workout') {
         nextPreviewHtml = `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:14px 16px;border-left:3px solid var(--gold);">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:6px;">I MORGEN</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:6px;">I MORGEN</div>
           <div style="font-size:16px;font-weight:600;">${nextDay.name}</div>
         </div>`;
       }
@@ -2056,7 +2070,7 @@ function renderToday() {
         const primary = nextExercises.find(e => e.type === 'primary');
         const accNames = nextExercises.filter(e => e.type === 'acc').map(e => e.name).slice(0, 4);
         nextPreviewHtml = `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:14px 16px;border-left:3px solid var(--gold);">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">I MORGEN — ${nextDay.name.toUpperCase()}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">I MORGEN — ${nextDay.name.toUpperCase()}</div>
           ${primary ? `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${primary.name}</div>` : ''}
           <div style="font-size:12px;color:var(--muted);line-height:1.6;">${accNames.join(' · ')}</div>
         </div>`;
@@ -2123,7 +2137,7 @@ function renderToday() {
       ? r(ex.scheme.kg * intraFatigueMod)
       : ex.scheme.kg;
 
-    const kgLabel = displayKg > 0 ? ` · ${displayKg} kg${ex.scheme.pct ? ' ('+ex.scheme.pct+'%)' : ''}${intraFatigueMod < 1.0 ? ' <span style="font-size:10px;color:var(--dl);">↓ fatigue</span>' : ''}` : displayKg === 0 ? ' · Kropsvægt' : '';
+    const kgLabel = displayKg > 0 ? ` · ${displayKg} kg${ex.scheme.pct ? ' ('+ex.scheme.pct+'%)' : ''}${intraFatigueMod < 1.0 ? ' <span style="font-size:12px;color:var(--dl);">↓ fatigue</span>' : ''}` : displayKg === 0 ? ' · Kropsvægt' : '';
 
     // RPE-based weight hint — RIR formula for all lifts
     // Primary SBD: uses actual 1RM. Accessories: estimates e1RM from last logged set via Epley
@@ -2187,7 +2201,7 @@ function renderToday() {
     // Render hint as number for use in warmup input, or text for accessories
     const rpeHintKg = typeof rpeWeightHint === 'number' ? rpeWeightHint : null;
     const rpeHintHtml = rpeHintKg
-      ? `<span style="font-size:11px;color:var(--gold);margin-left:4px;">→ ~${rpeHintKg} kg ved RPE</span>`
+      ? `<span style="font-size:12px;color:var(--gold);margin-left:4px;">→ ~${rpeHintKg} kg ved RPE</span>`
       : '';
 
     const lastPerf = getLastPerformance(ex.name);
@@ -2205,11 +2219,11 @@ function renderToday() {
     }
     const practiceCount = getExercisePracticeCount(ex.name);
     const practiceHtml = practiceCount >= 3
-      ? `<span style="font-size:10px;color:var(--muted);margin-left:6px;">· ${practiceCount} sessioner kørt</span>`
+      ? `<span style="font-size:12px;color:var(--muted);margin-left:6px;">· ${practiceCount} sessioner kørt</span>`
       : '';
     const lastPerfHtml = lastPerf
-      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Sidst: <span style="color:var(--text);font-weight:600;">${lastPerf.kg} kg</span> × <span style="color:var(--text);font-weight:600;">${lastPerf.reps}</span> reps${lastPerf.setsSummary ? ` <span style="opacity:0.7;">(${lastPerf.setsSummary})</span>` : ''}${beatLastHtml}${practiceHtml}</div>`
-      : (practiceCount >= 3 ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${practiceHtml}</div>` : '');
+      ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">Sidst: <span style="color:var(--text);font-weight:600;">${lastPerf.kg} kg</span> × <span style="color:var(--text);font-weight:600;">${lastPerf.reps}</span> reps${lastPerf.setsSummary ? ` <span style="opacity:0.7;">(${lastPerf.setsSummary})</span>` : ''}${beatLastHtml}${practiceHtml}</div>`
+      : (practiceCount >= 3 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">${practiceHtml}</div>` : '');
 
     html += `<div class="ex-card">
       <div class="ex-header">
@@ -2246,11 +2260,11 @@ function renderToday() {
       const workingPlates = storedWarmupKg > 0 ? platesText(storedWarmupKg) : null;
       html += `<div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);flex-shrink:0;">Arbejdsvægt</div>
+          <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);flex-shrink:0;">Arbejdsvægt</div>
           <input class="set-input" type="number" inputmode="decimal" style="max-width:90px;font-size:16px;"
             value="${storedWarmupKg}" placeholder="${ex.scheme.kg || '—'}"
             oninput="updateWarmupKg(${ei}, this.value)" id="warmup-kg-${ei}">
-          <div style="font-size:11px;color:var(--muted);font-weight:300;">kg</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:300;">kg</div>
         </div>
         ${workingPlates ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
           Per side: <span style="color:var(--text);font-weight:600;" id="working-plates-${ei}">${workingPlates}</span>
@@ -2299,7 +2313,7 @@ function renderToday() {
         </button>
       </div>`;
       if (isAMRAPSet) {
-        html += `<div style="padding:6px 16px;font-size:10px;color:var(--gold);
+        html += `<div style="padding:6px 16px;font-size:12px;color:var(--gold);
           border-bottom:1px solid var(--border);font-style:italic;background:rgba(212,168,67,0.04);">
           ⚡ Mini-max: kør til failure, log faktiske reps — ingen forventet RPE
         </div>`;
@@ -2311,7 +2325,7 @@ function renderToday() {
       const tempoKey = `tempo_${ei}`;
       const savedTempo = logEx.tempo || '';
       html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);">
-        <span style="font-size:11px;color:var(--muted);flex:1;">Faktisk pause-tempo (sek)?</span>
+        <span style="font-size:12px;color:var(--muted);flex:1;">Faktisk pause-tempo (sek)?</span>
         <input type="number" inputmode="numeric" min="0" max="10" step="0.5"
           value="${savedTempo}" placeholder="2"
           onchange="saveTempo(${ei},this.value)"
@@ -2354,7 +2368,7 @@ function renderToday() {
         // Trend info
         const trend = getTrend(ex.name);
         const trendNote = Math.abs(trend) > 0.03
-          ? ` <span style="font-size:10px;color:var(--muted);">(${trend > 0 ? 'konsekvent let' : 'konsekvent tungt'})</span>`
+          ? ` <span style="font-size:12px;color:var(--muted);">(${trend > 0 ? 'konsekvent let' : 'konsekvent tungt'})</span>`
           : '';
 
         const rpeDisp = actualRPE!==null ? Math.round(actualRPE*10)/10 : null;
@@ -2460,7 +2474,7 @@ function renderToday() {
     const userNote = aState().exerciseNotes?.[noteKey] ?? '';
     const placeholder = programNote || `Tilføj en note til ${ex.name}...`;
     html += `<div style="padding:8px 16px 10px;border-top:1px solid var(--border);">
-      ${programNote && !userNote ? `<div style="font-size:11px;color:var(--muted);font-weight:300;
+      ${programNote && !userNote ? `<div style="font-size:12px;color:var(--muted);font-weight:300;
         line-height:1.5;margin-bottom:4px;font-style:italic;">${programNote}</div>` : ''}
       <textarea
         id="note-${ei}"
@@ -2520,11 +2534,11 @@ function platesText(totalKg, barKg = 20) {
 }
 
 function platesHtml(totalKg, barKg = 20) {
-  if (!totalKg || isNaN(parseFloat(totalKg))) return `<span style="font-size:10px;color:var(--muted);">Kun stang</span>`;
+  if (!totalKg || isNaN(parseFloat(totalKg))) return `<span style="font-size:12px;color:var(--muted);">Kun stang</span>`;
   const { plates } = calcPlates(parseFloat(totalKg), barKg);
-  if (!plates || !plates.length) return `<span style="font-size:10px;color:var(--muted);">Kun stang</span>`;
+  if (!plates || !plates.length) return `<span style="font-size:12px;color:var(--muted);">Kun stang</span>`;
   return plates.map(p =>
-    `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+    `<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
       background:var(--surface);border:1px solid var(--border);
       border-radius:4px;padding:2px 6px;color:var(--text);">
       ${p.count > 1 ? p.count + '×' : ''}${p.kg}
@@ -2541,7 +2555,7 @@ function renderWarmupBadges(warmups) {
     const newEquip = (w.equip || []).filter(e => !prevEquip.includes(e));
     prevEquip = w.equip || [];
     const equipHtml = newEquip.length
-      ? `<div style="font-size:10px;color:var(--gold);margin-top:3px;">${newEquip.join('  ')}</div>`
+      ? `<div style="font-size:12px;color:var(--gold);margin-top:3px;">${newEquip.join('  ')}</div>`
       : '';
     const platesStr = platesText(w.kg);
     return `<div style="background:var(--surface2);border:1px solid var(--border);
@@ -2550,9 +2564,9 @@ function renderWarmupBadges(warmups) {
       <div style="display:flex;align-items:baseline;gap:6px;">
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;">${w.kg} kg</span>
         <span style="color:var(--muted);font-size:12px;">× ${w.reps}</span>
-        <span style="font-size:10px;color:var(--muted);">${w.label}</span>
+        <span style="font-size:12px;color:var(--muted);">${w.label}</span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+      <div style="font-size:12px;color:var(--muted);margin-top:3px;">
         Per side: <span style="color:var(--text);font-weight:500;">${platesStr}</span>
       </div>
       ${equipHtml}
@@ -3161,7 +3175,7 @@ function showResultScreen(newSQ, newBP, newDL) {
               font-weight:700;color:${l.color};">${l.name}</span>
             <div style="text-align:right;">
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;">${l.next} kg</div>
-              <div style="font-size:11px;color:${col(l.prev, l.next)};">
+              <div style="font-size:12px;color:${col(l.prev, l.next)};">
                 ${l.prev} kg → ${diff(l.prev, l.next)} (${pct(l.prev, l.next)})
               </div>
             </div>
@@ -3169,19 +3183,19 @@ function showResultScreen(newSQ, newBP, newDL) {
           ${(pr.soloPR || pr.compPR) ? `
           <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--border);">
             <div style="flex:1;">
-              <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">e1RM</div>
+              <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">e1RM</div>
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;">${pr.e1RM} kg</div>
             </div>
             ${pr.soloPR ? `<div style="flex:1;">
-              <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Solo PR</div>
+              <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Solo PR</div>
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;">${pr.soloPR} kg</div>
             </div>` : ''}
             ${pr.compPR ? `<div style="flex:1;">
-              <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Comp PR</div>
+              <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Comp PR</div>
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;">${pr.compPR} kg</div>
             </div>` : ''}
             ${pr.fatigueLoss !== null ? `<div style="flex:1;">
-              <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Fatigue Loss</div>
+              <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Fatigue Loss</div>
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:${pr.fatigueLoss > 0 ? 'var(--dl)' : 'var(--green)'};">${pr.fatigueLoss > 0 ? '-' : ''}${Math.abs(pr.fatigueLoss)} kg</div>
             </div>` : ''}
           </div>` : ''}
@@ -3258,7 +3272,7 @@ function renderProgram() {
 
   // ── 8-day cycle overview ─────────────────────────────────────────────────
   html += `<div style="padding:0 18px 12px;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
       letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
       8-DAGES CYKLUS
     </div>`;
@@ -3280,13 +3294,13 @@ function renderProgram() {
       border-radius:var(--radius); padding:12px 14px; margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${isRest ? '0' : '8px'};">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
             letter-spacing:2px;color:var(--muted);">DAG ${idx+1}</span>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;
             color:${isCurrent ? 'var(--gold)' : 'var(--text)'};">${day.name.toUpperCase()}</span>
-          ${isCurrent ? '<span style="font-size:10px;color:var(--gold);">← Nu</span>' : ''}
+          ${isCurrent ? '<span style="font-size:12px;color:var(--gold);">← Nu</span>' : ''}
         </div>
-        ${isRest ? '' : `<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:11px;
+        ${isRest ? '' : `<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:12px;
           font-weight:700;color:${liftColor};">${primary?.name || ''}</span>`}
       </div>`;
 
@@ -3298,12 +3312,12 @@ function renderProgram() {
         html += `<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
           <span style="background:rgba(${primary.badge==='sq'?'74,144,217':primary.badge==='bp'?'212,168,67':'224,92,74'},0.12);
             color:${liftColor};border:1px solid ${liftColor}33;
-            font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+            font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
             padding:2px 8px;border-radius:4px;letter-spacing:1px;">
             ${primary.scheme?.sets}×${rr}${kg > 0 ? ' · '+kg+' kg' : ''}
           </span>
           ${secondary ? `<span style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);
-            font-family:'Barlow Condensed',sans-serif;font-size:11px;
+            font-family:'Barlow Condensed',sans-serif;font-size:12px;
             padding:2px 8px;border-radius:4px;">
             ${secondary.name} ${secondary.scheme?.sets}×${secondary.scheme?.repsRange || secondary.scheme?.reps}
           </span>` : ''}
@@ -3312,7 +3326,7 @@ function renderProgram() {
       // Accessories — compact wrapped list
       if (accs.length) {
         html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
-          ${accs.map(a => `<span style="font-size:10px;color:var(--muted);
+          ${accs.map(a => `<span style="font-size:12px;color:var(--muted);
             background:var(--surface2);border-radius:4px;padding:2px 6px;
             white-space:nowrap;">${a.name}</span>`).join('')}
         </div>`;
@@ -3324,7 +3338,7 @@ function renderProgram() {
 
   // ── 12-week block overview ───────────────────────────────────────────────
   html += `<div style="padding:0 18px 16px;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
       letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
       12-UGERS PROGRAM
     </div>`;
@@ -3362,10 +3376,10 @@ function renderProgram() {
         -webkit-tap-highlight-color:transparent;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;
           color:${isCur ? 'var(--gold)' : 'var(--text)'};">${w}</div>
-        <div style="font-size:9px;color:${isDl||isTst ? 'var(--dl)' : 'var(--muted)'};
+        <div style="font-size:12px;color:${isDl||isTst ? 'var(--dl)' : 'var(--muted)'};
           letter-spacing:0.3px;margin-top:2px;line-height:1.3;">${info.tag}</div>
-        <div style="font-size:9px;color:var(--muted);margin-top:1px;">${info.sub}</div>
-        ${logged > 0 ? `<div style="font-size:9px;color:var(--green);margin-top:3px;">${logged}d ✓</div>` : ''}
+        <div style="font-size:12px;color:var(--muted);margin-top:1px;">${info.sub}</div>
+        ${logged > 0 ? `<div style="font-size:12px;color:var(--green);margin-top:3px;">${logged}d ✓</div>` : ''}
       </div>`;
     });
     html += `</div>`;
@@ -3404,7 +3418,7 @@ function renderVolumeDashboard() {
     html += `<div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
         <span style="font-size:12px;font-weight:400;">${muscle}</span>
-        <span style="font-size:11px;color:var(--muted);">${status}</span>
+        <span style="font-size:12px;color:var(--muted);">${status}</span>
       </div>
       <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;">
         <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width .4s ease;"></div>
@@ -3456,7 +3470,7 @@ function renderAccChartTabs() {
     const active = name === currentAccExercise;
     return `<button class="chart-tab ${active ? 'active-sq' : ''}"
       onclick="currentAccExercise='${name.replace(/'/g,"\\'")}'; renderAccChartTabs(); drawAccChart();"
-      style="font-size:10px;">${short}</button>`;
+      style="font-size:12px;">${short}</button>`;
   }).join('');
 
   drawAccChart();
@@ -3531,7 +3545,7 @@ function drawAccChart() {
   points.forEach((p,i) => {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
     ctx.fillStyle=color; ctx.fill();
-    if (points.length <= 8 || i % 2 === 0) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
       ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
       ctx.fillText(p.x, xS(i), canvas.height-4);
     }
@@ -3606,15 +3620,15 @@ function renderWeeklySummary() {
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
       <div style="text-align:center;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--gold);">${workouts}</div>
-        <div style="font-size:11px;color:var(--muted);">træninger</div>
+        <div style="font-size:12px;color:var(--muted);">træninger</div>
       </div>
       <div style="text-align:center;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${parseFloat(avgRPE) >= 8.5 ? 'var(--dl)' : 'var(--green)'};">${avgRPE}</div>
-        <div style="font-size:11px;color:var(--muted);">gns. RPE</div>
+        <div style="font-size:12px;color:var(--muted);">gns. RPE</div>
       </div>
       <div style="text-align:center;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${avgEnergy !== null && avgEnergy < 61 ? 'var(--dl)' : 'var(--green)'};">${avgEnergyStr}</div>
-        <div style="font-size:11px;color:var(--muted);">gns. energy</div>
+        <div style="font-size:12px;color:var(--muted);">gns. energy</div>
       </div>
     </div>`;
 
@@ -3626,7 +3640,7 @@ function renderWeeklySummary() {
       html += `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
         <span style="color:var(--muted);">${name}</span>
         <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;">
-          ${last.toFixed(1)} kg <span style="color:${col};font-size:11px;">${icon} ${Math.abs(diff).toFixed(1)} kg</span>
+          ${last.toFixed(1)} kg <span style="color:${col};font-size:12px;">${icon} ${Math.abs(diff).toFixed(1)} kg</span>
         </span>
       </div>`;
     });
@@ -3682,7 +3696,7 @@ function renderHistory() {
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span style="font-weight:600;color:${l.color};">${l.name}</span>
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;">
-          ${rec?.e1rm ? rec.e1rm.toFixed(1) : prTypes.e1RM} kg <span style="font-size:11px;color:var(--muted);">e1RM</span>
+          ${rec?.e1rm ? rec.e1rm.toFixed(1) : prTypes.e1RM} kg <span style="font-size:12px;color:var(--muted);">e1RM</span>
         </span>
       </div>
       ${hasExtended ? `
@@ -3727,7 +3741,7 @@ function renderHistory() {
     const noteHtml = noteData && (noteData.tags?.length || noteData.text)
       ? `<div style="margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:8px;">
           ${noteData.tags?.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;${noteData.text ? 'margin-bottom:6px;' : ''}">
-            ${noteData.tags.map(t => `<span style="font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px 8px;color:var(--gold);">${t}</span>`).join('')}
+            ${noteData.tags.map(t => `<span style="font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px 8px;color:var(--gold);">${t}</span>`).join('')}
           </div>` : ''}
           ${noteData.text ? `<div style="font-size:12px;color:var(--muted);font-style:italic;">"${noteData.text}"</div>` : ''}
         </div>`
@@ -3746,7 +3760,7 @@ function renderHistory() {
       const e1rm = maxKg > 0 && maxReps > 0 ? epley(maxKg, maxReps).toFixed(1) : null;
       html += `<div class="hist-lift-row">
         <span class="hist-lift-name">${ex.name}</span>
-        <span class="hist-lift-val">${doneSets.length} sæt · ${maxKg > 0 ? maxKg + ' kg' : ''}${e1rm ? ' <span style="font-size:11px;color:var(--muted);">~'+e1rm+' 1RM</span>' : ''}</span>
+        <span class="hist-lift-val">${doneSets.length} sæt · ${maxKg > 0 ? maxKg + ' kg' : ''}${e1rm ? ' <span style="font-size:12px;color:var(--muted);">~'+e1rm+' 1RM</span>' : ''}</span>
       </div>`;
     });
     html += `</div>`;
@@ -3847,7 +3861,7 @@ function showChooseDayModal() {
     </div>
     <div style="display:flex;flex-direction:column;gap:12px;">
       <div>
-        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Uge</div>
+        <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Uge</div>
         <select id="choose-week" style="width:100%;background:var(--surface2);border:1px solid var(--border);
           border-radius:8px;color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;
           padding:10px 12px;-webkit-appearance:none;appearance:none;">
@@ -3855,7 +3869,7 @@ function showChooseDayModal() {
         </select>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Dag i cyklus</div>
+        <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Dag i cyklus</div>
         <select id="choose-day" style="width:100%;background:var(--surface2);border:1px solid var(--border);
           border-radius:8px;color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;
           padding:10px 12px;-webkit-appearance:none;appearance:none;">
@@ -3994,11 +4008,11 @@ function renderSettings() {
       const bpPct = ((p.newBp - p.bp) / p.bp * 100).toFixed(1);
       const dlPct = ((p.newDl - p.dl) / p.dl * 100).toFixed(1);
       html += `<div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
-        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;">PROGRAM ${i+1} · ${p.date}</div>
+        <div style="font-size:12px;color:var(--muted);letter-spacing:1px;">PROGRAM ${i+1} · ${p.date}</div>
         <div style="display:flex;gap:16px;font-family:'Barlow Condensed',sans-serif;font-size:14px;">
-          <span style="color:var(--sq);">S: ${p.sq}→${p.newSq} <span style="font-size:11px;opacity:.7;">(+${sqPct}%)</span></span>
-          <span style="color:var(--bp);">B: ${p.bp}→${p.newBp} <span style="font-size:11px;opacity:.7;">(+${bpPct}%)</span></span>
-          <span style="color:var(--dl);">D: ${p.dl}→${p.newDl} <span style="font-size:11px;opacity:.7;">(+${dlPct}%)</span></span>
+          <span style="color:var(--sq);">S: ${p.sq}→${p.newSq} <span style="font-size:12px;opacity:.7;">(+${sqPct}%)</span></span>
+          <span style="color:var(--bp);">B: ${p.bp}→${p.newBp} <span style="font-size:12px;opacity:.7;">(+${bpPct}%)</span></span>
+          <span style="color:var(--dl);">D: ${p.dl}→${p.newDl} <span style="font-size:12px;opacity:.7;">(+${dlPct}%)</span></span>
         </div>
       </div>`;
     });
@@ -4257,7 +4271,7 @@ function updateAutoregBar(ei) {
     const diff   = nextKg - currentKg;
     const trend  = getTrend(ex.name);
     const trendNote = Math.abs(trend) > 0.03
-      ? ` <span style="font-size:10px;color:var(--muted);">(${trend > 0 ? 'konsekvent let' : 'konsekvent tungt'})</span>`
+      ? ` <span style="font-size:12px;color:var(--muted);">(${trend > 0 ? 'konsekvent let' : 'konsekvent tungt'})</span>`
       : '';
 
     let icon, cls, msg;
@@ -4314,10 +4328,10 @@ function drawDurationChart() {
     .filter(([, t]) => (t?.sessionStart || t?.start) && t?.end && t.end > (t.sessionStart || t.start))
     .map(([day, t]) => ({ day, mins: Math.round((t.end - (t.sessionStart || t.start)) / 60000) }))
     .filter(({ mins }) => mins <= MAX_REALISTIC_MIN) // exclude stale/bad legacy data
-    .sort((a, b) => parseInt(a.day) - parseInt(b.day))
+    .sort((a, b) => parseInt(String(a.day).replace(/\D/g,'')) - parseInt(String(b.day).replace(/\D/g,'')))
     .map(({ day, mins }) => {
-      const week = Math.floor(parseInt(day) / 7) + 1;
-      const dayInfo = CYCLE[parseInt(day) % 8];
+      const week = Math.floor(parseInt(String(day).replace(/\D/g,'')) / 7) + 1;
+      const dayInfo = CYCLE[parseInt(String(day).replace(/\D/g,'')) % 8];
       return { x: `U${week} ${dayInfo?.short || ''}`, y: mins, estimated: null };
     });
 
@@ -4377,7 +4391,7 @@ function drawDurationChart() {
   points.forEach((p, i) => {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI * 2);
     ctx.fillStyle = '#d4a843'; ctx.fill();
-    if (points.length <= 12 || i % 2 === 0) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
       ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(p.x, xS(i), canvas.height - 4);
     }
@@ -4390,8 +4404,8 @@ function drawBodyweightChart() {
   if (!canvas || !empty) return;
   const bw = aState().bodyweight || {};
   const points = Object.entries(bw)
-    .sort((a,b) => parseInt(a[0]) - parseInt(b[0]))
-    .map(([day, kg]) => ({ x: `Uge ${Math.floor(parseInt(day)/7)+1}`, y: kg }));
+    .sort((a,b) => parseInt(String(a[0]).replace(/\D/g,'')) - parseInt(String(b[0]).replace(/\D/g,'')))
+    .map(([day, kg]) => ({ x: `Uge ${Math.floor(parseInt(String(day).replace(/\D/g,''))/7)+1}`, y: kg }));
   if (points.length < 2) {
     canvas.style.display = 'none'; empty.style.display = 'block'; return;
   }
@@ -4427,7 +4441,7 @@ function drawBodyweightChart() {
   points.forEach((p,i) => {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
     ctx.fillStyle=color; ctx.fill();
-    if (points.length <= 10 || i % 2 === 0) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
       ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
       ctx.fillText(p.x, xS(i), canvas.height-4);
     }
@@ -4440,7 +4454,7 @@ function drawBodyweightChart() {
 function getStrengthToBodyweight() {
   const as = aState();
   const bwEntries = Object.entries(as.bodyweight || {})
-    .map(([day, kg]) => ({ day: parseInt(day), kg: parseFloat(kg) }))
+    .map(([day, kg]) => ({ day: parseInt(String(day).replace(/\D/g,'')), kg: parseFloat(kg) }))
     .filter(e => e.kg > 0)
     .sort((a, b) => a.day - b.day);
   if (!bwEntries.length) return null;
@@ -4494,7 +4508,7 @@ function renderStrengthToBodyweight() {
 
   if (data.development) {
     html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">`;
-    html += `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Udvikling siden programstart</div>`;
+    html += `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Udvikling siden programstart</div>`;
     html += rows.map(r => {
       const d = data.development[r.key];
       const absSign = d.absDiff >= 0 ? '+' : '';
@@ -4506,7 +4520,7 @@ function renderStrengthToBodyweight() {
     }).join('');
     html += `</div>`;
   } else {
-    html += `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Log kropsvægt over flere sessioner for at se udvikling over tid.</div>`;
+    html += `<div style="font-size:12px;color:var(--muted);margin-top:8px;">Log kropsvægt over flere sessioner for at se udvikling over tid.</div>`;
   }
 
   wrap.innerHTML = html;
@@ -4575,7 +4589,7 @@ function renderBlockProgression() {
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:${lift.color};">${lift.name}</span>
         ${vsStart !== null ? `<span style="font-size:12px;color:${vsStart >= 0 ? 'var(--green)' : 'var(--dl)'};">
           ${vsStart >= 0 ? '+' : ''}${vsStart.toFixed(1)} kg fra start (${lift.startRM} kg)
-        </span>` : `<span style="font-size:11px;color:var(--muted);">Start: ${lift.startRM} kg</span>`}
+        </span>` : `<span style="font-size:12px;color:var(--muted);">Start: ${lift.startRM} kg</span>`}
       </div>
       <div style="display:flex;gap:6px;">
         ${blockVals.map(b => {
@@ -4588,13 +4602,13 @@ function renderBlockProgression() {
           const isCurrent = b.b === currentBlock;
           return `<div style="flex:1;background:${bg};border-radius:8px;padding:10px 10px;
             border:1px solid ${isCurrent ? lift.color : 'var(--border)'};opacity:${b.b > currentBlock && !hasActual ? '0.5' : '1'};">
-            <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
+            <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
             ${hasActual
-              ? `<div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.actual}<span style="font-size:10px;font-weight:400;color:var(--muted);"> kg</span></div>
-                 <div style="font-size:10px;color:var(--muted);">Mål: ${b.target} kg</div>
-                 <div style="font-size:10px;color:${onTrack ? 'var(--green)' : 'var(--gold)'};">${pct}% af mål</div>`
-              : `<div style="font-size:11px;color:var(--muted);margin-top:4px;">Mål: ${b.target} kg</div>
-                 <div style="font-size:10px;color:var(--muted);">Ikke startet</div>`}
+              ? `<div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.actual}<span style="font-size:12px;font-weight:400;color:var(--muted);"> kg</span></div>
+                 <div style="font-size:12px;color:var(--muted);">Mål: ${b.target} kg</div>
+                 <div style="font-size:12px;color:${onTrack ? 'var(--green)' : 'var(--gold)'};">${pct}% af mål</div>`
+              : `<div style="font-size:12px;color:var(--muted);margin-top:4px;">Mål: ${b.target} kg</div>
+                 <div style="font-size:12px;color:var(--muted);">Ikke startet</div>`}
           </div>`;
         }).join('')}
       </div>
@@ -4622,8 +4636,8 @@ function renderBlockProgression() {
       </div>
       <div style="display:flex;gap:6px;">
         ${bwBlocks.map(b => `<div style="flex:1;background:var(--surface2);border-radius:8px;padding:10px 10px;border:1px solid var(--border);">
-          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.avg}<span style="font-size:10px;font-weight:400;color:var(--muted);"> kg</span></div>
+          <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.avg}<span style="font-size:12px;font-weight:400;color:var(--muted);"> kg</span></div>
         </div>`).join('')}
       </div>
     </div>`;
@@ -4703,7 +4717,7 @@ function renderPeakDay(day, week) {
           <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
             placeholder="108.0"
             onchange="saveBodyweight(parseFloat(this.value))"
-            style="width:72px;background:var(--surface2);border:1px solid var(--border);
+            style="width:84px;background:var(--surface2);border:1px solid var(--border);
                    border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
                    font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
                    -webkit-appearance:none;appearance:none;">
@@ -4747,7 +4761,7 @@ function renderPeakDay(day, week) {
     // Warmup section — build up to first attempt weight
     if (warmups.length) {
       html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border);">
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+        <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
           Opvarmning til 1. forsøg
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
@@ -4767,7 +4781,7 @@ function renderPeakDay(day, week) {
       const success = done?.success;
       const savedRpe = done?.rpe;
       if (i > 0) {
-        html += `<div style="padding:6px 16px;font-size:10px;color:var(--muted);
+        html += `<div style="padding:6px 16px;font-size:12px;color:var(--muted);
           border-bottom:1px solid var(--border);font-style:italic;">
           + 1-2 lette opvarmningssæt før dette forsøg (fx 1 rep @ ~85% af forsøgsvægt)
         </div>`;
@@ -4775,7 +4789,7 @@ function renderPeakDay(day, week) {
       html += `<div style="display:grid;grid-template-columns:1fr 100px 80px 48px;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;min-height:56px;${done ? (success?'background:rgba(61,184,122,0.06)':'background:rgba(224,92,74,0.06)') : isLiveAdjusted ? 'background:rgba(212,168,67,0.05);' : ''}">
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${col};">${att.label}</div>
-          <div style="font-size:11px;color:${isLiveAdjusted ? 'var(--gold)' : 'var(--muted)'};">${isLiveAdjusted ? `Justeret fra sidste RPE (${liveSuggestion > att.kg ? '+' : ''}${(liveSuggestion - att.kg).toFixed(1)} kg)` : att.note}</div>
+          <div style="font-size:12px;color:${isLiveAdjusted ? 'var(--gold)' : 'var(--muted)'};">${isLiveAdjusted ? `Justeret fra sidste RPE (${liveSuggestion > att.kg ? '+' : ''}${(liveSuggestion - att.kg).toFixed(1)} kg)` : att.note}</div>
         </div>
         <input type="number" inputmode="decimal" step="2.5" value="${savedKg}"
           onchange="saveAttemptKg('${lift}',${attemptNum},this.value)"
@@ -4783,7 +4797,7 @@ function renderPeakDay(day, week) {
                  color:var(--text);font-family:'Barlow Condensed',sans-serif;
                  font-size:max(16px,16px);font-weight:700;padding:8px;text-align:center;
                  width:100%;-webkit-appearance:none;appearance:none;">
-        <div style="font-size:11px;color:var(--muted);text-align:center;">
+        <div style="font-size:12px;color:var(--muted);text-align:center;">
           ${platesText(savedKg)}<br>per side
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;">
@@ -4798,7 +4812,7 @@ function renderPeakDay(day, week) {
       if (done) {
         html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;
           border-bottom:1px solid var(--border);background:rgba(0,0,0,0.1);">
-          <span style="font-size:11px;color:var(--muted);flex:1;">RPE for dette forsøg?${i < 2 ? ' — opdaterer næste forsøg' : ''}</span>
+          <span style="font-size:12px;color:var(--muted);flex:1;">RPE for dette forsøg?${i < 2 ? ' — opdaterer næste forsøg' : ''}</span>
           <input type="number" inputmode="decimal" step="0.5" min="5" max="10"
             value="${savedRpe || ''}" placeholder="9"
             onchange="saveAttemptRpe('${lift}',${attemptNum},this.value)"
@@ -5833,7 +5847,7 @@ function showExercisePerformance(exName) {
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
         <div class="settings-label" style="margin-bottom:8px;">Exercise Reliability</div>
         <div class="pr-summary-row"><span>${dot} ${label}</span><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;">${consistencyPct}%</span></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">${note}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${note}</div>
       </div>`;
   }
 
@@ -5844,7 +5858,7 @@ function showExercisePerformance(exName) {
     const dotFor = s => s === 'green' ? '🟢' : s === 'yellow' ? '🟡' : s === 'red' ? '🔴' : '';
     const trendLine = pvf.trend4wk !== null
       ? `<div style="font-size:12px;color:var(--muted);">4-ugers trend: ${pvf.trend4wk >= 0 ? '+' : ''}${pvf.trend4wk.toFixed(1)} kg</div>`
-      : `<div style="font-size:11px;color:var(--muted);">4-ugers trend: ikke nok data endnu (kræver en session ≥4 uger tilbage)</div>`;
+      : `<div style="font-size:12px;color:var(--muted);">4-ugers trend: ikke nok data endnu (kræver en session ≥4 uger tilbage)</div>`;
     const rpeLine = pvf.avgRPE !== null
       ? `<div style="font-size:12px;color:var(--muted);">Gennemsnitlig RPE: ${pvf.avgRPE.toFixed(1)}</div>` : '';
     const recoveryLine = pvf.recovery !== null
@@ -5854,7 +5868,7 @@ function showExercisePerformance(exName) {
           ${pvf.performanceStatus ? `Performance: ${dotFor(pvf.performanceStatus)}` : ''}
           ${pvf.fatigueStatus ? `&nbsp;&nbsp;Fatigue: ${dotFor(pvf.fatigueStatus)}` : ''}
         </div>`
-      : `<div style="margin-top:6px;font-size:11px;color:var(--muted);">Ikke nok data til at vurdere performance/fatigue-status endnu.</div>`;
+      : `<div style="margin-top:6px;font-size:12px;color:var(--muted);">Ikke nok data til at vurdere performance/fatigue-status endnu.</div>`;
     pvfHtml = `
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
         <div class="settings-label" style="margin-bottom:8px;">Performance vs. Fatigue</div>
@@ -6327,7 +6341,7 @@ function drawChart() {
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fillStyle = color; ctx.fill();
     // X axis label (every other point if crowded)
-    if (points.length <= 6 || i % 2 === 0) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
       ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(p.x, x, canvas.height - 4);

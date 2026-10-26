@@ -1,0 +1,116 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRÆNING — FÆLLES DESIGNSYSTEM (dashboard, SBD, løb)
+   Indlæses EFTER hver sides egen <style> og samler tokens + globale regler,
+   så de tre apps føles som ét produkt. Sidernes egne klasser er bevaret.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Overflader ── */
+  --bg:        #111318;
+  --surface:   #1a1d24;
+  --surface2:  #22262f;
+  --surface3:  #2a2f3a;
+  --border:    #2e3240;
+  --border-strong: #3c4254;
+
+  /* ── Tekst (kontrast mod --surface: text 14:1, text-2 9:1, muted 6.3:1) ── */
+  --text:      #f0ece4;
+  --text-2:    #c6cad3;
+  --muted:     #9aa3b2;
+  --text-dim:  #9aa3b2;           /* alias brugt i løbeappen */
+
+  /* ── Accent (guld): primære handlinger + vigtig status ── */
+  --gold:      #d4a843;
+  --gold-dim:  #9a7830;
+  --gold-soft: rgba(212, 168, 67, 0.12);
+  --accent:    #d4a843;           /* alias brugt i løbeappen */
+  --accent-dim:#9a7830;
+  --on-gold:   #111318;
+
+  /* ── Semantik ── */
+  --success:   #3db87a;
+  --warning:   #e0a43a;
+  --danger:    #e05c4a;
+  --info:      #4a90d9;
+  --green:     var(--success);
+  --red:       var(--danger);
+
+  /* ── Løft + zoner ── */
+  --sq: #4a90d9;  --bp: #d4a843;  --dl: #e05c4a;
+  --z1: #4a90d9;  --z2: #5ea472;  --z3: #d4a843;  --z4: #d97b3a;  --z5: #c85450;
+
+  /* ── Typografi ── */
+  --font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --font-disp: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --fs-xs: 12px;  --fs-sm: 13px;  --fs-md: 15px;  --fs-lg: 17px;  --fs-xl: 20px;  --fs-2xl: 26px;
+
+  /* ── Afstande (4-punkts skala) ── */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;  --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;
+
+  /* ── Former ── */
+  --radius: 14px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-pill: 999px;
+
+  /* ── Bevægelse ── */
+  --ease: .15s ease;
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+/* ── Basis ── */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  font-family: var(--font-body);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+h1, h2, h3, .disp { font-family: var(--font-disp); }
+img, svg, canvas, video { max-width: 100%; }
+button { font-family: inherit; }
+button, [role="button"], a, label, select { touch-action: manipulation; }
+::selection { background: rgba(212, 168, 67, 0.35); }
+
+/* ── Fokus: altid synligt for tastatur, aldrig for mus/touch ── */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline-offset: 0;
+  border-color: var(--gold) !important;
+}
+
+/* ── Deaktiveret ── */
+button:disabled, [aria-disabled="true"], .is-disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+/* ── Touch: 16px i felter forhindrer iOS-zoom ved fokus; større trykflader ── */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px; }
+}
+
+/* ── Skærmlæser-tekst ── */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ── Rolig bevægelse ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Rulleliste ── */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
