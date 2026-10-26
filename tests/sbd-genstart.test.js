@@ -6,6 +6,7 @@ const mem={};global.localStorage={getItem:k=>k in mem?mem[k]:null,setItem:(k,v)=
 const el=()=>new Proxy(function(){}, {get:(t,k)=>k==='style'||k==='classList'||k==='dataset'?el():(k==='length'?0:(k==='innerHTML'||k==='textContent'||k==='value'?'':el())),set:()=>true,apply:()=>el()});
 global.document={getElementById:()=>el(),querySelectorAll:()=>[],querySelector:()=>el(),addEventListener(){},createElement:()=>el(),body:el()};
 global.window=global;global.navigator={userAgent:'n'};global.fetch=async()=>({ok:false});
+global.TP = require('../tp-core.js'); global.TPSYNC = require('../tp-sync.js');
 vm.runInThisContext(code,{filename:'sbd'});
 let ok=0,bad=0;const T=(n,f)=>{try{f();ok++;console.log('  ok   '+n)}catch(e){bad++;console.log('  FEJL '+n+'\n       '+e.message)}};
 const clear=()=>Object.keys(_exercisesCache).forEach(k=>delete _exercisesCache[k]);

@@ -8,6 +8,7 @@ const fs = require('fs'), path = require('path');
 const { start } = require('./server');
 const pw = require('playwright');
 const demo = require('./fixtures/demo.json');
+const { loadWorker } = require('../tests/helpers/world'); // V3.1: e2e kører mod den RIGTIGE Worker-kildekode (sync-worker/worker.js) med in-memory KV — ikke en håndskrevet mock
 const BROWSER = process.env.BROWSER || 'chromium';
 const launchOpts = { args: ['--no-sandbox'] };
 if (process.env.CHROMIUM_PATH) launchOpts.executablePath = process.env.CHROMIUM_PATH;
@@ -28,7 +29,10 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
 (async () => {
   const { srv, url } = await start(0);
   const browser = await pw[BROWSER].launch(launchOpts);
-  const kv = {};            // mock-KV for sync
+  const kv = {};            // KV-indhold (objekter {value, updatedAt}) bag den rigtige Worker-kode
+  const workerSrc = loadWorker(path.join(__dirname, '..', 'sync-worker', 'worker.js'));
+  const workerEnv = { TRAINING_KV: { get: async k => (kv[k] ? JSON.stringify(kv[k]) : null), put: async (k, v) => { kv[k] = JSON.parse(v); } } };
+  let workerDown = false;   // simulér offline mod Worker
   const syncLog = [];       // kald til "Workeren"
 
   async function newPage(width = 390, height = 844, seed = true) {
@@ -38,11 +42,12 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     await ctx.route(/workers\.dev|REDACTED-SYNC-WORKER/, async r => {
       const req = r.request(); const m = req.url().match(/\/kv\/([a-z_]+)/);
-      syncLog.push({ method: req.method(), key: m && m[1], auth: req.headers()['authorization'] || null });
-      if (!m) return r.fulfill({ status: 404, body: '{}' });
-      if (req.method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(kv[m[1]] || { value: null }) });
-      if (req.method() === 'PUT') { const v = JSON.parse(req.postData()).value; kv[m[1]] = { value: v, updatedAt: Date.now() }; return r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, updatedAt: kv[m[1]].updatedAt }) }); }
-      return r.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' }, body: '' });
+      syncLog.push({ method: req.method(), key: m && m[1], auth: req.headers()['authorization'] || null, url: req.url().replace(/^https?:\/\/[^/]+/, '') });
+      if (workerDown) return r.abort('internetdisconnected');
+      const rq = new Request(req.url(), { method: req.method(), headers: req.headers(), body: ['GET', 'HEAD', 'OPTIONS'].includes(req.method()) ? undefined : req.postData() });
+      const res = await workerSrc.fetch(rq, workerEnv);
+      const body = await res.text(); const hdrs = {}; res.headers.forEach((v, k) => hdrs[k] = v);
+      return r.fulfill({ status: res.status, headers: hdrs, body: body || '' });
     });
     const page = await ctx.newPage();
     page.setDefaultTimeout(8000); page.errors = []; page.on('pageerror', e => page.errors.push(e.message + (process.env.STACK ? ' @ ' + String(e.stack).split('\n')[1] : '')));
@@ -284,6 +289,58 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     await p.ctx.close(); await q.ctx.close(); return 'MOCK – ikke verificeret mod rigtig Worker';
   });
 
+  /* ───────── SYNC V3.1: konflikt-banner, offline, profilisolering (Worker-KODEN i test, ikke en deployet Worker) ───────── */
+  const conflictSetup = async (w) => {
+    const p = await newPage(w || 390); await open(p, 'sbd/index.html'); await p.waitForTimeout(1200);
+    ok(kv['sbd_state'], 'første synk skrev ikke til serveren');
+    const base = kv['sbd_state'].updatedAt;
+    await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('sbd_state')); s.oneRM.sq = 111; localStorage.setItem('sbd_state', JSON.stringify(s)); }); // lokal ændring (ikke endnu sendt)
+    const srv = JSON.parse(JSON.stringify(kv['sbd_state'].value)); srv.oneRM.sq = 222; kv['sbd_state'] = { value: srv, updatedAt: base + 60000 }; // ændret på en anden enhed
+    await p.reload(); await p.waitForSelector('#tp-sync-banner', { timeout: 6000 });
+    return { p, base };
+  };
+  await check('Sync (Worker-kode)', 'Konflikt: banner (role=alert) med tre valg, intet overskrevet, ingen vandret scroll, knapper ≥ 44 px @390', async () => {
+    const { p } = await conflictSetup(390);
+    eq(await p.getAttribute('#tp-sync-banner', 'role'), 'alert'); eq(await p.locator('#tp-sync-banner button').count(), 3);
+    eq((await ls(p, 'sbd_state')).oneRM.sq, 111, 'lokal ændring blev overskrevet uden valg');
+    const h = await p.$$eval('#tp-sync-banner button', bs => bs.map(b => Math.round(b.getBoundingClientRect().height))); ok(h.every(x => x >= 44), 'knaphøjder ' + h);
+    ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'vandret scroll'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Sync (Worker-kode)', 'Konflikt → "Brug den anden enhed" (tastatur: Tab+Enter): serverens version bruges, vores version ligger i sikkerhedskopi', async () => {
+    const { p } = await conflictSetup(390);
+    await p.focus('#tp-sync-banner button[data-act=remote]'); const nav = p.waitForNavigation({ timeout: 6000 }).catch(() => null); await p.keyboard.press('Enter'); await nav; await p.waitForTimeout(800);
+    eq((await ls(p, 'sbd_state')).oneRM.sq, 222, 'serverens version ikke taget');
+    const bak = await ls(p, 'tp_sync_backup_sbd_state'); ok(bak && JSON.parse(bak.raw).oneRM.sq === 111, 'vores version ikke i sikkerhedskopi');
+    eq(await p.locator('#tp-sync-banner').count(), 0, 'banner står stadig'); await p.ctx.close();
+  });
+  await check('Sync (Worker-kode)', 'Konflikt → "Behold denne enhed": serveren får vores version (betinget skrivning), banner væk', async () => {
+    const { p, base } = await conflictSetup(390);
+    await p.click('#tp-sync-banner button[data-act=local]'); await p.waitForTimeout(1200);
+    eq(kv['sbd_state'].value.oneRM.sq, 111); ok(kv['sbd_state'].updatedAt > base + 60000, 'ny version skal være nyere end den vi overskrev'); eq(await p.locator('#tp-sync-banner').count(), 0); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Sync (Worker-kode)', 'Offline: ændring gemmes lokalt og i kø; sendes når forbindelsen er tilbage; ingen fejlbesked-dialog', async () => {
+    const p = await newPage(390); await open(p, 'sbd/index.html'); await p.waitForTimeout(1200);
+    workerDown = true;
+    try {
+      await p.click('.nav-btn:nth-child(4)'); await p.fill('#input-sq', '141'); await p.dispatchEvent('#input-sq', 'change'); await p.waitForTimeout(2600);
+      eq((await ls(p, 'sbd_state')).oneRM.sq, 141, 'ikke gemt lokalt'); ok(kv['sbd_state'].value.oneRM.sq !== 141, 'blev sendt trods offline');
+    } finally { workerDown = false; }
+    await p.evaluate(() => window.dispatchEvent(new Event('online'))); await p.waitForTimeout(2500);
+    eq(kv['sbd_state'].value.oneRM.sq, 141, 'blev ikke sendt efter online'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Sync (Worker-kode)', 'Profilisolering: tp_meta_main/partner indeholder kun egen profil; ingen sync_token i serverdata (backupniveau testes separat)', async () => {
+    const p = await newPage(390); await open(p, 'index.html'); await p.waitForTimeout(1800);
+    await p.evaluate(() => { const m = TP.loadMeta('main'); m.goalPriority = Object.assign(m.goalPriority || {}, { focus: 'run', at: Date.now() }); TP.saveMeta('main', m); });
+    await p.waitForTimeout(2800);
+    ok(kv['tp_meta_main'], 'tp_meta_main ikke sendt');
+    ok(!/HEMMELIG-TEST-TOKEN|sync_token/.test(JSON.stringify(kv)), 'token i serverdata'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Sync (Worker-kode)', 'Indstillinger viser synkstatus (tilgængelig tekst, ikke kun farve) og "Synkroniser nu" virker', async () => {
+    const p = await newPage(390); await open(p, 'index.html'); await p.waitForTimeout(1500);
+    const t = await p.evaluate(() => { const m = document.getElementById('tp-sync-mount'); return m ? m.textContent : null; }); ok(t && /synkroniser/i.test(t), 'status mangler: ' + t);
+    eq(p.errors, []); await p.ctx.close();
+  });
+
   /* ───────── V3 · FASE 1: SAMLET BACKUP & GENDANNELSE ───────── */
   const settingsMount = async (p) => { await p.waitForSelector('#tp-backup-mount .tp-panel', { state: 'attached' }); await p.locator('#tp-backup-mount').scrollIntoViewIfNeeded().catch(() => {}); };
   await check('Backup (V3)', 'Panelet findes i dashboard, SBD-indstillinger og løb-opsætning', async () => {
@@ -491,7 +548,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
       localStorage.setItem('dash_schedule_anchor', TP.addDays(localISO(new Date()), -a));
       const s = JSON.parse(localStorage.getItem('sbd_state')); s.totalDays = td; localStorage.setItem('sbd_state', JSON.stringify(s));
       const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw);
-      if (cx.findings.some(f => f.rule === 'R1' && !f.dismissed)) return { a, td };
+      if (cx.findings.some(f => (f.rule === 'R1' || f.rule === 'R2') && !f.dismissed)) return { a, td }; // V3.1: demo-data er i Peak-deload; typebaserede regler giver her R2 (tung dødløft + langt løb)
     }
     return null;
   });
@@ -550,7 +607,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     await p.click('#slot-hybrid-load .hy-rules summary'); ok(/R1/.test(await p.innerText('#slot-hybrid-load .hy-rules'))); eq(p.errors, []); await p.ctx.close();
   });
   await check('Hybrid belastning (V3)', 'Konflikt findes, forklares, og forslag ændrer intet før "Anvend"; "Ikke relevant" skjuler og kan vises igen', async () => {
-    const p = await newPage(1366, 900); await open(p, 'index.html'); const combo = await findConflict(p); ok(combo, 'ingen kombination gav R1 — integrationen finder ikke konflikter');
+    const p = await newPage(1366, 900); await open(p, 'index.html'); const combo = await findConflict(p); ok(combo, 'ingen kombination gav R1/R2 — integrationen finder ikke konflikter');
     await p.reload(); await p.waitForTimeout(800); await hybUnfold(p);
     const card = p.locator('#slot-hybrid-load .hy-find.warn').first(); await card.waitFor();
     const t = await card.innerText(); ok(/Hvorfor/.test(t) && /Hvis ignoreret/.test(t), 'forklaring mangler');

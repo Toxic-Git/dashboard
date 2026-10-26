@@ -180,6 +180,44 @@
     });
   };
 
+
+  /* ── Synkroniseringsstatus (kræver tp-sync.js) ── */
+  var syncMounts = [];
+  function drawSync(c) {
+    if (!c.isConnected) return false;
+    c.innerHTML = '<div class="tp-panel">' + TPSYNC.statusHtml() +
+      (TPSYNC.engine.enabled() ? '<div class="tp-row"><button type="button" class="tp-btn" data-act="sync-now">Synkronisér nu</button></div>' : '') +
+      '<div class="tp-note" data-role="sync-msg" aria-live="polite"></div></div>';
+    return true;
+  }
+  UI.mountSync = function (container) {
+    if (!container || typeof TPSYNC === 'undefined' || !TPSYNC.engine) return;
+    ensureStyle();
+    syncMounts = syncMounts.filter(function (c) { return c !== container && c.isConnected; });
+    syncMounts.push(container);
+    drawSync(container);
+    container.onclick = function (e) {
+      var b = e.target.closest ? e.target.closest('[data-act]') : null; if (!b) return;
+      var a = b.getAttribute('data-act'), msg = container.querySelector('[data-role=sync-msg]');
+      if (a === 'sync-now') {
+        b.disabled = true; if (msg) msg.textContent = 'Synkroniserer …';
+        TPSYNC.engine.syncAll().then(function (r) {
+          var st = Object.keys(r).map(function (k) { return r[k].status; });
+          var m = st.indexOf('conflict') >= 0 ? 'Der er en konflikt der skal løses (se beskeden øverst på siden).' : st.indexOf('auth') >= 0 ? 'Adgangskoden blev afvist.' : st.indexOf('offline') >= 0 ? 'Ingen forbindelse til serveren — prøv igen når du er online.' : 'Synkroniseret.';
+          drawSync(container); var m2 = container.querySelector('[data-role=sync-msg]'); if (m2) m2.textContent = m;
+          if (window.DS && DS.announce) DS.announce(m);
+        });
+      } else if (a === 'sync-restore') {
+        var res = TPSYNC.engine.restoreBackup(b.getAttribute('data-key'));
+        if (res.ok) flashAndReload('Sikkerhedskopien er genskabt og sendes til serveren ved næste synkronisering.');
+        else if (msg) msg.textContent = res.error;
+      }
+    };
+  };
+  if (typeof TPSYNC !== 'undefined' && TPSYNC.engine) TPSYNC.engine.on(function (ev) { if (ev.type === 'synced' || ev.type === 'resolved' || ev.type === 'conflict') syncMounts.forEach(drawSync); });
+  var autoMountSync = function () { var c = document.getElementById('tp-sync-mount'); if (c) UI.mountSync(c); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', autoMountSync); else autoMountSync();
+
   // Genindlæs STRAKS efter en gendannelse, så sidens gamle hukommelsestilstand aldrig når at skrive tilbage.
   function flashAndReload(msg) {
     try { sessionStorage.setItem('tp_flash', msg); } catch (e) {}

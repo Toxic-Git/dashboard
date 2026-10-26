@@ -7,6 +7,7 @@
 <title>Løbetræning Tracker</title>
 <link rel="manifest" href="manifest.json">
 <script src="../tp-core.js"></script>
+<script src="../tp-sync.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap');
 
@@ -542,6 +543,7 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
       <input type="password" id="st-synctoken" autocomplete="off" placeholder="Samme som SYNC_TOKEN i Cloudflare">
       <button class="secondary" onclick="saveSyncToken()">Gem adgangskode</button>
       <div id="sync-status"></div>
+      <div id="tp-sync-mount" style="margin-top:10px;"></div>
     </div>
 
     <div class="card">
@@ -571,72 +573,18 @@ let partnerState = null;
 let activeProfile = 'main';
 
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
-// Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
-// URL her efter deploy (se sync-worker/DEPLOY.md).
+// V3.1: fælles implementering (tp-sync.js) — samme som dashboard og SBD: konfliktdetektion, ingen tavs overskrivning,
+// betinget skrivning mod Worker v2. Sæt din egen Worker-URL her efter deploy (se sync-worker/DEPLOY.md).
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
+const TPS = TPSYNC.boot(SYNC_BASE_URL);
 
 // Delt adgangskode til sync-Worker'en. Gemmes i localStorage under 'sync_token'
 // (samme domæne → deles automatisk af SBD, løb og dashboard). Sættes i løb → Opsætning.
 function getSyncToken(){
   try{ return localStorage.getItem('sync_token') || ''; }catch(e){ return ''; }
 }
-function syncHeaders(extra){
-  const h = Object.assign({}, extra||{});
-  const t = getSyncToken();
-  if(t) h['Authorization'] = 'Bearer ' + t;
-  return h;
-}
-let _syncPushTimers = {};
-let _syncAuthFailed = false;
-
-function syncEnabled(){
-  return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
-}
-
-async function syncPull(key){
-  if(!syncEnabled()) return false;
-  try{
-    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store', headers: syncHeaders() });
-    if(res.status===401){ _syncAuthFailed = true; return false; }
-    if(!res.ok) return false;
-    _syncAuthFailed = false;
-    const data = await res.json();
-    if(data.value == null) return false;
-    const localUpdatedAt = parseInt(localStorage.getItem(key+'__updatedAt') || '0');
-    if(data.updatedAt > localUpdatedAt){
-      localStorage.setItem(key, JSON.stringify(data.value));
-      localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
-      return true;
-    }
-    return false;
-  }catch(e){
-    console.log('Sync-pull fejlede (offline?):', e);
-    return false;
-  }
-}
-
-function syncPush(key){
-  if(!syncEnabled()) return;
-  clearTimeout(_syncPushTimers[key]);
-  _syncPushTimers[key] = setTimeout(async ()=>{
-    try{
-      const raw = localStorage.getItem(key);
-      if(raw == null) return;
-      const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, {
-        method:'PUT', headers: syncHeaders({'Content-Type':'application/json'}),
-        body: JSON.stringify({ value: JSON.parse(raw) }),
-      });
-      if(res.status===401){ _syncAuthFailed = true; }
-      else if(res.ok){
-        _syncAuthFailed = false;
-        const data = await res.json();
-        localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
-      }
-    }catch(e){
-      console.log('Sync-push fejlede (offline?):', e);
-    }
-  }, 1500);
-}
+function syncEnabled(){ return TPS.enabled(); }
+function syncPush(key){ TPS.schedulePush(key); }
 
 function defaultState(){
   return {
@@ -1445,7 +1393,9 @@ function detectPlanGap(){
   if(!as.runs.length) return null;
   const sorted = [...as.runs].sort((a,b)=> b.date.localeCompare(a.date));
   const lastRun = sorted[0];
-  const daysSince = Math.floor((new Date() - new Date(lastRun.date+'T00:00:00')) / 86400000);
+  const _n = new Date(), _p = lastRun.date.split('-').map(Number);
+  // Kalenderdage (UTC-midnat til UTC-midnat) – ikke ms/86400000, som giver +1 dag over sommer-/vintertidsskift.
+  const daysSince = Math.round((Date.UTC(_n.getFullYear(), _n.getMonth(), _n.getDate()) - Date.UTC(_p[0], _p[1] - 1, _p[2])) / 86400000);
   if(daysSince < GAP_THRESHOLD_DAYS) return null;
   if(as.profile.dismissedGapFor === lastRun.date) return null;
   return { daysSince, lastRunDate: lastRun.date };
@@ -2173,8 +2123,9 @@ function renderSyncStatus(){
   const el = document.getElementById('sync-status');
   if(inp && !inp.value) inp.value = getSyncToken();
   if(!el) return;
-  if(!syncEnabled()) el.innerHTML = '<div class="note">Sync er ikke slået til (ingen Worker-URL sat i appen).</div>';
-  else if(_syncAuthFailed) el.innerHTML = '<div class="warn-box">Worker\'en afviste adgangskoden (401). Tjek koden — data synkroniseres ikke før den er rigtig.</div>';
+  if(!syncEnabled()){ el.innerHTML = '<div class="note">Sync er ikke slået til (ingen Worker-URL sat i appen).</div>'; return; }
+  const st = TPS.status();
+  if(st.auth) el.innerHTML = '<div class="warn-box">Worker\'en afviste adgangskoden (401). Tjek koden — data synkroniseres ikke før den er rigtig.</div>';
   else el.innerHTML = '';
 }
 
@@ -2183,16 +2134,15 @@ async function saveSyncToken(){
   if(!inp) return;
   try{ localStorage.setItem('sync_token', inp.value.trim()); }
   catch(e){ alert('Kunne ikke gemme adgangskoden i browseren.'); return; }
-  // Test med det samme: hent én nøgle og se om Worker'en accepterer koden.
+  // Test med det samme: synkronisér og se om Worker'en accepterer koden.
+  let r = null;
   if(syncEnabled()){
-    try{
-      const res = await fetch(`${SYNC_BASE_URL}/kv/${STORE_KEY}`, { cache:'no-store', headers: syncHeaders() });
-      _syncAuthFailed = (res.status===401);
-    }catch(e){ console.log('Sync-test fejlede (offline?):', e); }
+    try{ r = await TPS.syncKey(STORE_KEY); }catch(e){ console.log('Sync-test fejlede (offline?):', e); }
   }
   renderSyncStatus();
   const el = document.getElementById('sync-status');
-  if(el && !_syncAuthFailed && syncEnabled()) el.innerHTML = '<div class="ok-box">Adgangskode gemt og accepteret.</div>';
+  if(el && r && r.status!=='auth' && r.status!=='offline' && syncEnabled()) el.innerHTML = '<div class="ok-box">Adgangskode gemt og accepteret.</div>';
+  else if(el && r && r.status==='offline') el.innerHTML = '<div class="note">Adgangskode gemt. Kunne ikke nå Worker\'en lige nu (offline?) — den testes ved næste synkronisering.</div>';
 }
 
 function renderSettingsForm(){
@@ -2765,17 +2715,16 @@ async function init(){
     }
   }
 
-  // Baggrunds-sync (se kommentaren øverst i init)
-  (async function bootstrapSync(){
-    const c1 = await syncPull(STORE_KEY);
-    const c2 = await syncPull(STORE_KEY_PARTNER);
-    if(c1 || c2){
-      state = loadState(STORE_KEY);
-      partnerState = loadState(STORE_KEY_PARTNER);
-      if(aState().profile.onboarded){ renderAll(); renderSyncStatus(); }
-    }
+  // Baggrunds-sync: motoren udsender 'changed' når data faktisk kom fra en anden enhed → genindlæs og gen-render.
+  TPS.on(function(ev){
+    if(ev.type!=='changed' || (ev.key!==STORE_KEY && ev.key!==STORE_KEY_PARTNER)) return;
+    state = loadState(STORE_KEY);
+    partnerState = loadState(STORE_KEY_PARTNER);
+    if(aState().profile.onboarded){ renderAll(); }
     renderSyncStatus();
-  })().catch(function(e){ console.log('Baggrunds-sync fejlede:', e); });
+  });
+  TPS.syncAll([STORE_KEY, STORE_KEY_PARTNER, 'tp_meta_main', 'tp_meta_partner']).then(renderSyncStatus)
+    .catch(function(e){ console.log('Baggrunds-sync fejlede:', e); });
 }
 init().catch(function(e){
   console.log('Init-fejl:', e);

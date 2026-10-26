@@ -14,6 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>SBD Tracker</title>
 <script src="../tp-core.js"></script>
+<script src="../tp-sync.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
 
@@ -871,6 +872,8 @@ html, body {
     <button class="settings-btn" style="width:100%;margin-bottom:8px;" onclick="exportFullBackup()">💾 Samlet backup nu (begge profiler)</button>
     <button class="settings-btn" style="width:100%;" onclick="openRestartModal()">🔄 Genstart til uge 1 (behold accessories)</button>
   </div>
+  <div class="settings-label" style="padding:0 18px;">Synkronisering</div>
+  <div class="settings-card" style="padding:12px 14px;margin:0 18px 14px;" id="tp-sync-mount"></div>
   <div class="settings-label" style="padding:0 18px;">Samlet backup &amp; gendannelse</div>
   <div class="settings-card" style="padding:12px 14px;margin:0 18px 14px;" id="tp-backup-mount"></div>
   <button class="danger-btn" onclick="confirmReset()">Nulstil al data</button>
@@ -1630,62 +1633,13 @@ if (!partnerState.sessionNotes) partnerState.sessionNotes = {};
 if (window.TP) { TP.migrateSbd(state, 'main'); TP.migrateSbd(partnerState, 'partner'); }
 
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
-// Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
-// URL her efter deploy (se sync-worker/DEPLOY.md). Skal stå FØR første
-// saveState()-kald nedenfor, ellers fejler det med en TDZ-fejl.
+// V3.1: fælles implementering (tp-sync.js) — samme som dashboard og løb. Sender nu også adgangskoden (tidligere manglede den her),
+// opdager konflikter ved offline-ændringer og overskriver aldrig tavst. Sæt din egen Worker-URL her efter deploy
+// (se sync-worker/DEPLOY.md). Skal stå FØR første saveState()-kald nedenfor, ellers fejler det med en TDZ-fejl.
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
-let _syncPushTimers = {};
-
-function syncEnabled() {
-  return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
-}
-
-// Henter seneste version fra serveren. Overskriver kun localStorage hvis
-// serverens version er nyere end den vi allerede har. Returnerer true hvis
-// noget blev opdateret (så UI kan gen-rendres).
-async function syncPull(key) {
-  if (!syncEnabled()) return false;
-  try {
-    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache: 'no-store' });
-    if (!res.ok) return false;
-    const data = await res.json();
-    if (data.value == null) return false;
-    const localUpdatedAt = parseInt(localStorage.getItem(key + '__updatedAt') || '0');
-    if (data.updatedAt > localUpdatedAt) {
-      localStorage.setItem(key, JSON.stringify(data.value));
-      localStorage.setItem(key + '__updatedAt', String(data.updatedAt));
-      return true;
-    }
-    return false;
-  } catch (e) {
-    console.log('Sync-pull fejlede (offline?):', e);
-    return false;
-  }
-}
-
-// Sender lokale ændringer op til serveren, forsinket lidt så vi ikke sender
-// et kald pr. tastetryk.
-function syncPush(key) {
-  if (!syncEnabled()) return;
-  clearTimeout(_syncPushTimers[key]);
-  _syncPushTimers[key] = setTimeout(async () => {
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw == null) return;
-      const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: JSON.parse(raw) }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem(key + '__updatedAt', String(data.updatedAt));
-      }
-    } catch (e) {
-      console.log('Sync-push fejlede (offline?):', e);
-    }
-  }, 1500);
-}
+const TPS = TPSYNC.boot(SYNC_BASE_URL);
+function syncEnabled() { return TPS.enabled(); }
+function syncPush(key) { TPS.schedulePush(key); }
 
 // Auto-set start date if missing — back-calculate from totalDays
 if (!state.programStartDate) {
@@ -6591,23 +6545,27 @@ registerSW();
 renderToday();
 restoreTimer();
 
-// Baggrunds-sync: vis lokale data med det samme (ovenfor), hent derefter
-// evt. nyere data fra andre enheder og gen-render hvis noget ændrede sig.
-(async function bootstrapSync() {
-  const changedMain = await syncPull('sbd_state');
-  const changedPartner = await syncPull('sbd_partner');
-  if (changedMain || changedPartner) {
+// Baggrunds-sync: vis lokale data med det samme (ovenfor), hent derefter evt. nyere data fra andre enheder.
+// Motoren udsender 'changed' når data faktisk kom fra en anden enhed — så genindlæses tilstanden og siden gen-renderes.
+TPS.on(function (ev) {
+  if (ev.type !== 'changed' || (ev.key !== 'sbd_state' && ev.key !== 'sbd_partner')) return;
+  try {
+    const keepProfile = state.profile; // aktiv profil på DENNE enhed ændres aldrig af sync
     state = JSON.parse(localStorage.getItem('sbd_state'));
     partnerState = JSON.parse(localStorage.getItem('sbd_partner'));
     if (!state.pr) state.pr = {};
     if (!partnerState.pr) partnerState.pr = {};
+    if (keepProfile) state.profile = keepProfile;
+    if (window.TP) { TP.migrateSbd(state, 'main'); TP.migrateSbd(partnerState, 'partner'); }
+    _exercisesCache = {};
     renderToday();
     renderProgram();
     renderHistory();
     renderSettings();
     showToast('Data opdateret fra en anden enhed');
-  }
-})();
+  } catch (e) { console.log('Gen-indlæsning efter sync fejlede:', e); }
+});
+TPS.syncAll(['sbd_state', 'sbd_partner', 'tp_meta_main', 'tp_meta_partner']).catch(function (e) { console.log('Baggrunds-sync fejlede:', e); });
 
 </script>
 

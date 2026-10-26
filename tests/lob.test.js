@@ -10,6 +10,7 @@ global.localStorage = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v
 const el = () => ({ innerHTML: '', style: {}, value: '', files: [], classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {} });
 global.document = { getElementById: el, querySelectorAll: () => [], addEventListener() {}, createElement: el, body: el() };
 global.window = global; global.navigator = { userAgent: 'node' };
+global.TP = require('../tp-core.js'); global.TPSYNC = require('../tp-sync.js');
 
 require('vm').runInThisContext(code, { filename: 'lob/index.html' }); // let/function lægges i global scope
 
@@ -99,13 +100,12 @@ T('Backup-roundtrip: adoptState migrerer manglende felter', () => {
   assert.deepStrictEqual(s.weekPlanOverrides, {});
   assert(s.profile.raceGoal && s.profile.raceGoal.active === false);
 });
-T('Sync: header kun med token', () => {
-  localStorage.removeItem('sync_token');
-  assert.strictEqual(syncHeaders().Authorization, undefined);
-  localStorage.setItem('sync_token', 'abc');
-  assert.strictEqual(syncHeaders({ 'Content-Type': 'x' }).Authorization, 'Bearer abc');
-  assert.strictEqual(syncHeaders({ 'Content-Type': 'x' })['Content-Type'], 'x');
-  localStorage.removeItem('sync_token');
+T('Sync: Authorization-header sendes kun med token (delt synk-motor)', async () => {
+  const seen = [];
+  const mk = (tok) => TPSYNC.create({ storage: global.localStorage, baseUrl: 'https://x.test', getToken: () => tok,
+    fetch: async (u, o) => { seen.push((o && o.headers && o.headers.Authorization) || null); return { ok: true, status: 200, json: async () => ({ value: null, updatedAt: 0 }), headers: { get: () => '2' } }; } });
+  await mk('').syncKey('lob_state'); await mk('abc').syncKey('lob_state');
+  assert(seen.length >= 2 && seen[0] === null && seen[seen.length - 1] === 'Bearer abc', JSON.stringify(seen));
 });
 
 // Worker-auth testes separat (ren funktion i worker.js)

@@ -26,11 +26,17 @@
     fatigueTrainingDays: 5,  // R6: træningsdage de seneste 7 dage
     taperHeavyLowerDays: 3,  // R7: tung benstyrke tættere end 3 dage på et løb
     taperHardRunDays: 2,     // R7: hård løbetur tættere end 2 dage på et løb
-    moveSearchDays: 3        // forslag: flyt løb højst ±3 dage
+    moveSearchDays: 3,       // forslag: flyt løb højst ±3 dage
+    hardHrPct: 0.80,         // gennemført løb: gns.puls ≥ 80 % af maxpuls = Zone 4+ i løb-appens egne zoner (V3.1: var 82 %)
+    steadyHrPct: 0.70,       // 70–80 % = Zone 3 ("moderat"/jævn); under = roligt
+    longRunMinKm: 8, longRunFactor: 1.4 // "langt løb": ≥ 8 km og ≥ 1,4× dit snit (de seneste 12 løb)
   };
   P.RULES = [
     { id: 'R1', name: 'Tung benstyrke tæt på hårdt løb', text: 'Tung squat/dødløft (ikke deload) samme dag eller ±1 dag fra et hårdt løb (intervaller/tempo/langt). Begge belaster benene; hård løbetur lige før/efter tung benstyrke forringer typisk begge pas.' },
-    { id: 'R2', name: 'Dødløft tæt på langt løb', text: 'Dødløfts-dag samme dag eller ±1 dag fra et langt løb (≥ 1,4× dit snit og ≥ 8 km). Lænd/baglår belastes fra begge sider.' },
+    { id: 'R1b', name: 'Benvolumen/teknik tæt på hårdt løb', text: 'Underkropsdag med teknik/moderat belastning (fx box squat, rumænsk dødløft, hip thrust, benpres/-curl) samme dag eller ±1 dag fra et hårdt løb. Mindre belastende end tung benstyrke → kun info.' },
+    { id: 'R2', name: 'Dødløft tæt på langt løb', text: 'Tung dødløfts-dag samme dag eller ±1 dag fra et langt løb (≥ 1,4× dit snit og ≥ 8 km). Lænd/baglår belastes fra begge sider.' },
+    { id: 'R2b', name: 'Dødløftsteknik tæt på langt løb', text: 'Som R2, men for den lettere dødløftsvariant (fx deficit-dødløft 3×3) — kun info.' },
+    { id: 'R8', name: 'Hårde pas lige efter hinanden', text: 'To hårde løb, eller to tunge benstyrkedage, på hinanden følgende dage (uden en rolig dag imellem). Kombinationen tung benstyrke + hårdt løb dækkes af R1.' },
     { id: 'R3', name: 'Flere intensive dage i træk', text: '3 eller flere dage i træk, hvor hver dag har tung benstyrke eller hårdt løb. (Info: 5+ dage i træk uden restitutionsdag.)' },
     { id: 'R4', name: 'Markant volumenstigning', text: 'Ugens løbe-km mere end 1,3× snittet af de op til 3 foregående uger (og mindst +4 km). Styrkesæt: samme tærskel, vises kun som info.' },
     { id: 'R5', name: 'Ingen restitutionsdag', text: 'En uge (man–søn) uden en eneste restitutionsdag. Restitutionsdag = ingen styrketræning og intet hårdt løb; et roligt løb tæller som aktiv restitution.' },
@@ -39,14 +45,89 @@
   ];
 
   // ── Klassificering ─────────────────────────────────────────────────────────
-  // Gennemført løb → 'hard' / 'long' / 'easy'. ctx: {maxHR, medianKm}
+  // Gennemført løb → intensitet + type. ctx: {maxHR, medianKm, raceDate}
+  // Princip: kun det data understøtter. Appen logger IKKE om et løb var intervaller/tempo — kun distance, tid, puls, følelse og højdemeter.
+  // Derfor skelnes: lang (distance), hård (puls ≥ 80 % af maxpuls), jævn/moderat (70–80 %), rolig (< 70 %), konkurrence (dato = løbsmål).
+  // Uden pulsdata klassificeres løbet som "ukendt intensitet" og regnes som roligt — det opfindes ikke.
   P.classifyRun = function (run, ctx) {
-    ctx = ctx || {}; var km = +run.distanceKm || 0, out = { hard: false, long: false, load: 'easy' };
-    var maxHR = +ctx.maxHR || 0, avg = +run.avgHR || 0;
-    if (maxHR > 0 && avg > 0 && avg >= 0.82 * maxHR) { out.hard = true; out.load = 'hard'; }
-    var med = +ctx.medianKm || 0;
-    if (km >= 8 && med > 0 && km >= 1.4 * med) { out.long = true; out.hard = true; out.load = 'long'; }
+    ctx = ctx || {}; var km = +run.distanceKm || 0, T = P.TH;
+    var out = { hard: false, long: false, load: 'easy', kind: 'easy', kindLabel: 'Roligt løb', basis: '', confidence: 'middel', limits: [] };
+    var maxHR = +ctx.maxHR || 0, avg = +run.avgHR || 0, med = +ctx.medianKm || 0;
+    if (maxHR > 0 && avg > 0) {
+      var pct = avg / maxHR;
+      if (pct >= T.hardHrPct) { out.hard = true; out.load = 'hard'; out.kind = 'quality'; out.kindLabel = 'Hårdt løb (høj puls)'; out.basis = 'Gns.puls ' + Math.round(pct * 100) + ' % af maxpuls (Zone 4+)'; out.confidence = 'høj'; }
+      else if (pct >= T.steadyHrPct) { out.load = 'steady'; out.kind = 'steady'; out.kindLabel = 'Jævnt/moderat løb'; out.basis = 'Gns.puls ' + Math.round(pct * 100) + ' % af maxpuls (Zone 3)'; out.confidence = 'middel'; }
+      else { out.basis = 'Gns.puls ' + Math.round(pct * 100) + ' % af maxpuls (Zone 1–2)'; out.confidence = 'høj'; }
+    } else {
+      out.kind = 'unknown'; out.kindLabel = 'Løb (intensitet ukendt)'; out.basis = 'Ingen pulsdata eller maxpuls — regnet som roligt'; out.confidence = 'lav';
+      out.limits.push('Uden puls kan intensiteten ikke afgøres; løbet tæller som roligt. Interval/tempo kan ikke skelnes fra roligt løb ud fra de data appen gemmer.');
+    }
+    if (km >= T.longRunMinKm && med > 0 && km >= T.longRunFactor * med) {
+      out.long = true; out.hard = out.hard || false; out.load = out.hard ? 'long' : 'long'; out.kind = 'long'; out.kindLabel = 'Langt løb';
+      out.basis = (out.basis ? out.basis + '; ' : '') + km.toFixed(1) + ' km ≥ ' + T.longRunFactor + '× dit snit (' + med.toFixed(1) + ' km)';
+      out.hard = true; // lang = belastende pga. varighed uanset puls (bevarer V3-adfærd: R1/R2 vurderer langt løb som hårdt)
+      out.confidence = 'høj';
+    }
+    if (ctx.raceDate && run.date === ctx.raceDate) { out.kind = 'race'; out.kindLabel = 'Konkurrence/testløb'; out.hard = true; out.load = 'hard'; out.basis = 'Dato = dit løbsmål'; out.confidence = 'høj'; }
     return out;
+  };
+
+  // ── Løbets fase (spejl af lob/index.html: computeRacePhaseInfo + currentPhaseInfo, men for en vilkårlig dato) ──
+  // profile = lob_state.profile. Returnerer {phase:'Base'|'Build'|'Peak'|'Taper'|'Race', isDeload, posInBlock, raceMode, distance} eller null.
+  P.phaseFor = function (profile, dateISO) {
+    if (!profile) return null;
+    var rg = profile.raceGoal;
+    var ms = function (iso) { return new Date(iso + 'T00:00:00').getTime(); };
+    if (rg && rg.active && rg.date && rg.distance) {
+      var raceDate = ms(rg.date), start = ms(rg.activatedDate || rg.date), today = ms(dateISO), WEEK = 7 * 86400000;
+      var daysToRace = Math.ceil((raceDate - today) / 86400000);
+      var totalWeeks = Math.round((raceDate - start) / WEEK); if (!isFinite(totalWeeks) || totalWeeks < 1) totalWeeks = 1;
+      var beginner = rg.niveau === 'begynder' ? 1 : 0;
+      var taperW = (rg.distance === 'half' ? 2 : 1) + beginner; taperW = Math.min(taperW, Math.max(1, totalWeeks - 1));
+      var peakW = Math.min(3, Math.max(0, totalWeeks - taperW - 1));
+      var bb = Math.max(0, totalWeeks - taperW - peakW), baseW = Math.round(bb * 0.55), buildW = bb - baseW;
+      var weekIndex = Math.max(1, Math.floor(Math.floor((today - start) / 86400000) / 7) + 1);
+      var phase;
+      if (daysToRace <= 0) phase = 'Race'; else if (weekIndex <= baseW) phase = 'Base'; else if (weekIndex <= baseW + buildW) phase = 'Build'; else if (weekIndex <= baseW + buildW + peakW) phase = 'Peak'; else phase = 'Taper';
+      return { phase: phase, isDeload: (phase === 'Base' || phase === 'Build') && weekIndex % 4 === 0, posInBlock: ((weekIndex - 1) % 12) + 1, raceMode: true, distance: rg.distance, week: weekIndex };
+    }
+    if (!profile.seasonStart) return null;
+    var wk = Math.max(1, Math.floor(Math.floor((new Date(dateISO + 'T00:00:00') - new Date(profile.seasonStart + 'T00:00:00')) / 86400000) / 7) + 1);
+    var pos = ((wk - 1) % 12) + 1;
+    return { phase: pos <= 5 ? 'Base' : (pos <= 9 ? 'Build' : 'Peak'), isDeload: wk % 4 === 0, posInBlock: pos, raceMode: false, distance: null, week: wk };
+  };
+  // Forventet type for et PLANLAGT kvalitetsløb ud fra fasen — præcis den logik løb-appen bruger til at vælge dagens forslag (suggestNextWorkout).
+  // Selve forslaget vælges først dagen før ud fra din form/seneste løb → dette er en forventning (confidence 'lav'), ikke en fast plan.
+  P.plannedRunKind = function (info) {
+    var base = { confidence: 'lav', basis: 'Fase i løbeplanen', limits: ['Typen er et skøn ud fra fasen i din løbeplan. Løb-appen vælger det konkrete pas først dagen før ud fra din form, seneste løb og puls — det kan ændre sig (fx til et roligt løb).'] };
+    var mk = function (kind, label, hard, long, why) { return Object.assign({}, base, { kind: kind, kindLabel: label, hard: hard, long: long, load: long ? 'long' : (hard ? 'hard' : 'easy'), basis: 'Fase: ' + why }); };
+    if (!info) return Object.assign({}, base, { kind: 'quality', kindLabel: 'Kvalitetsløb (type ukendt)', hard: true, long: false, load: 'hard', basis: 'Ingen løbeprofil fundet — kvalitetsløb antages hårdt', confidence: 'lav' });
+    if (info.isDeload) return mk('easy', 'Roligt løb (deload-uge)', false, false, 'deload-uge');
+    if (info.phase === 'Race') return mk('race', 'Løbsdag', true, false, 'løbsdag');
+    if (info.phase === 'Taper') return mk('easy', 'Taper (kort, let + strides)', false, false, 'taper');
+    if (!info.raceMode && info.posInBlock === 10) return mk('test', '20-min tempotest', true, false, 'test ved start af Peak (uge 10)');
+    if (info.phase === 'Base') return mk('long', 'Lang, jævn tur (Zone 2)', false, true, 'Base — lang aerob tur, ikke fart');
+    if (info.phase === 'Build') return info.raceMode && info.distance === 'half' ? mk('long', 'Lang tur med tempo', true, true, 'Build mod halvmarathon') : mk('tempo', 'Tempo/intervaller', true, false, 'Build — tærskel/interval');
+    return mk('interval', 'Race-pace intervaller', true, false, 'Peak — skarphed');
+  };
+
+  // ── Styrkedage: hvad belaster de? (baseret på programmets egen SBD_CYCLE + primærløft) ──
+  // heavy = tungt hovedløft med backdown (cst1/low1/bb1). technique = sekundær variant 3×3 @ ~60–65 % 1RM uden backdown (cst2/low2/bb2).
+  P.SBD_KINDS = {
+    cst1: { mainLift: 'bench', role: 'heavy', lowerLoad: 'none', hinge: false, legHyp: false, label: 'Tung bænkpres + overkrop' },
+    cst2: { mainLift: 'bench', role: 'technique', lowerLoad: 'none', hinge: false, legHyp: false, label: 'Pause-bænk (teknik) + overkrop' },
+    low1: { mainLift: 'squat', role: 'heavy', lowerLoad: 'heavy', hinge: false, legHyp: true, label: 'Tung squat + benassistance' },
+    bb1:  { mainLift: 'deadlift', role: 'heavy', lowerLoad: 'heavy', hinge: true, legHyp: false, label: 'Tung dødløft + ryg/biceps' },
+    low2: { mainLift: 'squat', role: 'technique', lowerLoad: 'moderate', hinge: false, legHyp: true, label: 'Box squat (teknik) + baglår/baller-volumen' },
+    bb2:  { mainLift: 'deadlift', role: 'technique', lowerLoad: 'moderate', hinge: true, legHyp: false, label: 'Deficit-dødløft (teknik) + ryg' }
+  };
+  // deload/Ellen (kun tilbehør) → aldrig "tung". Returnerer felter der lægges på kalender-posten.
+  P.sbdFlags = function (cycleId, opts) {
+    opts = opts || {}; var k = P.SBD_KINDS[cycleId] || { mainLift: null, role: null, lowerLoad: 'none', hinge: false, legHyp: false, label: '' };
+    var deload = !!opts.deload, heavyOk = opts.heavyOk !== false;
+    var lowerLoad = (!heavyOk || deload) ? (k.lowerLoad === 'none' ? 'none' : 'light') : k.lowerLoad;
+    return { mainLift: k.mainLift, role: k.role, lowerLoad: lowerLoad, lower: lowerLoad !== 'none', hinge: !!k.hinge && lowerLoad !== 'none', legHyp: !!k.legHyp && lowerLoad !== 'none',
+      hard: lowerLoad === 'heavy', moderateLower: lowerLoad === 'moderate', kindLabel: k.label };
   };
 
   // ── Opbyg dage ─────────────────────────────────────────────────────────────
@@ -58,13 +139,13 @@
       items = (opts.doneFn ? opts.doneFn(date) : []).concat(opts.plannedFn ? opts.plannedFn(date) : []);
       days.push({ date: date, items: items.map(function (x) { return Object.assign({}, x); }), markers: opts.markersFn ? opts.markersFn(date) : [] });
     }
-    return P.applyChanges(days, opts.changes || []);
+    return P.applyChanges(days, Array.isArray(opts.changes) ? opts.changes : []);
   };
   P.applyChanges = function (days, changes) {
     var by = {}; days.forEach(function (d) { by[d.date] = d; });
     var stale = [];
     var plannedRun = function (date) { var d = by[date]; return d ? d.items.filter(function (x) { return x.kind === 'run' && x.status === 'planned'; })[0] : null; };
-    (changes || []).forEach(function (c) {
+    (Array.isArray(changes) ? changes : []).forEach(function (c) {
       var it, d;
       if (c.type === 'moveRun') {
         it = plannedRun(c.from); d = by[c.to];
@@ -102,32 +183,59 @@
     var today = ctx.today || (days[0] && days[0].date), adj = P.TH.adjacencyDays;
     var add = function (f) { f.dismissed = !!(ctx.dismissed && ctx.dismissed[f.key]); out.push(f); };
 
+    var LIM_PLANNED = 'Fremtidige løb er klassificeret ud fra fasen i løbeplanen (skøn) — de konkrete pas vælges først dagen før.';
+    var limitsFor = function (items) { var out = []; items.forEach(function (x) { (x.limits || []).forEach(function (l) { if (out.indexOf(l) < 0) out.push(l); }); if (x.kind === 'run' && x.status === 'planned' && x.confidence === 'lav' && out.indexOf(LIM_PLANNED) < 0) out.push(LIM_PLANNED); }); return out; };
+    var runTag = function (r) { return r.label + (r.kindLabel && r.kindLabel !== r.label ? ' — ' + r.kindLabel : '') + (r.long && r.kind !== 'long' ? ' (langt)' : ''); };
     days.forEach(function (d) {
       active(d).forEach(function (s) {
-        if (!isHeavyLower(s) && !(s.kind === 'sbd' && s.hinge && s.hard)) return;
+        if (!(s.kind === 'sbd' && (s.lower || s.hinge))) return;
         for (var k = -adj; k <= adj; k++) {
           var o = by[TP.addDays(d.date, k)]; if (!o) continue;
           active(o).forEach(function (r) {
             if (r.kind !== 'run') return;
-            if (isHeavyLower(s) && r.hard) {
-              var when = k === 0 ? 'samme dag' : (k < 0 ? 'dagen før' : 'dagen efter');
-              add({ key: 'R1:' + d.date + ':' + o.date, rule: 'R1', level: 'warn', dates: [d.date, o.date].sort(),
+            var when = k === 0 ? 'samme dag' : (k < 0 ? 'dagen før' : 'dagen efter');
+            var heavy = isHeavyLower(s), moderate = !heavy && s.lower;
+            var hardRun = !!r.hard, longRun = !!r.long;
+            var basis = [s.label + ' ' + fmt(d.date) + (s.kindLabel ? ' (' + s.kindLabel + ')' : ''), runTag(r) + ' ' + fmt(o.date) + (r.basis ? ' — ' + r.basis : '')];
+            var mv = [{ kind: 'run', date: o.date, id: r.id }, { kind: 'sbd', date: d.date, id: s.id }];
+            if (heavy && hardRun) {
+              add({ key: 'R1:' + d.date + ':' + o.date, rule: 'R1', level: 'warn', sev: k === 0 ? 'høj' : 'moderat', sevWhy: k === 0 ? 'Samme dag: begge pas belaster benene med minimal restitution imellem.' : 'Én dag imellem: delvis restitution, men benene er stadig belastede.',
+                dates: [d.date, o.date].sort(),
                 title: 'Tung benstyrke (' + s.label + ', ' + fmt(d.date) + ') og hårdt løb (' + fmt(o.date) + ') ' + (k === 0 ? 'på samme dag' : 'tæt på hinanden'),
                 why: 'Hårdt løb ligger ' + when + ' ' + (k === 0 ? 'som' : (k < 0 ? 'efter' : 'før')) + ' tung ' + s.label + '. Begge pas belaster ben og hofter; det forringer ofte kvaliteten af begge.',
                 consequence: 'Hvis du ignorerer: begge pas køres på trætte ben — højere belastning og lavere sandsynlighed for at ramme de planlagte vægte/tempo.',
-                facts: [s.label + ' ' + fmt(d.date) + ' (tung)', r.label + ' ' + fmt(o.date) + (r.long ? ' (langt)' : ' (hårdt)')], movable: [{ kind: 'run', date: o.date, id: r.id }, { kind: 'sbd', date: d.date, id: s.id }] });
+                facts: basis, basedOn: basis, limits: limitsFor([s, r]), movable: mv });
+            } else if (moderate && hardRun) {
+              add({ key: 'R1b:' + d.date + ':' + o.date, rule: 'R1b', level: 'info', sev: 'lav', sevWhy: 'Underkropsdagen er teknik/moderat (ca. 60–65 % 1RM eller assistancevolumen), ikke tung.',
+                dates: [d.date, o.date].sort(), title: 'Benvolumen/teknik (' + s.label + ', ' + fmt(d.date) + ') tæt på hårdt løb (' + fmt(o.date) + ')',
+                why: 'Hårdt løb ligger ' + when + '. Baglår/baller/quads får volumen fra begge pas. Mindre kritisk end tung benstyrke.',
+                consequence: 'Hvis du ignorerer: du kan mærke trætte ben i det ene pas. Vurder selv ud fra, hvordan benene føles.', facts: basis, basedOn: basis, limits: limitsFor([s, r]), movable: mv });
             }
-            if (s.hinge && r.long) {
-              add({ key: 'R2:' + d.date + ':' + o.date, rule: 'R2', level: 'warn', dates: [d.date, o.date].sort(),
-                title: 'Dødløft (' + fmt(d.date) + ') tæt på langt løb (' + fmt(o.date) + ')',
+            if (s.hinge && longRun) {
+              var hv = isHeavyLower(s);
+              add({ key: (hv ? 'R2:' : 'R2b:') + d.date + ':' + o.date, rule: hv ? 'R2' : 'R2b', level: hv ? 'warn' : 'info', sev: hv ? 'moderat' : 'lav', sevWhy: hv ? 'Tung dødløft + langt løb belaster lænd/baglår fra to sider.' : 'Deficit-dødløft (teknik, ~65 %) er lettere end tung dødløft.',
+                dates: [d.date, o.date].sort(),
+                title: (hv ? 'Dødløft' : 'Dødløftsteknik') + ' (' + fmt(d.date) + ') tæt på langt løb (' + fmt(o.date) + ')',
                 why: 'Dødløft og langt løb belaster begge lænd og baglår. Samme dag eller ±1 dag giver lidt restitution imellem.',
                 consequence: 'Hvis du ignorerer: øget træthed i baglår/lænd; vægten eller løbetempoet kan blive lavere end planlagt.',
-                facts: [s.label + ' ' + fmt(d.date), r.label + ' ' + fmt(o.date) + ' (langt)'], movable: [{ kind: 'run', date: o.date, id: r.id }, { kind: 'sbd', date: d.date, id: s.id }] });
+                facts: basis, basedOn: basis, limits: limitsFor([s, r]), movable: mv });
             }
           });
         }
       });
     });
+
+    // R8: hårde pas lige efter hinanden (hårdt løb ↔ hårdt løb, tung benstyrke ↔ tung benstyrke). Lower+run dækkes af R1.
+    for (var i8 = 0; i8 < n - 1; i8++) {
+      var d1 = days[i8], d2 = days[i8 + 1];
+      var h1 = active(d1), h2 = active(d2);
+      var rr1 = h1.filter(isHardRun)[0], rr2 = h2.filter(isHardRun)[0], ll1 = h1.filter(isHeavyLower)[0], ll2 = h2.filter(isHeavyLower)[0];
+      var pair = rr1 && rr2 ? [rr1, rr2, 'hårde løb'] : (ll1 && ll2 ? [ll1, ll2, 'tunge benstyrkedage'] : null);
+      if (pair) add({ key: 'R8:' + d1.date + ':' + d2.date, rule: 'R8', level: 'warn', sev: 'moderat', sevWhy: 'Ingen rolig dag mellem to ensartede hårde belastninger.', dates: [d1.date, d2.date],
+        title: 'To ' + pair[2] + ' i træk (' + fmt(d1.date) + ' og ' + fmt(d2.date) + ')', why: 'Der er ingen rolig dag imellem. Ensartet belastning to dage i træk giver mindre restitution til det samme område.',
+        consequence: 'Hvis du ignorerer: det andet pas køres på ikke-restituerede muskler/led.', facts: [pair[0].label + ' ' + fmt(d1.date), pair[1].label + ' ' + fmt(d2.date)], basedOn: [pair[0].label + ' ' + fmt(d1.date), pair[1].label + ' ' + fmt(d2.date)], limits: limitsFor([pair[0], pair[1]]),
+        movable: [pair[1]].map(function (x) { return { kind: x.kind, date: d2.date, id: x.id }; }) });
+    }
 
     // R3: intensive dage i træk + R3b: træningsdage i træk
     var run = [], runT = [], mov = function (arr, onlyIntensive) {
@@ -192,6 +300,17 @@
         });
       }
     });
+    // Fælles forklaringsfelter: alvor (sev), hvad vurderingen bygger på (basedOn), begrænsninger (limits)
+    var SEV = { R3: ['moderat', 'Flere hårde dage uden rolig dag imellem.'], R3b: ['lav', 'Ingen restitutionsdag, men dagene er ikke nødvendigvis hårde.'], R4: ['moderat', 'Hurtige volumenstigninger giver oftere ømhed og træthed end gradvise.'], R4b: ['lav', 'Kun info om antal sæt.'],
+      R5: ['moderat', 'Ingen dag uden styrke/hårdt løb i hele ugen.'], R6: ['lav', 'Bygger på selvrapporterede svar — ikke en måling.'], R7: ['høj', 'Tæt på et løb betyder mere, fordi formen på dagen er målet.'] };
+    out.forEach(function (f) {
+      var sv = SEV[f.rule];
+      if (!f.sev && sv) { f.sev = sv[0]; f.sevWhy = sv[1]; }
+      if (f.rule === 'R3' && f.dates.length >= 4) { f.sev = 'høj'; f.sevWhy = f.dates.length + ' hårde dage i træk.'; }
+      if (!f.sev) { f.sev = 'lav'; f.sevWhy = ''; }
+      if (!f.basedOn) f.basedOn = (f.facts || []).slice();
+      f.limits = (f.limits || []).concat(['Reglen er en konservativ tommelfingerregel — ikke en individuel vurdering eller medicinsk rådgivning. Du kender din krop bedst.']);
+    });
     return out;
   };
   P.visible = function (findings) { return findings.filter(function (f) { return !f.dismissed; }); };
@@ -255,10 +374,57 @@
       trainingDays: Object.keys(trainDays).length, restDays: win - Object.keys(trainDays).length, intensiveDays: Object.keys(hardDays).length, sameDayHard: coincide };
   };
 
+  // ── Målbaseret prioritering (fase 4) ───────────────────────────────────────
+  // Fokus ændrer ALDRIG programmer eller planer. Det påvirker kun (1) hvilke omlægningsforslag der vises/foretrækkes
+  // og (2) rækkefølgen af opmærksomhedspunkter. Alt forklares for brugeren.
+  P.FOCUS = {
+    balanced: { label: 'Balanceret hybrid', engine: 'balanced', short: 'Ingen disciplin foretrækkes — forslag vælges så de giver færrest konflikter og mindst forstyrrelse (løbeflytninger før styrkeændringer).',
+      effects: ['Forslag med færrest advarsler vælges først; ved lighed foretrækkes den mindste ændring (flyt et løb frem for at ændre styrke).', 'Ingen pas er "fredet" — både løb og styrke kan foreslås flyttet.'] },
+    strength: { label: 'Styrke først', engine: 'strength', short: 'Tunge styrkepas (især ben) beskyttes. Når styrke og hårdt løb støder sammen, er det løbet der foreslås flyttet eller gjort roligt.',
+      effects: ['Tunge styrkepas foreslås aldrig rykket eller sprunget over.', 'Konflikter løses ved at flytte eller lette løbet.'] },
+    hypertrophy: { label: 'Hypertrofi', engine: 'strength', short: 'Styrketræningsvolumen beskyttes: styrkepas foreslås ikke sprunget over, fordi hvert pas tæller for ugens sæt. Løb flyttes eller lettes i stedet.',
+      effects: ['Styrkepas foreslås aldrig sprunget over (ugens sæt/volumen beskyttes).', 'Konflikter løses ved at flytte eller lette løbet.', 'Hviledage og restitutions-advarsler vises uændret.'] },
+    run: { label: 'Løbepræstation', engine: 'run', short: 'Hårde løb (især tæt på et løb/mål) beskyttes. Når styrke og hårdt løb støder sammen, foreslås styrkepasset rykket én dag frem i stedet.',
+      effects: ['Hårde løb tæt på et løb eller et tilknyttet mål (inden for 14 dage) foreslås aldrig gjort rolige.', 'Foreslåede omlægninger prioriterer at rykke styrkepasset ("Kan ikke i dag") før løbet.', 'Advarsler om tung benstyrke før løb vises øverst.'] }
+  };
+  P.focusKey = function (meta) { var f = meta && meta.goalPriority && meta.goalPriority.focus; return P.FOCUS[f] ? f : 'balanced'; };
+  P.engineFocus = function (meta) { return P.FOCUS[P.focusKey(meta)].engine; };
+  P.setFocus = function (meta, focus, goalIds, now) {
+    if (!P.FOCUS[focus]) throw new Error('Ukendt fokus');
+    var ids = Array.isArray(goalIds) ? goalIds.filter(function (x, i, a) { return typeof x === 'string' && a.indexOf(x) === i; }).slice(0, 12) : [];
+    meta.goalPriority = { focus: focus, goalIds: ids, since: TP.localISO(new Date(now || Date.now())), at: now || Date.now() };
+    return meta;
+  };
+  // Datoer for tilknyttede mål (deadlines) + løbsmål → "tæt på"-vurdering
+  P.attachedDates = function (meta, goals, raceDate) {
+    var ids = (meta && meta.goalPriority && meta.goalPriority.goalIds) || [], out = [];
+    (goals || []).forEach(function (g) { if (ids.indexOf(g.id) >= 0 && g.deadline && !g.achievedDate) out.push(g.deadline); });
+    if (raceDate && ids.indexOf('race') >= 0) out.push(raceDate);
+    return out;
+  };
+  P.explainFocus = function (meta, ctx) {
+    ctx = ctx || {}; var k = P.focusKey(meta), f = P.FOCUS[k], lines = f.effects.slice();
+    var ids = (meta.goalPriority && meta.goalPriority.goalIds) || [];
+    if (ids.length) lines.push(ids.length + ' mål er knyttet til dit fokus' + (ctx.nearDate ? ' — nærmeste dato: ' + fmt(ctx.nearDate) + (k === 'run' ? ' (hårde løb før den beskyttes ekstra)' : '') : '') + '.');
+    else lines.push('Ingen mål er knyttet endnu — fokus gælder generelt.');
+    lines.push('Programmer og planer omskrives aldrig af fokus; større ændringer kræver altid din godkendelse.');
+    return { label: f.label, short: f.short, lines: lines };
+  };
+  // Sortering af opmærksomhedspunkter efter fokus (alvor først; derefter fokus-relevante regler)
+  P.sortFindings = function (list, focus) {
+    var boost = focus === 'run' ? { R7: 0, R1: 1, R2: 1 } : (focus === 'strength' ? { R1: 0, R2: 0, R4b: 1 } : {});
+    return list.slice().sort(function (a, b) {
+      var la = a.level === 'warn' ? 0 : 1, lb = b.level === 'warn' ? 0 : 1; if (la !== lb) return la - lb;
+      var ba = boost[a.rule] != null ? boost[a.rule] : 9, bb = boost[b.rule] != null ? boost[b.rule] : 9; if (ba !== bb) return ba - bb;
+      return a.dates[0] < b.dates[0] ? -1 : (a.dates[0] > b.dates[0] ? 1 : 0);
+    });
+  };
+
   // ── Ændringslog (tp_meta.planChanges) ──────────────────────────────────────
   P.newChange = function (change, now) { return Object.assign({ id: TP.uid('chg'), at: now || Date.now() }, change); };
   P.addChange = function (meta, change) { meta.planChanges = (meta.planChanges || []).concat([change]); return meta; };
-  P.removeChange = function (meta, id) { meta.planChanges = (meta.planChanges || []).filter(function (c) { return c.id !== id; }); return meta; };
+  // Fjerner OG efterlader en tombstone, så ændringen ikke genopstår når en anden enhed synkroniserer (se tp-sync.js).
+  P.removeChange = function (meta, id, now) { meta.planChanges = (meta.planChanges || []).filter(function (c) { return c.id !== id; }); TP.tombstone(meta, id, now); return meta; };
   // Beskriv en ændring på dansk (til listen + fortryd)
   P.describe = function (c) {
     if (c.type === 'moveRun') return 'Løb flyttet ' + fmt(c.from) + ' → ' + fmt(c.to);
@@ -270,7 +436,7 @@
   };
   // Fjern forældede ændringer (løb der ikke længere findes / datoer i fortiden) — returnerer nye meta
   P.pruneChanges = function (changes, today) {
-    return (changes || []).filter(function (c) { var d = c.date || c.to || c.b || c.from; return !d || d >= TP.addDays(today, -14); });
+    return (Array.isArray(changes) ? changes : []).filter(function (c) { var d = c.date || c.to || c.b || c.from; return !d || d >= TP.addDays(today, -14); });
   };
   return P;
 });

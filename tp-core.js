@@ -42,6 +42,8 @@
     return ['dash_blocked_dates_' + p, 'dash_catchup_dates_' + p];
   }
   var DASH_SHARED_KEYS = ['dash_schedule_anchor'];
+  TP.dashKeysFor = dashKeysFor;
+  TP.DASH_ANCHOR_KEY = 'dash_schedule_anchor';
 
   /* ───────── Lager ───────── */
   var _storage = null;
@@ -52,6 +54,13 @@
     return null;
   };
   function sget(st, k) { try { return st.getItem(k); } catch (e) { return null; } }
+  // dash_schedule_anchor lagres af dashboardet som en RÅ datostreng (ikke JSON). Alt andet er JSON.
+  function parseStored(key, raw) {
+    if (raw == null) return null;
+    if (key === 'dash_schedule_anchor') { var v = String(raw).replace(/^"|"$/g, ''); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; }
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+  function serializeStored(key, val) { return key === 'dash_schedule_anchor' ? String(val) : JSON.stringify(val); }
 
   /* ───────── Hjælpere ───────── */
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
@@ -70,7 +79,7 @@
   };
   // Hurtig, stabil hash (FNV-1a, 32 bit) — opdager beskadigede/afkortede filer. IKKE kryptografisk.
   TP.hash = function (str) {
-    var h = 0x811c9dc5;
+    var h = 0x811c9dc5; if (typeof str !== 'string') str = str == null ? '' : String(str);
     for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
     return ('00000000' + h.toString(16)).slice(-8);
   };
@@ -122,9 +131,13 @@
       tpv: TP.SCHEMA,
       planChanges: [],         // [{id, ts, type:'move'|'swap'|'skip'|'done', disc, from, to, note, undone}]
       dismissed: {},           // { regelId+dato: tidsstempel } — afviste/ignorerede forslag
-      goalPriority: { focus: 'balanced', goalIds: [], since: null },
-      reports: {},             // { 'YYYY-MM': rapport-snapshot }
-      lastRestore: null
+      goalPriority: { focus: 'balanced', goalIds: [], since: null, at: 0 },
+      reports: {},             // { 'YYYY-MM': rapport-snapshot } — afledt/lokal, synkroniseres IKKE
+      lastRestore: null,       // lokal, synkroniseres IKKE
+      // ── Synk-felter (additive, schema 3.1): gør sammenfletning mellem enheder tabsfri ──
+      tombs: {},               // { planChange-id: tidsstempel } — slettede/fortrudte ændringer (så de ikke genopstår)
+      dismissTombs: {},        // { forslagsnøgle: tidsstempel } — "Vis igen"
+      cal: { blocked: {}, catchup: {}, anchor: null } // { dato: {on, t} } register for "ikke mulig"-dage + rytme-anker {v, t}
     };
   }
   TP.defaultMeta = defaultMeta;
@@ -136,6 +149,13 @@
     if (!isObj(out.dismissed)) out.dismissed = d.dismissed;
     if (!isObj(out.goalPriority)) out.goalPriority = d.goalPriority;
     if (!out.goalPriority.focus) out.goalPriority.focus = 'balanced';
+    if (typeof out.goalPriority.at !== 'number') out.goalPriority.at = 0;
+    if (!isObj(out.tombs)) out.tombs = {};
+    if (!isObj(out.dismissTombs)) out.dismissTombs = {};
+    if (!isObj(out.cal)) out.cal = { blocked: {}, catchup: {}, anchor: null };
+    if (!isObj(out.cal.blocked)) out.cal.blocked = {};
+    if (!isObj(out.cal.catchup)) out.cal.catchup = {};
+    if (out.cal.anchor !== null && !isObj(out.cal.anchor)) out.cal.anchor = null;
     if (!Array.isArray(out.goalPriority.goalIds)) out.goalPriority.goalIds = [];
     if (!isObj(out.reports)) out.reports = d.reports;
     if (out.lastRestore === undefined) out.lastRestore = null;
@@ -150,6 +170,8 @@
     if (!isObj(out.exerciseSubs)) out.exerciseSubs = {};     // { plannedName: { alt, since, scope:'future' } }
     if (!isObj(out.altOverrides)) out.altOverrides = {};     // { plannedName: [navn, navn] }
     if (!isObj(out.sessionEval)) out.sessionEval = {};       // { dayN: evaluering }
+    if (!Array.isArray(out.completedDays)) out.completedDays = []; // robusthed: delvist/gammelt state må ikke få læsere til at fejle
+    if (!isObj(out.logs)) out.logs = {};
     if (isObj(out.logs)) {
       Object.keys(out.logs).forEach(function (k) {
         var l = out.logs[k];
@@ -194,9 +216,33 @@
   };
   TP.saveMeta = function (profile, meta, storage) {
     var st = storage || TP.storage(); if (!st) return false;
-    try { st.setItem(TP.KEYS.meta[profile], JSON.stringify(TP.migrateMeta(meta))); return true; } catch (e) { return false; }
+    try { st.setItem(TP.KEYS.meta[profile], JSON.stringify(TP.migrateMeta(meta))); } catch (e) { return false; }
+    try { if (typeof TP.onMetaSaved === 'function') TP.onMetaSaved(TP.KEYS.meta[profile]); } catch (e) { /* synk-hook må aldrig få en gemning til at fejle */ }
+    return true;
   };
   // SBD-sessionens dato (lokal) ud fra tidsstempler.
+  // ── Synk-hjælpere til metadata (tombstones + registre) ──
+  // Kanonisk JSON (sorterede nøgler) → stabil hash uanset nøgle-rækkefølge.
+  TP.canon = function canon(v) {
+    if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+    if (isObj(v)) return '{' + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ':' + canon(v[k]); }).join(',') + '}';
+    return JSON.stringify(v === undefined ? null : v);
+  };
+  // Registrér at en "ikke mulig"-dag (kind 'blocked'|'catchup') er slået til/fra — så sammenfletning kan se hvem der ændrede sidst.
+  TP.calNote = function (profile, kind, date, on, now, storage) {
+    var st = storage || TP.storage(); if (!st) return false;
+    var m = TP.loadMeta(profile, st);
+    if (kind !== 'blocked' && kind !== 'catchup') return false;
+    m.cal[kind][date] = { on: !!on, t: now || Date.now() };
+    return TP.saveMeta(profile, m, st);
+  };
+  TP.calAnchorNote = function (value, now, storage) { // kun hovedprofilens meta bærer ankeret (delt af begge)
+    var st = storage || TP.storage(); if (!st) return false;
+    var m = TP.loadMeta('main', st); m.cal.anchor = { v: value, t: now || Date.now() };
+    return TP.saveMeta('main', m, st);
+  };
+  TP.tombstone = function (meta, id, now) { if (!isObj(meta.tombs)) meta.tombs = {}; meta.tombs[id] = now || Date.now(); return meta; };
+
   TP.sbdSessionDate = function (s, dayN) {
     var t = s && s.sessionTimes && s.sessionTimes['day' + dayN];
     var ts = t ? (t.end || t.start || t.sessionStart) : null;
@@ -227,17 +273,18 @@
   /* ═══════════════════════ BACKUP & GENDANNELSE ═══════════════════════ */
   function summarize(key, val) {
     if (!isObj(val)) return { empty: true };
+    var arr = function (x) { return Array.isArray(x) ? x : []; }; // korrupte felter må aldrig få opsummeringen til at kaste (valideringen afviser dem bagefter)
     if (/^sbd_/.test(key)) {
-      var last = null; (val.completedDays || []).forEach(function (n) { var d = TP.sbdSessionDate(val, n); if (d && (!last || d > last)) last = d; });
-      return { sessions: (val.completedDays || []).length, totalDays: val.totalDays || 0, last: last,
+      var last = null; arr(val.completedDays).forEach(function (n) { var d = TP.sbdSessionDate(val, n); if (d && (!last || d > last)) last = d; });
+      return { sessions: arr(val.completedDays).length, totalDays: val.totalDays || 0, last: last,
         subs: Object.keys(val.exerciseSubs || {}).length, evals: Object.keys(val.sessionEval || {}).length };
     }
     if (/^lob_/.test(key)) {
-      var lr = null; (val.runs || []).forEach(function (r) { if (!lr || r.date > lr) lr = r.date; });
-      return { runs: (val.runs || []).length, last: lr, goals: ((val.profile || {}).goals || []).length };
+      var lr = null; arr(val.runs).forEach(function (r) { if (r && (!lr || r.date > lr)) lr = r.date; });
+      return { runs: arr(val.runs).length, last: lr, goals: arr((val.profile || {}).goals).length };
     }
     if (/^tp_meta_/.test(key)) {
-      return { changes: (val.planChanges || []).length, reports: Object.keys(val.reports || {}).length };
+      return { changes: arr(val.planChanges).length, reports: Object.keys(val.reports || {}).length };
     }
     return { entries: Array.isArray(val) ? val.length : 1 };
   }
@@ -276,7 +323,8 @@
     var data = {}, counts = {};
     selectKeys(scope).forEach(function (k) {
       var raw = sget(st, k); if (raw == null) return;
-      var v; try { v = JSON.parse(raw); } catch (e) { return; }
+      var v = parseStored(k, raw); if (v == null && k !== 'dash_schedule_anchor') { try { JSON.parse(raw); } catch (e) { return; } }
+      if (v == null) return;
       if (/^dash_/.test(k)) { data.dash = data.dash || {}; data.dash[k] = v; counts[k] = summarize(k, v); return; }
       data[k] = v; counts[k] = summarize(k, v);
     });
@@ -374,8 +422,7 @@
         item.selected = false; item.action = 'invalid';
         plan.ok = false; plan.errors.push(keyLabel(key) + ': ' + errs.slice(0, 3).join('; ') + (errs.length > 3 ? ' …' : ''));
       } else if (st) {
-        var raw = sget(st, key), cur = null;
-        if (raw != null) { try { cur = JSON.parse(raw); } catch (e) { cur = null; } }
+        var raw = sget(st, key), cur = parseStored(key, raw);
         item.current = cur == null ? null : summarize(key, cur);
         if (cur == null) item.action = 'add';
         else if (JSON.stringify(cur) === JSON.stringify(val)) { item.action = 'same'; item.selected = false; }
@@ -393,7 +440,7 @@
       plan.items.push(item);
     });
     if (st && sget(st, 'sync_token') != null && sget(st, 'sync_token') !== '') {
-      plan.warnings.push('Synkronisering er sat op: efter gendannelsen markeres de gendannede data som nyeste og vil derfor overskrive serverens kopi ved næste gem. Andre enheder får dem ved næste synkronisering.');
+      plan.warnings.push('Synkronisering er sat op: de gendannede data sendes til serveren ved næste synkronisering og erstatter dér serverens kopi (andre enheder får dem derefter). Er serveren ændret fra en anden enhed i mellemtiden, spørges du først, hvilken version der skal bruges — intet overskrives tavst.');
     }
     if (!plan.items.length) { plan.ok = false; plan.errors.push('Ingen gyldige data at gendanne.'); }
     return plan;
@@ -423,7 +470,7 @@
           try { var curRaw = sget(st, i.key); if (curRaw) { var cur = JSON.parse(curRaw); if (cur && cur.profile) v.profile = cur.profile; } } catch (e) {}
         } else if (/^lob_/.test(i.key)) TP.migrateLob(v);
         else if (/^tp_meta_/.test(i.key)) v = TP.migrateMeta(v);
-        staged.push({ key: i.key, json: JSON.stringify(v) });
+        staged.push({ key: i.key, json: serializeStored(i.key, v) });
       });
     } catch (e) { return { ok: false, error: 'Forberedelsen fejlede: ' + (e.message || e), changed: false }; }
 
@@ -445,7 +492,8 @@
       staged.forEach(function (s) {
         st.setItem(s.key, s.json);
         if (sget(st, s.key) !== s.json) throw new Error('Verifikation fejlede for ' + s.key);
-        if (/^(sbd_|lob_)/.test(s.key)) st.setItem(s.key + '__updatedAt', String(now)); // lokal gendannelse vinder over ældre serverkopi
+        // V3.1: __updatedAt er serverens version og ændres ikke her. Gendannede data bliver 'ændret siden sidste synk' (hash ≠ synk-hash)
+        // og sendes som betinget skrivning; er serveren imellemtiden ændret, får brugeren et konfliktvalg i stedet for en tavs overskrivning.
       });
       st.setItem(EPOCH_KEY, String(now)); // får andre åbne faner til at genindlæse
     } catch (e) {
@@ -477,7 +525,6 @@
     try {
       Object.keys(snap.keys).forEach(function (k) {
         if (snap.keys[k].v == null) st.removeItem(k); else st.setItem(k, snap.keys[k].v);
-        if (/^(sbd_|lob_)/.test(k)) st.setItem(k + '__updatedAt', now);
       });
       st.setItem(EPOCH_KEY, now);
       st.removeItem(SNAP_KEY);
@@ -485,6 +532,7 @@
     return { ok: true, keys: Object.keys(snap.keys) };
   };
   TP.RESTORE_EPOCH_KEY = EPOCH_KEY;
+  TP.summarize = summarize;
 
   /* ═══════════════ FASE 2: ØVELSESBIBLIOTEK (alternativer) ═══════════════
      Hver planlagt øvelse har som udgangspunkt 2 alternativer — men KUN hvor de er fagligt forsvarlige.

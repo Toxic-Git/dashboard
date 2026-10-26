@@ -13,6 +13,7 @@
 <script src="tp-core.js"></script>
 <script src="tp-plan.js"></script>
 <script src="tp-report.js"></script>
+<script src="tp-sync.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
 :root{
@@ -390,6 +391,7 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
 .hy-chg{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--border); font-size:13px; }
 .hy-tbl{ width:100%; border-collapse:collapse; font-size:13px; margin-bottom:8px; } .hy-tbl th,.hy-tbl td{ padding:6px 4px; border-bottom:1px solid var(--border); text-align:right; } .hy-tbl th[scope=row],.hy-tbl thead th:first-child{ text-align:left; font-weight:500; color:var(--text); } .hy-tbl thead th{ color:var(--muted); font-weight:600; }
 .hy-find{ margin:10px 0; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface2); display:flex; flex-direction:column; gap:6px; } .hy-find.warn{ border-left:3px solid var(--red); } .hy-find.info{ border-left:3px solid var(--sq); } .hy-find.dim{ opacity:.8; }
+.hy-sev{ font-size:11px; padding:1px 7px; border-radius:10px; border:1px solid currentColor; white-space:nowrap; } .hy-sev-h{ color:var(--red); } .hy-sev-m{ color:var(--gold); } .hy-sev-l{ color:var(--muted); }
 .hy-ft{ font-weight:600; font-size:14px; } .hy-lv{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--gold); }
 .hy-opt{ display:flex; gap:10px; justify-content:space-between; align-items:flex-start; padding:8px 0; border-top:1px solid var(--border); } .hy-opt .hy-btn{ flex:0 0 auto; }
 .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
@@ -1265,7 +1267,6 @@ function mountBackupPanel(){
 }
 window.addEventListener('load', mountBackupPanel);
 function renderSettings(){
-  const sync = syncEnabled();
   // Behold backup-panelet (og dets tilstand, fx en vist gendannelsesplan) når indstillinger gen-renderes
   const keepMount = document.getElementById('tp-backup-mount');
   if(keepMount) keepMount.remove();
@@ -1279,15 +1280,14 @@ function renderSettings(){
       <button class="day-picker-btn" style="width:100%;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
       <div class="deferred-note">Brug denne hvis I har holdt en uplanlagt pause og vil starte rytmen forfra fra i dag.</div>
       <div class="schedule-settings-label" style="margin-top:14px;">Synkronisering</div>
-      <div class="deferred-note">${sync
-        ? 'Cross-device sync er aktiv — data deles automatisk mellem jeres enheder.'
-        : 'Cross-device sync er ikke sat op — data gemmes kun lokalt på denne enhed. Se opsætningsguiden (SETUP.md, trin 2).'}</div>
+      <div id="tp-sync-mount"></div>
       <div class="schedule-settings-label" style="margin-top:14px;">Backup &amp; gendannelse</div>
       <div id="tp-backup-mount"></div>
       <div class="schedule-settings-label" style="margin-top:14px;">Værktøjer</div>
       <a class="day-picker-btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;" href="./demo-data.html">Demo-data — se appen fyldt med eksempeldata</a>
     </div>`;
   if(keepMount){ const ph=document.getElementById('tp-backup-mount'); if(ph) ph.replaceWith(keepMount); }
+  if(window.TPUI&&TPUI.mountSync) TPUI.mountSync(document.getElementById('tp-sync-mount'));
   mountBackupPanel();
 }
 
@@ -1418,7 +1418,9 @@ function getScheduleAnchor(){
   return anchor;
 }
 function resetScheduleAnchor(){
-  localStorage.setItem(SCHEDULE_ANCHOR_KEY, localISO(new Date()));
+  const v=localISO(new Date());
+  localStorage.setItem(SCHEDULE_ANCHOR_KEY, v);
+  TP.calAnchorNote(v); // synkroniseres som bevidst valg (nyeste vinder)
   render();
 }
 
@@ -1517,6 +1519,7 @@ function toggleBlockedDate(personKey, dateStr){
   const i=blocked.indexOf(dateStr);
   if(i>=0) blocked.splice(i,1); else blocked.push(dateStr);
   localStorage.setItem(blockedDatesKey(personKey), JSON.stringify(blocked));
+  TP.calNote(hybProfileKey(personKey),'blocked',dateStr,i<0); // V3.1: register til tabsfri sammenfletning mellem enheder
   render();
 }
 // ── "Ikke mulig — indhent" — drop næste pause/løbedag i stedet ────────────
@@ -1535,6 +1538,7 @@ function toggleCatchupDate(personKey, dateStr){
   const i=list.indexOf(dateStr);
   if(i>=0) list.splice(i,1); else list.push(dateStr);
   localStorage.setItem(catchupDatesKey(personKey), JSON.stringify(list));
+  TP.calNote(hybProfileKey(personKey),'catchup',dateStr,i<0);
   render();
 }
 
@@ -2009,13 +2013,15 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
   const sbdDone=sbdCompletedByDate(sRaw), lobDone=lobCompletedByDate(lRaw);
   const maxHR=lRaw&&lRaw.profile?lRaw.profile.maxHR:0, med=hybMedianKm(lRaw);
   const prof=lRaw&&lRaw.profile?lRaw.profile:null;
+  const raceDateISO=prof&&prof.raceGoal&&prof.raceGoal.active&&prof.raceGoal.date?prof.raceGoal.date:null;
   const lobDeloadAt=d=>{ if(!prof||!prof.seasonStart) return false; const wk=Math.max(1,Math.floor(TP.diffDays(prof.seasonStart,d)/7)+1); return wk%4===0; };
   const isTest=sRaw?(Math.min(12,Math.floor((sRaw.totalDays||0)/7)+1)===12):false;
   const deloadWeeks=(sRaw&&sRaw.deloadWeeks)||[];
   const heavyOk = personKey!=='ellen'; // Ellens styrke er tilbehør uden tunge hovedløft → aldrig "tung benstyrke"
   const mkSbd=(c,status,deload,optional)=>{
-    const fl=HYB_SBD_FLAGS[c.id]||{};
-    return { id:'sbd-'+c.id+'-'+status, kind:'sbd', status, label:c.short+(deload?' (deload)':''), cycleId:c.id, lower:!!fl.lower, hinge:!!fl.hinge, hard:!!(fl.lower&&heavyOk&&!deload), optional:!!optional, desc:c.desc||'' };
+    // Type + belastning kommer fra programmets egen cyklus (TPPLAN.SBD_KINDS): tung hovedløft vs. teknik (3×3 ~60–65 % uden backdown). Ellen/deload → aldrig tung.
+    const fl=TPPLAN.sbdFlags(c.id,{deload,heavyOk});
+    return { id:'sbd-'+c.id+'-'+status, kind:'sbd', status, label:c.short+(deload?' (deload)':''), cycleId:c.id, lower:fl.lower, hinge:fl.hinge, hard:fl.hard, mainLift:fl.mainLift, role:fl.role, lowerLoad:fl.lowerLoad, legHyp:fl.legHyp, moderateLower:fl.moderateLower, kindLabel:fl.kindLabel, optional:!!optional, desc:c.desc||'' };
   };
   const slotMap=slotMapForRange(from,TP.addDays(from,n),anchor,personKey,blocked,catchup);
   // Planlagte styrkedage: samme cursor-logik som renderSchedule
@@ -2034,7 +2040,7 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
   const doneFn=date=>{
     const out=[];
     const c=sbdDone[date]; if(c && c.type!=='rest') out.push(mkSbd(c,'done',false,false));
-    (lobDone[date]||[]).forEach(r=>{ const k=P_classify(r,maxHR,med); out.push({ id:'run-'+r.id, kind:'run', status:'done', label:(+r.distanceKm).toFixed(1)+' km', km:+r.distanceKm, hard:k.hard, long:k.long, load:k.load, runId:r.id }); });
+    (lobDone[date]||[]).forEach(r=>{ const k=P_classify(r,maxHR,med,raceDateISO); out.push({ id:'run-'+r.id, kind:'run', status:'done', label:(+r.distanceKm).toFixed(1)+' km', km:+r.distanceKm, hard:k.hard, long:k.long, load:k.load, runKind:k.kind, kindLabel:k.kindLabel, basis:k.basis, confidence:k.confidence, limits:k.limits, runId:r.id }); });
     return out;
   };
   const plannedFn=date=>{
@@ -2047,8 +2053,12 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
       const lobPlan = personKey==='ellen' ? (ELLEN_LOB_WEEKDAYS.has(wdIdx)?{easy:!!slot.sbd}:null) : slot.lob;
       if(lobPlan){
         const dl=lobDeloadAt(date);
-        if(lobPlan.easy) out.push({ id:'run-plan-'+date, kind:'run', status:'planned', label:'Let løb', hard:false, long:false, load:'easy' });
-        else out.push({ id:'run-plan-'+date, kind:'run', status:'planned', label:dl?'Løb (deload)':'Kvalitetsløb', hard:!dl, long:false, load:dl?'easy':'hard' });
+        if(lobPlan.easy) out.push({ id:'run-plan-'+date, kind:'run', status:'planned', label:'Let løb', hard:false, long:false, load:'easy', runKind:'easy', kindLabel:'Roligt løb', basis:'Planlagt som let løb', confidence:'middel', limits:[] });
+        else {
+          // Type udledes af løbeplanens fase (samme logik som løb-appen bruger dagen før) — et skøn, markeret med lav sikkerhed.
+          const pk=TPPLAN.plannedRunKind(TPPLAN.phaseFor(prof,date));
+          out.push({ id:'run-plan-'+date, kind:'run', status:'planned', label:dl?'Løb (deload)':'Kvalitetsløb', hard:!!pk.hard&&!dl, long:!!pk.long&&!dl, load:(dl?'easy':pk.load), runKind:dl?'easy':pk.kind, kindLabel:dl?'Roligt løb (deload-uge)':pk.kindLabel, basis:dl?'Deload-uge i løbeplanen':pk.basis, confidence:pk.confidence, limits:pk.limits });
+        }
       }
     }
     return out;
@@ -2064,7 +2074,7 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
   };
   return TPPLAN.buildDays({ from, days:n, doneFn, plannedFn, markersFn, changes });
 }
-function P_classify(r,maxHR,med){ return TPPLAN.classifyRun(r,{maxHR,medianKm:med}); }
+function P_classify(r,maxHR,med,raceDate){ return TPPLAN.classifyRun(r,{maxHR,medianKm:med,raceDate}); }
 
 function hybAnalyzeCtx(personKey,sRaw,lRaw,meta){
   const today=localISO(new Date());
@@ -2162,6 +2172,8 @@ function hybDetail(date,cx,personKey,sRaw,lRaw){
   d.items.forEach(it=>{
     h+=`<div class="hy-item">${hybItemChip(it)}`;
     if(it.desc) h+=`<div class="hy-note">${esc2(it.desc)}</div>`;
+    if(it.kind==='run'&&it.kindLabel) h+=`<div class="hy-note">Type: ${esc2(it.kindLabel)}${it.basis?' — '+esc2(it.basis):''} (sikkerhed: ${esc2(it.confidence||'—')})</div>`;
+    if(it.kind==='sbd'&&it.kindLabel) h+=`<div class="hy-note">Belastning: ${esc2(it.kindLabel)}</div>`;
     if(it.optional) h+='<div class="hy-note">Valgfri — spring over hvis du er for træt.</div>';
     if(it.movedFrom) h+=`<div class="hy-note">Flyttet fra ${TPPLAN.fmtDate(it.movedFrom)}.</div>`;
     if(it.status==='done'){
@@ -2259,7 +2271,7 @@ function hybDismiss(key,action){
   hybCommit(personKey,meta,action==='rejected'?'Markeret som ikke relevant.':'Ignoreret.'); render();
 }
 function hybRestore(key){
-  const {personKey}=hybCurrent(); const meta=hybMeta(personKey); if(meta.dismissed) delete meta.dismissed[key];
+  const {personKey}=hybCurrent(); const meta=hybMeta(personKey); if(meta.dismissed) delete meta.dismissed[key]; meta.dismissTombs=meta.dismissTombs||{}; meta.dismissTombs[key]=Date.now();
   hybCommit(personKey,meta,'Vist igen.'); render();
 }
 function hybToggleDismissed(){ HYB.showDismissed=!HYB.showDismissed; render(); }
@@ -2287,9 +2299,10 @@ function renderHybridLoad(sRaw,lRaw,personKey){
     HYB.opts={};
     const card=f=>{
       const opts=f.level==='warn'?TPPLAN.suggest(f,cx.sugCtx):[]; HYB.opts[f.key]=opts;
-      return `<div class="hy-find ${f.level}"><div class="hy-ft"><span class="hy-lv">${f.level==='warn'?'⚠ Opmærksomhed':'ℹ Info'}</span> ${esc2(f.title)}</div>
+      return `<div class="hy-find ${f.level}"><div class="hy-ft"><span class="hy-lv">${f.level==='warn'?'⚠ Opmærksomhed':'ℹ Info'}</span> ${f.sev?`<span class="hy-sev hy-sev-${f.sev==='høj'?'h':(f.sev==='moderat'?'m':'l')}">Alvor: ${esc2(f.sev)}</span> `:''}${esc2(f.title)}</div>
+        ${f.sevWhy?`<div class="hy-note">${esc2(f.sevWhy)}</div>`:''}
         <div class="hy-note"><b>Hvorfor:</b> ${esc2(f.why)}</div><div class="hy-note"><b>Hvis ignoreret:</b> ${esc2(f.consequence.replace(/^Hvis du ignorerer:\s*/,''))}</div>
-        <details><summary>Fakta bag vurderingen</summary><ul>${f.facts.map(x=>`<li>${esc2(x)}</li>`).join('')}</ul></details>
+        <details><summary>Hvad vurderingen bygger på</summary><ul>${(f.basedOn||f.facts).map(x=>`<li>${esc2(x)}</li>`).join('')}</ul>${(f.limits&&f.limits.length)?`<div class="hy-note"><b>Begrænsninger:</b></div><ul>${f.limits.map(x=>`<li>${esc2(x)}</li>`).join('')}</ul>`:''}</details>
         ${opts.length?`<div class="hy-opts">${opts.map((o,i)=>`<div class="hy-opt"><div><b>${esc2(o.label)}</b><div class="hy-note">${esc2(o.consequence)}</div>${o.because?`<div class="hy-note">Fokus: ${esc2(o.because)}</div>`:''}<div class="hy-note">Advarsler: ${o.before} → ${o.after}</div></div><button type="button" class="hy-btn primary" onclick="hybApplyOption('${f.key}',${i})">Anvend</button></div>`).join('')}</div>`:(f.level==='warn'?'<div class="hy-note">Ingen sikre omlægninger fundet — vurder selv, eller lad planen stå.</div>':'')}
         <div class="hy-row"><button type="button" class="hy-btn" onclick="hybDismiss('${f.key}','rejected')">Ikke relevant</button><button type="button" class="hy-btn" onclick="hybDismiss('${f.key}','ignored')">Ignorér</button></div></div>`;
     };
@@ -2502,48 +2515,15 @@ function setProfile(name){
   render();
 }
 
-// ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) — kun læsning ─────────────
-// Dashboardet skriver aldrig til sbd_state/sbd_partner/lob_state/lob_partner,
-// så det henter blot seneste version — presser aldrig noget op.
-// Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
-// URL her efter deploy (se sync-worker/DEPLOY.md).
+// ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ───────────────────────────
+// V3.1: ÉN fælles implementering (tp-sync.js) bruges af dashboard, SBD og løb. Dashboardet synkroniserer nu også sine V3-brugerdata
+// (planændringer, afviste forslag, fokus, "ikke mulig"-dage, rytme-anker) som tp_meta_*. Konflikter får et synligt valg (banner).
+// Sæt din egen Worker-URL her efter deploy (se sync-worker/DEPLOY.md).
 const SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
-
-// Delt adgangskode til sync-Worker'en. Gemmes i localStorage under 'sync_token'
-// (samme domæne → deles automatisk af SBD, løb og dashboard). Sættes i løb → Opsætning.
-function getSyncToken(){
-  try{ return localStorage.getItem('sync_token') || ''; }catch(e){ return ''; }
-}
-function syncHeaders(extra){
-  const h = Object.assign({}, extra||{});
-  const t = getSyncToken();
-  if(t) h['Authorization'] = 'Bearer ' + t;
-  return h;
-}
-
-function syncEnabled(){
-  return SYNC_BASE_URL && !SYNC_BASE_URL.includes('REPLACE-ME');
-}
-
-async function syncPull(key){
-  if(!syncEnabled()) return false;
-  try{
-    const res = await fetch(`${SYNC_BASE_URL}/kv/${key}`, { cache:'no-store', headers: syncHeaders() });
-    if(!res.ok) return false;
-    const data = await res.json();
-    if(data.value == null) return false;
-    const localUpdatedAt = parseInt(localStorage.getItem(key+'__updatedAt') || '0');
-    if(data.updatedAt > localUpdatedAt){
-      localStorage.setItem(key, JSON.stringify(data.value));
-      localStorage.setItem(key+'__updatedAt', String(data.updatedAt));
-      return true;
-    }
-    return false;
-  }catch(e){
-    console.log('Sync-pull fejlede (offline?):', e);
-    return false;
-  }
-}
+const TPS = TPSYNC.boot(SYNC_BASE_URL);
+function syncEnabled(){ return TPS.enabled(); }
+// Data hentet fra en anden enhed → gen-render (event udsendes af motoren)
+TPS.on(function(ev){ if(ev.type==='changed'){ try{ render(); }catch(e){ console.log('Gen-render efter sync fejlede:', e); } } });
 
 // Dagens løbeforslag regnes kun i lob/index.html. Mangler dagens forslag, loader vi
 // løbeappen usynligt (samme origin, deler localStorage) så den gemmer forslaget,
@@ -2581,11 +2561,7 @@ async function boot(){
   render(); // vis lokale data med det samme
   refreshLobPlanIfNeeded();
   startReminderLoop();
-  const results = await Promise.all([
-    syncPull('sbd_state'), syncPull('sbd_partner'),
-    syncPull('lob_state'), syncPull('lob_partner'),
-  ]);
-  if(results.some(Boolean)) render(); // gen-render hvis noget blev opdateret
+  await TPS.syncAll(); // henter nyere data (og sender evt. ventende offline-ændringer); 'changed'-event gen-renderer
 }
 boot();
 </script>

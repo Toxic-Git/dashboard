@@ -1,6 +1,6 @@
 // Dashboard Service Worker
-const CACHE_NAME = 'dash-tracker-v9';
-const ASSETS = ['./index.html', './ds.css', './ds.js','./tp-core.js','./tp-plan.js','./tp-report.js','./tp-ui.js', './manifest.json'];
+const CACHE_NAME = 'dash-tracker-v11';
+const ASSETS = ['./index.html', './ds.css', './ds.js','./tp-core.js','./tp-plan.js','./tp-report.js','./tp-sync.js','./tp-ui.js', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -20,6 +20,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // Synk-Workeren (andet origin: /kv/… og /version) må ALDRIG caches eller besvares fra cache — ellers ville en gammel serverversion se frisk ud (og offline blev til tom/HTML-svar).
+  try { var _u = new URL(e.request.url); if (_u.origin !== self.location.origin && (/\/kv\//.test(_u.pathname) || _u.pathname === '/version')) return; } catch (x) {}
   e.respondWith(
     fetch(e.request)
       .then(res => {

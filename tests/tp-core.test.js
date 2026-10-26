@@ -22,8 +22,8 @@ const seeded = () => {
   const s = {}; Object.keys(demo).forEach(k => s[k] = J(demo[k]));
   s.sync_token = 'SECRET-TOKEN-SKAL-IKKE-I-BACKUP';
   s.dash_blocked_dates_oliver = J(['2026-10-27']); s.dash_blocked_dates_ellen = J(['2026-10-28']);
-  s.dash_catchup_dates_oliver = J([]); s.dash_schedule_anchor = J('2026-10-01').replace(/"/g, '"');
-  s.dash_schedule_anchor = J('2026-10-01');
+  s.dash_catchup_dates_oliver = J([]);
+  s.dash_schedule_anchor = '2026-10-01'; // dashboardet lagrer ankeret som RÅ datostreng (ikke JSON) — fixturen skal afspejle det
   s.tp_meta_main = J({ tpv: 3, planChanges: [{ id: 'a', type: 'move' }], dismissed: {}, goalPriority: { focus: 'strength', goalIds: [], since: null }, reports: {} });
   return mem(s);
 };
@@ -146,7 +146,7 @@ T('advarsel når synkronisering er sat op', () => {
 });
 
 console.log('— Import: gendannelse, rollback, fortryd');
-T('fuld gendannelse: data tilbage, sid/migration, updatedAt sat, epoch sat, snapshot findes', () => {
+T('fuld gendannelse: data tilbage, sid/migration, __updatedAt urørt, epoch sat, snapshot findes', () => {
   const src = seeded(); const b = TP.buildBackup('all', src);
   const dst = mem({ sbd_state: J({ totalDays: 0, logs: {}, completedDays: [], profile: 'partner' }), lob_state: J({ profile: { navn: 'x' }, runs: [] }) });
   const plan = TP.planRestore(TP.parseBackup(J(b)), dst); assert(plan.ok);
@@ -154,7 +154,7 @@ T('fuld gendannelse: data tilbage, sid/migration, updatedAt sat, epoch sat, snap
   const lob = JSON.parse(dst._m.lob_state); assert.strictEqual(lob.runs.length, demo.lob_state.runs.length); assert(lob.runs[0].id);
   const sbd = JSON.parse(dst._m.sbd_state); assert.strictEqual(sbd.completedDays.length, demo.sbd_state.completedDays.length);
   assert.strictEqual(sbd.profile, 'partner', 'aktiv profilvælger bevares');
-  assert.strictEqual(dst._m['lob_state__updatedAt'], '1234567890000'); assert.strictEqual(dst._m[TP.RESTORE_EPOCH_KEY], '1234567890000');
+  assert.strictEqual(dst._m['lob_state__updatedAt'], undefined, 'V3.1: __updatedAt er serverens version og røres ikke af gendannelse'); assert.strictEqual(dst._m[TP.RESTORE_EPOCH_KEY], '1234567890000');
   assert(!('sync_token' in dst._m));
   assert(TP.hasSnapshot(dst));
 });
@@ -171,7 +171,7 @@ T('skrivefejl midt i gendannelsen → alt rulles tilbage, gamle data intakte', (
   // anden backup (modificeret), så der er noget at skrive
   const srcB = TP.buildBackup('all', seeded()); srcB.data.lob_state.runs.pop(); srcB.meta.checksum = TP.hash(J(srcB.data));
   const plan = TP.planRestore(TP.parseBackup(J(srcB)), dst); assert(plan.ok);
-  const dst2 = mem(JSON.parse(before), { failOnWrite: 4 }); // 1 = snapshot, 2-3 = første blob, 4 = fejl
+  const dst2 = mem(JSON.parse(before), { failOnWrite: 3 }); // 1 = snapshot, 2 = første blob, 3 = fejl
   const r = TP.applyRestore(plan, dst2); assert(!r.ok && r.rolledBack, J(r));
   ['sbd_state', 'lob_state', 'lob_partner', 'tp_meta_main'].forEach(k => assert.strictEqual(dst2._m[k], JSON.parse(before)[k], k + ' skulle være uændret'));
 });

@@ -102,7 +102,7 @@ T('eksport: tekst og HTML indeholder nøgletal, escaper tegn og er selvstændige
 console.log('målprioritering');
 T('setFocus validerer og gemmer; ukendt fokus afvises', () => {
   const m = TP.defaultMeta(); P.setFocus(m, 'run', ['race', 'g1', 'g1', 5], Date.UTC(2026, 9, 26, 12));
-  assert.deepStrictEqual(m.goalPriority, { focus: 'run', goalIds: ['race', 'g1'], since: '2026-10-26' }); assert.throws(() => P.setFocus(m, 'nonsens', []));
+  assert.deepStrictEqual(m.goalPriority, { focus: 'run', goalIds: ['race', 'g1'], since: '2026-10-26', at: Date.UTC(2026, 9, 26, 12) }); assert.throws(() => P.setFocus(m, 'nonsens', []));
   assert.strictEqual(P.focusKey({ goalPriority: { focus: 'xyz' } }), 'balanced');
 });
 T('hypertrofi bruger styrke-motoren (beskytter styrkepas); balanceret er standard', () => {

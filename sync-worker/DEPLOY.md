@@ -53,29 +53,16 @@ og erstat med din rigtige Worker-URL. Upload de tre filer til GitHub igen.
 
 ## Test at det virker
 
-1. Åbn `https://din-worker-url/kv/lob_state` i en browser. Uden adgangskode sat
-   får du `{"value":...,"updatedAt":...}`; med `SYNC_TOKEN` sat får du
-   `{"error":"uautoriseret"}` (401) — det er meningen.
+1. Åbn `https://din-worker-url/version` i en browser — du skal få
+   `{"api":2,"keys":[…],"conditionalPut":true}` (v2). Ser du `not found`,
+   kører en ældre Worker; deploy `worker.js` igen.
 2. Log noget i SBD-appen på én enhed, åbn appen på en anden — data skal
    dukke op efter få sekunder.
 
-## 5. Sæt sync-adgangskode (anbefalet)
-
-Uden den kan enhver, der kender Worker-URL'en, læse og overskrive dine data.
-
-```
-wrangler secret put SYNC_TOKEN
-```
-
-Vælg en lang tilfældig kode (32+ tegn, fx fra en password-manager). Så snart den
-er sat, afviser Worker'en alle kald uden `Authorization: Bearer <kode>` (401).
-Indtast samme kode i løbe-trackeren under **Opsætning → Synkronisering** på hver
-enhed — SBD og dashboard bruger automatisk samme kode (samme domæne).
-Rotation: sæt en ny `SYNC_TOKEN` og indtast den nye kode på alle enheder.
-
 ## Sikkerhed
 
-Med `SYNC_TOKEN` sat kræves en bearer-kode til alle kald. Uden den er
-Worker-URL'en reelt den eneste "adgangskode" — del den ikke offentligt.
-Koden ligger i browserens localStorage på dine enheder, så den beskytter mod
-fremmede, ikke mod nogen med adgang til din egen telefon.
+Sæt hemmeligheden `SYNC_TOKEN` (`wrangler secret put SYNC_TOKEN`, eller Cloudflare → Worker → Settings → Variables and Secrets → Secret) og indtast samme kode i løbe-appens Opsætning. Uden den er Worker'en åben for alle, der kender URL'en.
+
+## Eksisterende opsætning / opgradering til v2
+
+v2 virker med både binding `TRAINING_KV` (nøgler som de er) og den ældre binding `KV` (nøgler gemt som `kv:<nøgle>`), så eksisterende data findes uændret. Opgradering = deploy `worker.js`; gamle deployments kan rulles tilbage i Cloudflare. Se `docs/V3-SYNC.md`.

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'lobe-tracker-v5';
-const ASSETS = ['./index.html', './manifest.json', '../ds.css', '../ds.js', '../tp-core.js', '../tp-ui.js'];
+const CACHE_NAME = 'lobe-tracker-v7';
+const ASSETS = ['./index.html', './manifest.json', '../ds.css', '../ds.js', '../tp-core.js', '../tp-sync.js', '../tp-ui.js'];
 
 self.addEventListener('install', function(event){
   event.waitUntil(
@@ -24,6 +24,8 @@ self.addEventListener('activate', function(event){
 
 self.addEventListener('fetch', function(event){
   if (event.request.method !== 'GET') return;
+  // Synk-Workeren (andet origin: /kv/… og /version) må ALDRIG caches eller besvares fra cache — ellers ville en gammel serverversion se frisk ud (og offline blev til tom/HTML-svar).
+  try { var _u = new URL(event.request.url); if (_u.origin !== self.location.origin && (/\/kv\//.test(_u.pathname) || _u.pathname === '/version')) return; } catch (x) {}
   // Netværk først (så opdateringer slår igennem), cache som offline-fallback
   event.respondWith(
     fetch(event.request).then(function(res){
