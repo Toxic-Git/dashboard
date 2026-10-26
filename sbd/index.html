@@ -3545,7 +3545,7 @@ function drawAccChart() {
   points.forEach((p,i) => {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
     ctx.fillStyle=color; ctx.fill();
-    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
       ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
       ctx.fillText(p.x, xS(i), canvas.height-4);
     }
@@ -4391,7 +4391,7 @@ function drawDurationChart() {
   points.forEach((p, i) => {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI * 2);
     ctx.fillStyle = '#d4a843'; ctx.fill();
-    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
       ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(p.x, xS(i), canvas.height - 4);
     }
@@ -4441,7 +4441,7 @@ function drawBodyweightChart() {
   points.forEach((p,i) => {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
     ctx.fillStyle=color; ctx.fill();
-    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
       ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
       ctx.fillText(p.x, xS(i), canvas.height-4);
     }
@@ -6341,7 +6341,7 @@ function drawChart() {
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fillStyle = color; ctx.fill();
     // X axis label (every other point if crowded)
-    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 52)))) === 0 || i === points.length - 1) {
+    if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
       ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(p.x, x, canvas.height - 4);

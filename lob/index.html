@@ -194,6 +194,8 @@ input,select,textarea{ min-height:44px; border-radius:var(--r-sm); }
   header{ padding-left:calc(104px + (100vw - 104px - 1040px)/2 + 16px); padding-right:calc((100vw - 104px - 1040px)/2 + 16px); }
 }
 
+code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.card{ min-width:0; }
 /* Aktiv timer: stort, læsbart på afstand */
 #timer-run-card{ text-align:center; padding:24px 16px; }
 #timer-run-card h2{ font-size:22px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2); }
@@ -1760,8 +1762,11 @@ function drawFormChart(series){
   recent.forEach((s,i)=>{ i===0? ctx.moveTo(x(i),y(s.atl)) : ctx.lineTo(x(i),y(s.atl)); });
   ctx.stroke();
 
-  ctx.fillStyle='#d4a843'; ctx.font='10px Barlow'; ctx.fillText('CTL', w-40, 12);
-  ctx.fillStyle='#c85450'; ctx.fillText('ATL', w-40, 24);
+  ctx.font='600 12px Barlow, sans-serif';
+  ctx.fillStyle='#d4a843'; ctx.fillText('CTL', w-44, 16);
+  ctx.fillStyle='#e0786a'; ctx.fillText('ATL', w-44, 31);
+  ctx.fillStyle='#9aa3b2'; ctx.font='11px Barlow, sans-serif'; ctx.textAlign='left';
+  ctx.fillText(Math.round(max), 4, 14); ctx.fillText(Math.round(min), 4, h-4);
 }
 
 function drawPaceChart(){
@@ -1777,7 +1782,7 @@ function drawPaceChart(){
   }
   const paces = runs.map(r=>r.durationSec/r.distanceKm);
   const max = Math.max(...paces), min = Math.min(...paces);
-  const pad=8;
+  const pad=18;
   function y(v){ return h-pad - ((max-v)/(max-min||1))*(h-2*pad); } // lower pace (faster) = higher on chart
   function x(i){ return pad + (i/(paces.length-1))*(w-2*pad); }
   ctx.strokeStyle='#d4a843'; ctx.lineWidth=2;
@@ -1786,6 +1791,13 @@ function drawPaceChart(){
   ctx.stroke();
   ctx.fillStyle='#d4a843';
   paces.forEach((p,i)=>{ ctx.beginPath(); ctx.arc(x(i),y(p),2.5,0,Math.PI*2); ctx.fill(); });
+  // Akse-etiketter: hurtigste/langsomste tempo og datointerval
+  ctx.fillStyle='#9aa3b2'; ctx.font='11px Barlow, sans-serif'; ctx.textAlign='left';
+  ctx.fillText(fmtPace(min), 4, 12);
+  ctx.fillText(fmtPace(max), 4, h-4);
+  ctx.textAlign='right';
+  ctx.fillText(fmtDate(runs[0].date)+' → '+fmtDate(runs[runs.length-1].date), w-4, h-4);
+  ctx.textAlign='left';
 }
 
 function renderGoal(){

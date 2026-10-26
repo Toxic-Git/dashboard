@@ -2073,7 +2073,7 @@ boot();
     if(t&&t.classList&&t.classList.contains('tab')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();t.click();}
   });
   var pend=0;
-  new MutationObserver(function(){ if(pend)return; pend=setTimeout(function(){pend=0;enhance();},150); })
+  if(typeof MutationObserver!=="undefined") new MutationObserver(function(){ if(pend)return; pend=setTimeout(function(){pend=0;enhance();},150); })
     .observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
   if(document.readyState!=='loading')enhance(); else document.addEventListener('DOMContentLoaded',enhance);
 })();
