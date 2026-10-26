@@ -1,0 +1,1 @@
+{"name":"traening-platform","private":true,"scripts":{"test":"node tests/run-all.js","e2e":"node e2e/e2e.js"}}

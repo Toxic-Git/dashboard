@@ -27,7 +27,7 @@
   --surface2: #22262f;
   --border: #2e3240;
   --text: #f0ece4;
-  --muted: #6b7280;
+  --muted: #9aa3b2;
   --gold: #d4a843;
   --gold-dim: #9a7830;
   --sq: #4a90d9;
@@ -446,7 +446,7 @@ html, body {
   letter-spacing:1px; text-transform:uppercase; cursor:pointer;
 }
 .modal-cancel { background:var(--surface2); color:var(--muted); }
-.modal-confirm { background:var(--green); color:white; }
+.modal-confirm { background:var(--green); color:#0b1f14; }
 
 /* progress bar top */
 .progress-bar-wrap { padding:0 18px 14px; }
@@ -554,6 +554,35 @@ html, body {
 .set-row.completed::after, .set-row-5col.completed::after{ content:none; }
 .rpe-input{ min-height:48px; font-size:max(16px,1em); }
 .rpe-input::placeholder{ font-size:13px; }
+
+/* Sætrækker: RPE får bred nok kolonne til "7.5"; ingen spinner der æder pladsen */
+.set-row-5col{ grid-template-columns:28px minmax(0,1.15fr) minmax(0,1fr) 64px 52px !important; gap:6px; padding:10px 12px; }
+.set-row{ grid-template-columns:28px minmax(0,1.15fr) minmax(0,1fr) 52px !important; gap:6px; padding:10px 12px; }
+.rpe-input, .set-input{ -moz-appearance:textfield; appearance:textfield; padding-left:4px; padding-right:4px; }
+.rpe-input::-webkit-outer-spin-button, .rpe-input::-webkit-inner-spin-button,
+.set-input::-webkit-outer-spin-button, .set-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.rpe-input{ font-size:18px; letter-spacing:0; }
+.set-num{ text-align:center; }
+@media (min-width:760px){
+  .set-row-5col{ grid-template-columns:40px minmax(0,1.2fr) minmax(0,1fr) 88px 56px !important; gap:10px; padding:10px 16px; }
+  .set-row{ grid-template-columns:40px minmax(0,1.2fr) minmax(0,1fr) 56px !important; gap:10px; padding:10px 16px; }
+}
+
+.set-header-row{ grid-template-columns:28px minmax(0,1.15fr) minmax(0,1fr) 52px !important; gap:6px; padding:8px 12px 4px; }
+.set-header-row:has(> :nth-child(5)){ grid-template-columns:28px minmax(0,1.15fr) minmax(0,1fr) 64px 52px !important; }
+.set-col-label{ font-size:12px; letter-spacing:.5px; white-space:nowrap; }
+@media (min-width:760px){
+  .set-header-row{ grid-template-columns:40px minmax(0,1.2fr) minmax(0,1fr) 56px !important; gap:10px; padding:8px 16px 4px; }
+  .set-header-row:has(> :nth-child(5)){ grid-template-columns:40px minmax(0,1.2fr) minmax(0,1fr) 88px 56px !important; }
+}
+.finish-btn{ color:#0b1f14; font-weight:800; }
+@media (min-width:760px){ .set-row .set-input, .set-row-5col .set-input{ max-width:170px; justify-self:center; } .rpe-input{ max-width:88px; justify-self:center; } }
+
+/* Desktop: sekundær info over sætrækkerne fylder mindre (fokus på registrering) */
+@media (min-width:1100px){
+  .ds-readiness{ flex-direction:row !important; flex-wrap:wrap; gap:8px 32px !important; padding:8px 16px !important; }
+  .ds-readiness > div{ flex:1 1 280px; }
+}
 </style>
 <link rel="stylesheet" href="../ds.css">
 </head>
@@ -631,7 +660,7 @@ html, body {
       <div class="chart-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>Kropsvægt over tid</span>
         <span id="bw-input-wrap" style="display:flex;align-items:center;gap:6px;">
-          <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
+          <input aria-label="Kropsvægt i dag (kg)" type="number" inputmode="decimal" step="0.1" min="30" max="300"
             placeholder="108.0"
             onchange="saveBodyweight(parseFloat(this.value))"
             style="width:70px;background:var(--surface2);border:1px solid var(--border);
@@ -678,14 +707,14 @@ html, body {
       <div class="settings-row">
         <span class="settings-row-label">Aktiv profil</span>
         <div style="display:flex;gap:8px;">
-          <button id="btn-main" onclick="switchProfile('main')"
+          <button id="btn-main" aria-pressed="true" onclick="switchProfile('main')"
             style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);
                    font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
                    letter-spacing:1px;text-transform:uppercase;cursor:pointer;
                    background:var(--gold);color:var(--bg);">
             Oliver
           </button>
-          <button id="btn-partner" onclick="switchProfile('partner')"
+          <button id="btn-partner" aria-pressed="false" onclick="switchProfile('partner')"
             style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);
                    font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
                    letter-spacing:1px;text-transform:uppercase;cursor:pointer;
@@ -787,7 +816,7 @@ html, body {
       <div class="settings-row">
         <span class="settings-row-label">Squat</span>
         <div style="display:flex;align-items:center;gap:8px;">
-          <input class="set-input" type="number" inputmode="decimal" id="input-sq"
+          <input class="set-input" type="number" inputmode="decimal" id="input-sq" aria-label="Squat 1RM (kg)"
             style="max-width:80px;font-size:15px;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--sq);"
             onchange="update1RM('sq', this.value)">
           <span style="font-size:13px;color:var(--muted);">kg</span>
@@ -796,7 +825,7 @@ html, body {
       <div class="settings-row">
         <span class="settings-row-label">Bench</span>
         <div style="display:flex;align-items:center;gap:8px;">
-          <input class="set-input" type="number" inputmode="decimal" id="input-bp"
+          <input class="set-input" type="number" inputmode="decimal" id="input-bp" aria-label="Bench 1RM (kg)"
             style="max-width:80px;font-size:15px;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--bp);"
             onchange="update1RM('bp', this.value)">
           <span style="font-size:13px;color:var(--muted);">kg</span>
@@ -805,7 +834,7 @@ html, body {
       <div class="settings-row">
         <span class="settings-row-label">Deadlift (Conv.)</span>
         <div style="display:flex;align-items:center;gap:8px;">
-          <input class="set-input" type="number" inputmode="decimal" id="input-dl"
+          <input class="set-input" type="number" inputmode="decimal" id="input-dl" aria-label="Deadlift 1RM (kg)"
             style="max-width:80px;font-size:15px;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--dl);"
             onchange="update1RM('dl', this.value)">
           <span style="font-size:13px;color:var(--muted);">kg</span>
@@ -832,47 +861,47 @@ html, body {
 </div>
 
 <!-- TIMER OVERLAY -->
-<div class="timer-overlay" id="timer-overlay">
+<div class="timer-overlay" id="timer-overlay" role="dialog" aria-modal="true" aria-label="Pausetimer">
   <div class="timer-label">PAUSE</div>
   <div class="timer-ring-wrap">
-    <svg width="220" height="220" viewBox="0 0 220 220">
+    <svg width="220" height="220" viewBox="0 0 220 220" aria-hidden="true" focusable="false">
       <circle class="timer-ring-bg" cx="110" cy="110" r="98"/>
       <circle class="timer-ring-fill" id="timer-ring" cx="110" cy="110" r="98"
         stroke-dasharray="616" stroke-dashoffset="0"/>
     </svg>
     <div class="timer-count">
-      <div class="timer-mm-ss" id="timer-display">4:00</div>
+      <div class="timer-mm-ss" id="timer-display" role="timer" aria-label="Resterende pausetid">4:00</div>
       <div class="timer-lift-name" id="timer-lift-name"></div>
     </div>
   </div>
   <div id="timer-next-set" style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:20px;min-height:36px;"></div>
   <div class="timer-actions">
-    <button class="timer-btn timer-add" onclick="addTimerTime(60)">+1 min</button>
+    <button class="timer-btn timer-add" data-autofocus onclick="addTimerTime(60)">+1 min</button>
     <button class="timer-btn timer-skip" onclick="skipTimer()">Spring over</button>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- BOTTOM NAV -->
-<nav class="bottom-nav">
-  <button class="nav-btn active" onclick="navigate('today',this)">
-    <span class="nav-icon">🏋️</span><span class="nav-label">I dag</span>
+<nav class="bottom-nav" aria-label="Hovedmenu">
+  <button class="nav-btn active" aria-current="page" onclick="navigate('today',this)">
+    <span class="nav-icon" aria-hidden="true">🏋️</span><span class="nav-label">I dag</span>
   </button>
   <button class="nav-btn" onclick="navigate('program',this)">
-    <span class="nav-icon">📋</span><span class="nav-label">Program</span>
+    <span class="nav-icon" aria-hidden="true">📋</span><span class="nav-label">Program</span>
   </button>
   <button class="nav-btn" onclick="navigate('history',this)">
-    <span class="nav-icon">📈</span><span class="nav-label">Historik</span>
+    <span class="nav-icon" aria-hidden="true">📈</span><span class="nav-label">Historik</span>
   </button>
   <button class="nav-btn" onclick="navigate('settings',this)">
-    <span class="nav-icon">⚙️</span><span class="nav-label">Indstil.</span>
+    <span class="nav-icon" aria-hidden="true">⚙️</span><span class="nav-label">Indstil.</span>
   </button>
 </nav>
 
 <!-- MODAL -->
 <div class="modal-overlay" id="modal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-title" id="modal-title"></div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-actions">
@@ -1808,6 +1837,7 @@ function navigate(id, btn) {
   document.getElementById('view-' + id).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => { if (b === btn) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   if (id === 'today') renderToday();
   if (id === 'program') renderProgram();
   if (id === 'history') renderHistory();
@@ -1913,7 +1943,7 @@ function renderToday() {
   const energyScore = getEnergyScore();
   const todayBW = getBodyweight(as.totalDays);
   if ((!restScore || !energyScore || !todayBW) && day.type === 'workout') {
-    html += `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:10px;">`;
+    html += `<div class="ds-readiness" style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:10px;">`;
     if (!restScore) {
       html += `<div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Restitutionsniveau i dag?</div>
@@ -1931,7 +1961,7 @@ function renderToday() {
       html += `<div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Samsung Energy Score?</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" inputmode="numeric" min="0" max="100"
+          <input aria-label="Samsung Energy Score (0–100)" type="number" inputmode="numeric" min="0" max="100"
             placeholder="72"
             onchange="saveEnergyScore(parseInt(this.value))"
             style="width:64px;background:var(--surface2);border:1px solid var(--border);
@@ -1946,7 +1976,7 @@ function renderToday() {
       html += `<div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Kropsvægt i dag?</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
+          <input aria-label="Kropsvægt i dag (kg)" type="number" inputmode="decimal" step="0.1" min="30" max="300"
             placeholder="108.0"
             onchange="saveBodyweight(parseFloat(this.value))"
             style="width:84px;background:var(--surface2);border:1px solid var(--border);
@@ -2232,7 +2262,7 @@ function renderToday() {
       ? `<span style="font-size:12px;color:var(--muted);margin-left:6px;">· ${practiceCount} sessioner kørt</span>`
       : '';
     const lastPerfHtml = lastPerf
-      ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">Sidst: <span style="color:var(--text);font-weight:600;">${lastPerf.kg} kg</span> × <span style="color:var(--text);font-weight:600;">${lastPerf.reps}</span> reps${lastPerf.setsSummary ? ` <span style="opacity:0.7;">(${lastPerf.setsSummary})</span>` : ''}${beatLastHtml}${practiceHtml}</div>`
+      ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">Sidst: <span style="color:var(--text);font-weight:600;">${lastPerf.kg} kg</span> × <span style="color:var(--text);font-weight:600;">${lastPerf.reps}</span> reps${lastPerf.setsSummary ? ` <span style="opacity:0.88;">(${lastPerf.setsSummary})</span>` : ''}${beatLastHtml}${practiceHtml}</div>`
       : (practiceCount >= 3 ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">${practiceHtml}</div>` : '');
 
     html += `<div class="ex-card">
@@ -2271,7 +2301,7 @@ function renderToday() {
       html += `<div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
           <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);flex-shrink:0;">Arbejdsvægt</div>
-          <input class="set-input" type="number" inputmode="decimal" style="max-width:90px;font-size:16px;"
+          <input aria-label="Arbejdsvægt i kg" class="set-input" type="number" inputmode="decimal" style="max-width:90px;font-size:16px;"
             value="${storedWarmupKg}" placeholder="${ex.scheme.kg || '—'}"
             oninput="updateWarmupKg(${ei}, this.value)" id="warmup-kg-${ei}">
           <div style="font-size:12px;color:var(--muted);font-weight:300;">kg</div>
@@ -2311,14 +2341,14 @@ function renderToday() {
         <div class="set-num">${isAMRAPSet ? '⚡' : si + 1}</div>
         <input class="set-input ${done ? 'completed-input' : ''}" type="number" inputmode="decimal"
           value="${s.kg || (isAMRAPSet ? ex.scheme.miniMaxKg : '')}" placeholder="${isAMRAPSet ? ex.scheme.miniMaxKg : kgPlaceholder}"
-          onchange="updateSet(${ei},${si},'kg',this.value)" id="kg_${ei}_${si}">
+          onchange="updateSet(${ei},${si},'kg',this.value)" id="kg_${ei}_${si}" aria-label="${ex.name}, sæt ${si + 1}: vægt i kg">
         <input class="set-input ${done ? 'completed-input' : ''}" type="number" inputmode="numeric"
           value="${s.reps}" placeholder="${isAMRAPSet ? 'AMRAP' : ex.scheme.reps}"
-          onchange="updateSet(${ei},${si},'reps',this.value)" id="reps_${ei}_${si}">
+          onchange="updateSet(${ei},${si},'reps',this.value)" id="reps_${ei}_${si}" aria-label="${ex.name}, sæt ${si + 1}: gentagelser">
         ${showRPE ? `<input class="rpe-input" type="number" inputmode="decimal" step="0.5" min="1" max="10"
           value="${s.rpe || ''}" placeholder="${isAMRAPSet ? '—' : 'RPE'}"
-          onchange="updateSet(${ei},${si},'rpe',this.value)" id="rpe_${ei}_${si}">` : (showRPEInput ? '<div></div>' : '')}
-        <button class="check-btn ${done ? 'done' : ''}" onclick="toggleSet(${ei},${si})" id="chk_${ei}_${si}">
+          onchange="updateSet(${ei},${si},'rpe',this.value)" id="rpe_${ei}_${si}" aria-label="${ex.name}, sæt ${si + 1}: RPE (1–10, halve tal tilladt)">` : (showRPEInput ? '<div></div>' : '')}
+        <button class="check-btn ${done ? 'done' : ''}" onclick="toggleSet(${ei},${si})" id="chk_${ei}_${si}" aria-pressed="${done ? 'true' : 'false'}" aria-label="${ex.name}, sæt ${si + 1}: ${done ? 'gennemført' : 'markér som gennemført'}">
           ${done ? '✓' : '○'}
         </button>
       </div>`;
@@ -2336,7 +2366,7 @@ function renderToday() {
       const savedTempo = logEx.tempo || '';
       html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);">
         <span style="font-size:12px;color:var(--muted);flex:1;">Faktisk pause-tempo (sek)?</span>
-        <input type="number" inputmode="numeric" min="0" max="10" step="0.5"
+        <input aria-label="Faktisk pause-tempo i sekunder" type="number" inputmode="numeric" min="0" max="10" step="0.5"
           value="${savedTempo}" placeholder="2"
           onchange="saveTempo(${ei},this.value)"
           style="width:56px;background:var(--surface2);border:1px solid var(--border);
@@ -2486,7 +2516,7 @@ function renderToday() {
     html += `<div style="padding:8px 16px 10px;border-top:1px solid var(--border);">
       ${programNote && !userNote ? `<div style="font-size:12px;color:var(--muted);font-weight:300;
         line-height:1.5;margin-bottom:4px;font-style:italic;">${programNote}</div>` : ''}
-      <textarea
+      <textarea aria-label="Note til ${ex.name}"
         id="note-${ei}"
         rows="${userNote ? '2' : '1'}"
         placeholder="${userNote ? '' : 'Tilføj en note...'}"
@@ -2819,6 +2849,7 @@ function toggleSet(ei, si) {
   if (s.done) {
     row.classList.add('completed');
     chk.classList.add('done'); chk.textContent = '✓';
+    chk.setAttribute('aria-pressed', 'true'); chk.setAttribute('aria-label', `${ex.name}, sæt ${si + 1}: gennemført`);
     kgInput.classList.add('completed-input');
     repsInput.classList.add('completed-input');
     kgInput.value = s.kg; repsInput.value = s.reps;
@@ -2826,6 +2857,7 @@ function toggleSet(ei, si) {
   } else {
     row.classList.remove('completed');
     chk.classList.remove('done'); chk.textContent = '○';
+    chk.setAttribute('aria-pressed', 'false'); chk.setAttribute('aria-label', `${ex.name}, sæt ${si + 1}: markér som gennemført`);
     kgInput.classList.remove('completed-input');
     repsInput.classList.remove('completed-input');
     row.querySelectorAll('.pr-badge').forEach(b => b.remove());
@@ -2981,7 +3013,7 @@ function showSessionReasonModal() {
   const body = `
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Ikke alle sæt blev gennemført. Hvad var årsagen? (valgfrit)</div>
     <div style="display:flex;flex-wrap:wrap;margin-bottom:12px;">${chips}</div>
-    <textarea id="session-reason-text" placeholder="Uddyb evt. med egne ord..."
+    <textarea aria-label="Uddybning af årsag" id="session-reason-text" placeholder="Uddyb evt. med egne ord..."
       style="width:100%;min-height:60px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-family:inherit;font-size:13px;box-sizing:border-box;"></textarea>
   `;
   showModal('Afslut træning', body, saveSessionReasonAndFinish);
@@ -3535,7 +3567,7 @@ function drawAccChart() {
   [0, 0.5, 1].forEach(t => {
     const y = pad.t + H * (1-t);
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+W, y); ctx.stroke();
-    ctx.fillStyle='#6b7280'; ctx.font='10px Barlow,sans-serif'; ctx.textAlign='right';
+    ctx.fillStyle='#9aa3b2'; ctx.font='10px Barlow,sans-serif'; ctx.textAlign='right';
     ctx.fillText(Math.round(minV + t*(maxV-minV)) + ' kg', pad.l-3, y+3);
   });
 
@@ -3556,7 +3588,7 @@ function drawAccChart() {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
     ctx.fillStyle=color; ctx.fill();
     if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
-      ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='#9aa3b2'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
       ctx.fillText(p.x, xS(i), canvas.height-4);
     }
   });
@@ -3872,7 +3904,7 @@ function showChooseDayModal() {
     <div style="display:flex;flex-direction:column;gap:12px;">
       <div>
         <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Uge</div>
-        <select id="choose-week" style="width:100%;background:var(--surface2);border:1px solid var(--border);
+        <select aria-label="Vælg uge" id="choose-week" style="width:100%;background:var(--surface2);border:1px solid var(--border);
           border-radius:8px;color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;
           padding:10px 12px;-webkit-appearance:none;appearance:none;">
           ${weekOptions}
@@ -3880,7 +3912,7 @@ function showChooseDayModal() {
       </div>
       <div>
         <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Dag i cyklus</div>
-        <select id="choose-day" style="width:100%;background:var(--surface2);border:1px solid var(--border);
+        <select aria-label="Vælg dag" id="choose-day" style="width:100%;background:var(--surface2);border:1px solid var(--border);
           border-radius:8px;color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;
           padding:10px 12px;-webkit-appearance:none;appearance:none;">
           ${dayOptions}
@@ -3980,8 +4012,10 @@ function renderSettings() {
   if (btnMain && btnPartner) {
     btnMain.style.background = !isPartner ? 'var(--gold)' : 'var(--surface2)';
     btnMain.style.color = !isPartner ? 'var(--bg)' : 'var(--muted)';
-    btnPartner.style.background = isPartner ? '#d4688a' : 'var(--surface2)';
+    btnPartner.style.background = isPartner ? '#b8446c' : 'var(--surface2)';
     btnPartner.style.color = isPartner ? 'white' : 'var(--muted)';
+    btnMain.setAttribute('aria-pressed', String(!isPartner));
+    btnPartner.setAttribute('aria-pressed', String(isPartner));
   }
 
   document.getElementById('setting-week').textContent = getWeek();
@@ -4020,9 +4054,9 @@ function renderSettings() {
       html += `<div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
         <div style="font-size:12px;color:var(--muted);letter-spacing:1px;">PROGRAM ${i+1} · ${p.date}</div>
         <div style="display:flex;gap:16px;font-family:'Barlow Condensed',sans-serif;font-size:14px;">
-          <span style="color:var(--sq);">S: ${p.sq}→${p.newSq} <span style="font-size:12px;opacity:.7;">(+${sqPct}%)</span></span>
-          <span style="color:var(--bp);">B: ${p.bp}→${p.newBp} <span style="font-size:12px;opacity:.7;">(+${bpPct}%)</span></span>
-          <span style="color:var(--dl);">D: ${p.dl}→${p.newDl} <span style="font-size:12px;opacity:.7;">(+${dlPct}%)</span></span>
+          <span style="color:var(--sq);">S: ${p.sq}→${p.newSq} <span style="font-size:12px;opacity:.88;">(+${sqPct}%)</span></span>
+          <span style="color:var(--bp);">B: ${p.bp}→${p.newBp} <span style="font-size:12px;opacity:.88;">(+${bpPct}%)</span></span>
+          <span style="color:var(--dl);">D: ${p.dl}→${p.newDl} <span style="font-size:12px;opacity:.88;">(+${dlPct}%)</span></span>
         </div>
       </div>`;
     });
@@ -4087,7 +4121,7 @@ function openRestartModal() {
   const row = (label, id, val, min, max) => `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
       <span>${label}</span>
-      <span><input class="set-input" id="${id}" type="number" inputmode="decimal" value="${val}" min="${min}" max="${max}" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
+      <span><input aria-label="${label}" class="set-input" id="${id}" type="number" inputmode="decimal" value="${val}" min="${min}" max="${max}" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
     </div>`;
   const body = `
     <div style="font-size:13px;line-height:1.5;color:var(--muted);margin-bottom:12px;">
@@ -4371,7 +4405,7 @@ function drawDurationChart() {
   [0, 0.5, 1].forEach(t => {
     const y = pad.t + H * (1 - t);
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + W, y); ctx.stroke();
-    ctx.fillStyle = '#6b7280'; ctx.font = '10px Barlow,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillStyle = '#9aa3b2'; ctx.font = '10px Barlow,sans-serif'; ctx.textAlign = 'right';
     ctx.fillText(Math.round(minV + t * (maxV - minV)) + 'm', pad.l - 3, y + 3);
   });
 
@@ -4391,10 +4425,10 @@ function drawDurationChart() {
   // Average line
   const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   const avgY = yS(avg);
-  ctx.beginPath(); ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.strokeStyle = '#9aa3b2'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
   ctx.moveTo(pad.l, avgY); ctx.lineTo(pad.l + W, avgY); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#9aa3b2'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'left';
   ctx.fillText(`gns ${avg}m`, pad.l + 2, avgY - 3);
 
   // Points + labels
@@ -4402,7 +4436,7 @@ function drawDurationChart() {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI * 2);
     ctx.fillStyle = '#d4a843'; ctx.fill();
     if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
-      ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#9aa3b2'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(p.x, xS(i), canvas.height - 4);
     }
   });
@@ -4436,7 +4470,7 @@ function drawBodyweightChart() {
   [0, 0.5, 1].forEach(t => {
     const y = pad.t + H * (1-t);
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+W, y); ctx.stroke();
-    ctx.fillStyle='#6b7280'; ctx.font='10px Barlow,sans-serif'; ctx.textAlign='right';
+    ctx.fillStyle='#9aa3b2'; ctx.font='10px Barlow,sans-serif'; ctx.textAlign='right';
     ctx.fillText((minV + t*(maxV-minV)).toFixed(1), pad.l-3, y+3);
   });
   const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+H);
@@ -4452,7 +4486,7 @@ function drawBodyweightChart() {
     ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
     ctx.fillStyle=color; ctx.fill();
     if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
-      ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='#9aa3b2'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
       ctx.fillText(p.x, xS(i), canvas.height-4);
     }
   });
@@ -4611,7 +4645,7 @@ function renderBlockProgression() {
           const currentBlock = getBlock(getWeek());
           const isCurrent = b.b === currentBlock;
           return `<div style="flex:1;background:${bg};border-radius:8px;padding:10px 10px;
-            border:1px solid ${isCurrent ? lift.color : 'var(--border)'};opacity:${b.b > currentBlock && !hasActual ? '0.5' : '1'};">
+            border:1px solid ${isCurrent ? lift.color : 'var(--border)'};opacity:${b.b > currentBlock && !hasActual ? '0.9' : '1'};">
             <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
             ${hasActual
               ? `<div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.actual}<span style="font-size:12px;font-weight:400;color:var(--muted);"> kg</span></div>
@@ -4709,7 +4743,7 @@ function renderPeakDay(day, week) {
       html += `<div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Samsung Energy Score?</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" inputmode="numeric" min="0" max="100"
+          <input aria-label="Samsung Energy Score (0–100)" type="number" inputmode="numeric" min="0" max="100"
             placeholder="72"
             onchange="saveEnergyScore(parseInt(this.value))"
             style="width:64px;background:var(--surface2);border:1px solid var(--border);
@@ -4724,7 +4758,7 @@ function renderPeakDay(day, week) {
       html += `<div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Kropsvægt i dag?</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
+          <input aria-label="Kropsvægt i dag (kg)" type="number" inputmode="decimal" step="0.1" min="30" max="300"
             placeholder="108.0"
             onchange="saveBodyweight(parseFloat(this.value))"
             style="width:84px;background:var(--surface2);border:1px solid var(--border);
@@ -4801,7 +4835,7 @@ function renderPeakDay(day, week) {
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${col};">${att.label}</div>
           <div style="font-size:12px;color:${isLiveAdjusted ? 'var(--gold)' : 'var(--muted)'};">${isLiveAdjusted ? `Justeret fra sidste RPE (${liveSuggestion > att.kg ? '+' : ''}${(liveSuggestion - att.kg).toFixed(1)} kg)` : att.note}</div>
         </div>
-        <input type="number" inputmode="decimal" step="2.5" value="${savedKg}"
+        <input aria-label="${att.label} vægt i kg" type="number" inputmode="decimal" step="2.5" value="${savedKg}"
           onchange="saveAttemptKg('${lift}',${attemptNum},this.value)"
           style="background:var(--surface2);border:1px solid ${isLiveAdjusted ? 'var(--gold)' : 'var(--border)'};border-radius:8px;
                  color:var(--text);font-family:'Barlow Condensed',sans-serif;
@@ -4823,7 +4857,7 @@ function renderPeakDay(day, week) {
         html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;
           border-bottom:1px solid var(--border);background:rgba(0,0,0,0.1);">
           <span style="font-size:12px;color:var(--muted);flex:1;">RPE for dette forsøg?${i < 2 ? ' — opdaterer næste forsøg' : ''}</span>
-          <input type="number" inputmode="decimal" step="0.5" min="5" max="10"
+          <input aria-label="RPE for forsøg ${attemptNum}" type="number" inputmode="decimal" step="0.5" min="5" max="10"
             value="${savedRpe || ''}" placeholder="9"
             onchange="saveAttemptRpe('${lift}',${attemptNum},this.value)"
             style="width:56px;background:var(--surface2);border:1px solid var(--border);
@@ -6038,10 +6072,31 @@ function startTimer(duration, liftName, nextSetInfo) {
   nameEl.textContent = liftName || '';
   overlay.classList.add('open');
   updateTimerUI(ring, display);
+  if (window.DS) DS.announce('Pause startet: ' + fmtTime(duration) + (liftName ? ', ' + liftName : ''));
   updateTimerNextSetDisplay();
 
   timerInterval = setInterval(() => tickTimer(), 1000);
   scheduleTimerNotifications(duration, timerLiftName);
+  persistTimer();
+}
+
+// Pausetimeren overlever genindlæsning: sluttidspunktet gemmes lokalt (kun på denne enhed, ikke i sync).
+function persistTimer() {
+  try {
+    if (!timerEndAt) { localStorage.removeItem('sbd_pause_timer'); return; }
+    localStorage.setItem('sbd_pause_timer', JSON.stringify({ endAt: timerEndAt, total: timerTotal, lift: timerLiftName, next: timerNextSetInfo }));
+  } catch (e) {}
+}
+function restoreTimer() {
+  try {
+    const t = JSON.parse(localStorage.getItem('sbd_pause_timer') || 'null');
+    if (!t || !t.endAt || t.endAt <= Date.now() + 500) { localStorage.removeItem('sbd_pause_timer'); return; }
+    startTimer(Math.round((t.endAt - Date.now()) / 1000), t.lift, t.next);
+    timerTotal = Math.max(t.total || 0, timerRemaining);
+    timerEndAt = t.endAt;
+    persistTimer();
+    updateTimerUI(document.getElementById('timer-ring'), document.getElementById('timer-display'));
+  } catch (e) {}
 }
 
 // Viser næste sæt diskret under nedtællingen, med stigende tydelighed jo
@@ -6118,6 +6173,7 @@ function tickTimer() {
     clearInterval(timerInterval);
     timerInterval = null;
     timerEndAt = null;
+    persistTimer();
     cancelTimerNotifications();
     // Vibrate if supported
     if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
@@ -6126,6 +6182,7 @@ function tickTimer() {
     flash.className = 'timer-done-flash';
     document.querySelector('.timer-ring-wrap')?.appendChild(flash);
     setTimeout(() => flash.remove(), 700);
+    if (window.DS) DS.announce('Pause færdig');
     setTimeout(() => overlay.classList.remove('open'), 1200);
   } else {
     updateTimerUI(ring, display);
@@ -6155,6 +6212,7 @@ function skipTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
   timerEndAt = null;
+  persistTimer();
   cancelTimerNotifications();
   document.getElementById('timer-overlay').classList.remove('open');
 }
@@ -6165,6 +6223,7 @@ function addTimerTime(secs) {
   if (timerEndAt) {
     timerEndAt = Date.now() + timerRemaining * 1000;
     scheduleTimerNotifications(timerRemaining, timerLiftName);
+    persistTimer();
   }
   updateTimerUI(
     document.getElementById('timer-ring'),
@@ -6319,7 +6378,7 @@ function drawChart() {
     const y = pad.t + H * (1 - t);
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + W, y); ctx.stroke();
     const val = minV + t * (maxV - minV);
-    ctx.fillStyle = '#6b7280'; ctx.font = '10px Barlow,sans-serif';
+    ctx.fillStyle = '#9aa3b2'; ctx.font = '10px Barlow,sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(Math.round(val) + ' kg', pad.l - 4, y + 3);
   });
@@ -6352,7 +6411,7 @@ function drawChart() {
     ctx.fillStyle = color; ctx.fill();
     // X axis label (every other point if crowded)
     if (i % Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78)))) === 0 && (i === 0 || points[i-1].x !== p.x) && (points.length - 1 - i === 0 || points.length - 1 - i >= Math.ceil(points.length / Math.max(1, Math.floor(canvas.width / 78))) * 0.6)) {
-      ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif';
+      ctx.fillStyle = '#9aa3b2'; ctx.font = '9px Barlow,sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(p.x, x, canvas.height - 4);
     }
@@ -6374,6 +6433,7 @@ function registerSW() {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 registerSW();
 renderToday();
+restoreTimer();
 
 // Baggrunds-sync: vis lokale data med det samme (ovenfor), hent derefter
 // evt. nyere data fra andre enheder og gen-render hvis noget ændrede sig.
@@ -6395,36 +6455,6 @@ renderToday();
 
 </script>
 
-<script>
-/* Tilgængelighed: kobl labels til felter, gør faner tastaturbetjente, rolle på timer */
-(function(){
-  var seq=0;
-  function enhance(){
-    try{
-      document.querySelectorAll('label:not([for])').forEach(function(l){
-        var f=l.querySelector('input,select,textarea')||(l.nextElementSibling&&/^(INPUT|SELECT|TEXTAREA)$/.test(l.nextElementSibling.tagName)?l.nextElementSibling:null);
-        if(!f||l.contains(f))return;
-        if(!f.id)f.id='a11y-f'+(++seq);
-        l.setAttribute('for',f.id);
-      });
-      document.querySelectorAll('.tabs .tab').forEach(function(t){
-        t.setAttribute('role','tab'); t.tabIndex=0;
-        t.setAttribute('aria-selected',t.classList.contains('active')?'true':'false');
-      });
-      var tb=document.querySelector('.tabs'); if(tb){tb.setAttribute('role','tablist');tb.setAttribute('aria-label','Hovedmenu');}
-      var cd=document.getElementById('tm-countdown'); if(cd)cd.setAttribute('role','timer');
-      document.querySelectorAll('button:not([type])').forEach(function(b){b.type='button';});
-    }catch(e){}
-  }
-  document.addEventListener('keydown',function(e){
-    var t=e.target;
-    if(t&&t.classList&&t.classList.contains('tab')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();t.click();}
-  });
-  var pend=0;
-  if(typeof MutationObserver!=="undefined") new MutationObserver(function(){ if(pend)return; pend=setTimeout(function(){pend=0;enhance();},150); })
-    .observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
-  if(document.readyState!=='loading')enhance(); else document.addEventListener('DOMContentLoaded',enhance);
-})();
-</script>
+<script src="../ds.js"></script>
 </body>
 </html>

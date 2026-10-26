@@ -202,6 +202,36 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
   #view-analyse > .card:last-child{ grid-column:1 / -1; }
   #chart-form, #chart-pace{ width:100%; }
 }
+
+/* Løb-Log: handlinger (næste tur + registrering) til venstre, overblik (uge + historik) til højre */
+.log-col{ display:contents; }
+@media (min-width:1040px){
+  #view-log.active{ columns:auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 14px; align-items:start; }
+  #view-log > #plan-adjustment-banner{ grid-column:1 / -1; }
+  #view-log > #plan-adjustment-banner:empty{ display:none; }
+  .log-col{ display:block; min-width:0; }
+  .log-col-b #run-list{ max-height:560px; overflow:auto; padding-right:4px; }
+}
+.row + .row, .row + label, .note + label{ margin-top:12px; }
+.field-title{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; font-weight:600; }
+.form-error{ background:rgba(224,92,74,.12); border:1px solid var(--danger); color:var(--text); border-radius:var(--r-sm); padding:10px 12px; margin-top:10px; font-size:14px; }
+
+/* Løb-Log på mobil: rækkefølge efter betydning + sammenklappelige sekundære sektioner */
+.collapse-card > summary{ list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; min-height:44px; }
+.collapse-card > summary::-webkit-details-marker{ display:none; }
+.collapse-card > summary h2{ margin:0; flex:0 1 auto; }
+.collapse-card > summary .sum-hint{ color:var(--text-dim); font-size:13px; flex:1; min-width:0; }
+.collapse-card > summary::after{ content:'+'; font-family:var(--font-disp); font-size:26px; line-height:1; color:var(--gold); margin-left:auto; }
+.collapse-card[open] > summary::after{ content:'\2212'; }
+.collapse-card[open] > summary{ margin-bottom:10px; }
+#run-list-toggle{ width:100%; margin-top:8px; }
+@media (max-width:1039px){
+  #view-log.active{ display:flex; flex-direction:column; }
+  #view-log > #plan-adjustment-banner{ order:0; }
+  #suggestion-card{ order:1; } #newrun-card{ order:2; } #hist-card{ order:3; } #week-card{ order:4; } #rest-card{ order:5; }
+  #week-card .stat{ padding:8px; } #week-card .stat .val{ font-size:20px; }
+}
+@media (min-width:1040px){ .collapse-card > summary::after{ display:none; } .collapse-card > summary{ cursor:default; pointer-events:none; } .collapse-card > summary .sum-hint{ display:none; } }
 /* Aktiv timer: stort, læsbart på afstand */
 #timer-run-card{ text-align:center; padding:24px 16px; }
 #timer-run-card h2{ font-size:22px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2); }
@@ -234,61 +264,66 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
     <div class="card">
       <h2>Opsætning</h2>
       <div class="note">Udfyld dine basisværdier. Disse bruges til zoneberegning, VO2max-estimat og belastningsberegning (TRIMP).</div>
-      <label>Navn</label>
+      <label for="ob-navn">Navn</label>
       <input type="text" id="ob-navn" placeholder="Oliver">
       <div class="row">
-        <div><label>Maxpuls (bpm)</label><input type="number" id="ob-maxhr" placeholder="195"></div>
-        <div><label>Hvilepuls (bpm)</label><input type="number" id="ob-resthr" placeholder="55"></div>
+        <div><label for="ob-maxhr">Maxpuls (bpm)</label><input type="number" id="ob-maxhr" placeholder="195"></div>
+        <div><label for="ob-resthr">Hvilepuls (bpm)</label><input type="number" id="ob-resthr" placeholder="55"></div>
       </div>
       <div class="note">Kender du ikke din maxpuls? Brug 220-alder som groft udgangspunkt — juster senere når du har rigtige data.</div>
 
-      <label style="margin-top:16px;">20-min tempotest</label>
+      <div class="field-title" style="margin-top:16px;">20-min tempotest</div>
       <div class="note">Løb 20 min for fuld tryk (så hårdt du kan holde konstant). Indtast distancen du nåede — bruges til at sætte din VDOT-baseline for målcyklussen. Har du ikke lavet testen endnu, kan du springe over og udfylde senere under Opsætning.</div>
-      <label>Distance (km)</label>
+      <label for="ob-testkm">Distance (km)</label>
       <input type="number" step="0.01" id="ob-testkm" placeholder="4.2">
 
-      <label style="margin-top:16px;">Sæson-start</label>
+      <label for="ob-startdato" style="margin-top:16px;">Sæson-start</label>
       <input type="date" id="ob-startdato">
 
+      <div class="form-error" id="ob-error" role="alert" hidden></div>
       <button onclick="saveOnboarding()">Gem og start</button>
     </div>
   </div>
 
   <!-- LOG -->
-  <div class="view" id="view-log">
+  <div class="view" id="view-log" role="tabpanel" aria-labelledby="tab-log">
     <div id="plan-adjustment-banner"></div>
 
+    <div class="log-col log-col-a">
     <div class="card" id="suggestion-card">
       <h2>Næste løbetur <span class="accent" id="sug-type"></span></h2>
       <div id="sug-body"></div>
       <button class="secondary" id="not100-btn" onclick="toggleNotFeeling100()" style="margin-top:10px;"></button>
     </div>
 
-    <div class="card">
-      <h2>Ny løbetur</h2>
+    <details class="card collapse-card" id="newrun-card">
+      <summary><h2>Ny løbetur</h2><span class="sum-hint">Registrér et gennemført løb</span></summary>
       <div class="row">
-        <div><label>Dato</label><input type="date" id="lg-dato"></div>
-        <div><label>Distance (km)</label><input type="number" step="0.01" id="lg-dist" oninput="calcPacePreview()"></div>
+        <div><label for="lg-dato">Dato</label><input type="date" id="lg-dato"></div>
+        <div><label for="lg-dist">Distance (km)</label><input type="number" step="0.01" id="lg-dist" oninput="calcPacePreview()"></div>
       </div>
       <div class="row">
-        <div><label>Tid (min:sek)</label><input type="text" id="lg-tid" placeholder="45:30" oninput="calcPacePreview()"></div>
-        <div><label>Pace</label><input type="text" id="lg-pace-preview" disabled placeholder="—"></div>
+        <div><label for="lg-tid">Tid (min:sek)</label><input type="text" id="lg-tid" placeholder="45:30" oninput="calcPacePreview()"></div>
+        <div><label for="lg-pace-preview">Pace</label><input type="text" id="lg-pace-preview" disabled placeholder="—"></div>
       </div>
       <div class="row">
-        <div><label>Gns. puls</label><input type="number" id="lg-avghr"></div>
-        <div><label>Max puls</label><input type="number" id="lg-maxhr"></div>
+        <div><label for="lg-avghr">Gns. puls</label><input type="number" id="lg-avghr"></div>
+        <div><label for="lg-maxhr">Max puls</label><input type="number" id="lg-maxhr"></div>
       </div>
       <div class="row">
-        <div><label>Højdemeter (m)</label><input type="number" id="lg-elev" placeholder="0"></div>
-        <div><label>Følelse (1-5, valgfri)</label><input type="number" id="lg-feeling" min="1" max="5" placeholder="—"></div>
+        <div><label for="lg-elev">Højdemeter (m)</label><input type="number" id="lg-elev" placeholder="0"></div>
+        <div><label for="lg-feeling">Følelse (1-5, valgfri)</label><input type="number" id="lg-feeling" min="1" max="5" placeholder="—"></div>
       </div>
       <div class="note">1 = meget tung/udkørt, 5 = meget frisk. Bruges til at fange dage hvor kroppen var sliddet selv uden høj puls.</div>
-      <label>Noter</label>
+      <label for="lg-notat">Noter</label>
       <textarea id="lg-notat" rows="2" placeholder="Vejr, sko, terræn..."></textarea>
+      <div class="form-error" id="lg-error" role="alert" hidden></div>
       <button onclick="saveRun()">Gem løbetur</button>
-    </div>
+    </details>
 
-    <div class="card">
+    </div>
+    <div class="log-col log-col-b">
+    <div class="card" id="week-card">
       <h2>Denne uge <span class="accent" id="log-week-phase"></span></h2>
       <div class="stat-grid">
         <div class="stat"><div class="val" id="log-week-km">0</div><div class="lbl">km denne uge</div></div>
@@ -297,20 +332,22 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
       <div id="log-progression-warn"></div>
     </div>
 
-    <div class="card">
-      <h2>Resten af ugen</h2>
+    <details class="card collapse-card" id="rest-card">
+      <summary><h2>Resten af ugen</h2><span class="sum-hint">Prognose for kommende dage</span></summary>
       <div id="week-overview"></div>
       <div class="note">En prognose for resten af ugen, baseret på din fase og hvad du allerede har kørt. Tryk på en kommende dag for at låse den til Kvalitet, Let eller Hvile — eller "Auto" for at lade appen vurdere igen. Ændrer kun denne oversigt, ikke "Næste løbetur" ovenfor, som altid regner ud fra dine faktiske løb.</div>
-    </div>
+    </details>
 
-    <div class="card">
-      <h2>Historik</h2>
+    <div class="card" id="hist-card">
+      <h2>Seneste løb</h2>
       <div id="run-list"></div>
+      <button class="secondary small" id="run-list-toggle" type="button" onclick="toggleRunListAll()" hidden></button>
+    </div>
     </div>
   </div>
 
   <!-- ANALYSE -->
-  <div class="view" id="view-analyse">
+  <div class="view" id="view-analyse" role="tabpanel" aria-labelledby="tab-analyse">
     <div class="card">
       <h2>VO2max — estimater (ikke målt)</h2>
       <div class="stat-grid">
@@ -349,13 +386,13 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
   </div>
 
   <!-- PERIODISERING -->
-  <div class="view" id="view-periode">
+  <div class="view" id="view-periode" role="tabpanel" aria-labelledby="tab-periode">
     <div class="card">
       <h2>Mål<span class="accent"> · små og store</span></h2>
       <div id="goals-list"></div>
       <details style="margin-top:12px;">
         <summary style="cursor:pointer;color:var(--accent);">+ Tilføj mål</summary>
-        <label>Type</label>
+        <label for="gl-kind">Type</label>
         <select id="gl-kind" onchange="updateGoalForm()">
           <optgroup label="Distance">
             <option value="weekKm">Km pr. uge</option>
@@ -370,10 +407,10 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
             <option value="pace">Snittempo over distance (fx 8+ km under 5:30/km)</option>
           </optgroup>
         </select>
-        <div id="gl-target-wrap"><label id="gl-target-lbl">Mål (km)</label><input type="number" step="any" id="gl-target" inputmode="decimal"></div>
-        <div id="gl-extra-wrap" style="display:none;"><label id="gl-extra-lbl"></label><input type="number" step="any" id="gl-extra" inputmode="decimal"></div>
-        <div id="gl-time-wrap" style="display:none;"><label id="gl-time-lbl"></label><input type="text" id="gl-time" placeholder="mm:ss"></div>
-        <label>Deadline (valgfri)</label>
+        <div id="gl-target-wrap"><label for="gl-target" id="gl-target-lbl">Mål (km)</label><input type="number" step="any" id="gl-target" inputmode="decimal"></div>
+        <div id="gl-extra-wrap" style="display:none;"><label for="gl-extra" id="gl-extra-lbl"></label><input type="number" step="any" id="gl-extra" inputmode="decimal"></div>
+        <div id="gl-time-wrap" style="display:none;"><label for="gl-time" id="gl-time-lbl"></label><input type="text" id="gl-time" placeholder="mm:ss"></div>
+        <label for="gl-deadline">Deadline (valgfri)</label>
         <input type="date" id="gl-deadline">
         <button onclick="addGoal()">Tilføj mål</button>
         <div class="note">Fremdrift regnes automatisk ud fra dine loggede løb. Race-mål (under Opsætning) styrer stadig selve træningsplanen — her kan du have mange mål ved siden af.</div>
@@ -405,28 +442,28 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
   </div>
 
   <!-- TIMER -->
-  <div class="view" id="view-timer">
+  <div class="view" id="view-timer" role="tabpanel" aria-labelledby="tab-timer">
     <div class="card" id="timer-setup-card">
       <h2>Styret session</h2>
       <div class="note">Opsæt opvarmning, intervaller og pauser, og få talte påmindelser undervejs (fx "næste interval om 2 minutter"). Hold skærmen tændt under sessionen — browseren kan stoppe lyden hvis telefonen låser.</div>
       <button class="secondary" onclick="autofillTimerFromSuggestion()">Autofyld fra dagens forslag</button>
       <div id="timer-autofill-note"></div>
-      <label>Opvarmning (min)</label>
+      <label for="tm-warmup">Opvarmning (min)</label>
       <input type="number" id="tm-warmup" value="10">
       <div class="row">
-        <div><label>Antal intervaller</label><input type="number" id="tm-reps" value="1" min="1"></div>
-        <div><label>Arbejde (mm:ss)</label><input type="text" id="tm-work" placeholder="4:00"></div>
+        <div><label for="tm-reps">Antal intervaller</label><input type="number" id="tm-reps" value="1" min="1"></div>
+        <div><label for="tm-work">Arbejde (mm:ss)</label><input type="text" id="tm-work" placeholder="4:00"></div>
       </div>
-      <label>Pause mellem intervaller (mm:ss)</label>
+      <label for="tm-rest">Pause mellem intervaller (mm:ss)</label>
       <input type="text" id="tm-rest" placeholder="2:00">
-      <label>Nedkøling (min, valgfri)</label>
+      <label for="tm-cooldown">Nedkøling (min, valgfri)</label>
       <input type="number" id="tm-cooldown" value="5">
       <button onclick="startTimerSession()">Start session</button>
     </div>
 
     <div class="card hidden" id="timer-run-card">
-      <h2 id="tm-phase-label">—</h2>
-      <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:56px;font-weight:700;color:var(--accent);margin:10px 0;" id="tm-countdown">00:00</div>
+      <h2 id="tm-phase-label" aria-live="polite">—</h2>
+      <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:56px;font-weight:700;color:var(--accent);margin:10px 0;" id="tm-countdown" role="timer" aria-label="Resterende tid i fasen">00:00</div>
       <div class="note" id="tm-progress-note" style="text-align:center;"></div>
       <div class="row">
         <button class="secondary" id="tm-pause-btn" onclick="toggleTimerPause()">Pause</button>
@@ -436,21 +473,21 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
   </div>
 
   <!-- OPSÆTNING -->
-  <div class="view" id="view-settings">
+  <div class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings">
     <div class="card">
       <h2>Rediger profil</h2>
       <div class="row">
-        <div><label>Maxpuls</label><input type="number" id="st-maxhr"></div>
-        <div><label>Hvilepuls</label><input type="number" id="st-resthr"></div>
+        <div><label for="st-maxhr">Maxpuls</label><input type="number" id="st-maxhr"></div>
+        <div><label for="st-resthr">Hvilepuls</label><input type="number" id="st-resthr"></div>
       </div>
-      <label>20-min test distance (km)</label>
+      <label for="st-testkm">20-min test distance (km)</label>
       <input type="number" step="0.01" id="st-testkm">
       <button onclick="saveSettings()">Gem ændringer</button>
     </div>
 
     <div class="card">
       <h2>Målcyklus (VDOT)</h2>
-      <label>Målforbedring over 12 uger (%)</label>
+      <label for="st-goalpct">Målforbedring over 12 uger (%)</label>
       <input type="number" step="0.5" id="st-goalpct">
       <button onclick="saveSettings()">Gem målprocent</button>
       <button class="secondary" onclick="startNewGoalCycle()">Start ny målcyklus (nulstil baseline til nu)</button>
@@ -459,16 +496,16 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
     <div class="card">
       <h2>Race-mål (valgfrit)</h2>
       <div class="note">Sæt et konkret løb som mål — planen i Log-fanen og Periode-fanen skifter så til at tælle baglæns mod den dato i stedet for den generelle 12-ugers VDOT-cyklus.</div>
-      <label>Distance</label>
+      <label for="rg-distance">Distance</label>
       <select id="rg-distance">
         <option value="">Intet race-mål</option>
         <option value="5k">5 km</option>
         <option value="10k">10 km</option>
         <option value="half">Halvmarathon</option>
       </select>
-      <label>Racedato</label>
+      <label for="rg-dato">Racedato</label>
       <input type="date" id="rg-dato">
-      <label>Niveau</label>
+      <label for="rg-niveau">Niveau</label>
       <select id="rg-niveau">
         <option value="begynder">Begynder</option>
         <option value="mellem" selected>Mellem</option>
@@ -486,7 +523,7 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
     <div class="card">
       <h2>Import fra Samsung Health / Apple Health</h2>
       <div class="note">Eksportér din aktivitet som GPX eller TCX fra din health-app og importér her. CSV med kolonner <code>dato,distance_km,tid_min,gns_puls,max_puls,højdemeter</code> understøttes også.</div>
-      <input type="file" id="import-file" accept=".gpx,.tcx,.csv" style="margin-top:10px;">
+      <input type="file" id="import-file" aria-label="Vælg GPX-, TCX- eller CSV-fil til import" accept=".gpx,.tcx,.csv" style="margin-top:10px;">
       <button onclick="handleImport()">Importér fil</button>
       <div id="import-result"></div>
     </div>
@@ -494,7 +531,7 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
     <div class="card">
       <h2>Synkronisering</h2>
       <div class="note">Hvis din sync-Worker er sat op med en adgangskode (SYNC_TOKEN), skal samme kode indtastes her. Den gemmes kun på denne enhed og deles automatisk med SBD-trackeren og dashboardet på samme domæne.</div>
-      <label>Sync-adgangskode</label>
+      <label for="st-synctoken">Sync-adgangskode</label>
       <input type="password" id="st-synctoken" autocomplete="off" placeholder="Samme som SYNC_TOKEN i Cloudflare">
       <button class="secondary" onclick="saveSyncToken()">Gem adgangskode</button>
       <div id="sync-status"></div>
@@ -504,7 +541,7 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
       <h2>Data</h2>
       <div class="note">Backup gemmer begge profiler i én fil. Tag en backup jævnligt — hvis browserdata ryddes, er filen din eneste redning.</div>
       <button class="secondary" onclick="exportData()">Download backup (begge profiler, JSON)</button>
-      <label style="margin-top:12px;">Gendan fra backup</label>
+      <label for="backup-file" style="margin-top:12px;">Gendan fra backup</label>
       <input type="file" id="backup-file" accept=".json,application/json">
       <button class="secondary" onclick="importBackup()">Gendan backup</button>
       <div id="backup-result"></div>
@@ -515,12 +552,12 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
 
 </main>
 
-<div class="tabs">
-  <div class="tab active" data-view="log" onclick="switchTab('log')">Log</div>
-  <div class="tab" data-view="analyse" onclick="switchTab('analyse')">Analyse</div>
-  <div class="tab" data-view="periode" onclick="switchTab('periode')">Periode</div>
-  <div class="tab" data-view="timer" onclick="switchTab('timer')">Timer</div>
-  <div class="tab" data-view="settings" onclick="switchTab('settings')">Opsætning</div>
+<div class="tabs" role="tablist" aria-label="Løbesektioner">
+  <div class="tab active" role="tab" id="tab-log" aria-controls="view-log" aria-selected="true" tabindex="0" data-view="log" onclick="switchTab('log')">Log</div>
+  <div class="tab" role="tab" id="tab-analyse" aria-controls="view-analyse" aria-selected="false" tabindex="-1" data-view="analyse" onclick="switchTab('analyse')">Analyse</div>
+  <div class="tab" role="tab" id="tab-periode" aria-controls="view-periode" aria-selected="false" tabindex="-1" data-view="periode" onclick="switchTab('periode')">Periode</div>
+  <div class="tab" role="tab" id="tab-timer" aria-controls="view-timer" aria-selected="false" tabindex="-1" data-view="timer" onclick="switchTab('timer')">Timer</div>
+  <div class="tab" role="tab" id="tab-settings" aria-controls="view-settings" aria-selected="false" tabindex="-1" data-view="settings" onclick="switchTab('settings')">Opsætning</div>
 </div>
 
 <script>
@@ -674,6 +711,17 @@ function fmtPace(secPerKm){
   const m = Math.floor(tot/60);
   const s = tot%60;
   return m+':'+String(s).padStart(2,'0')+'/km';
+}
+function showFormError(boxId, msg, focusId){
+  const box = document.getElementById(boxId); if(!box) return;
+  box.textContent = msg; box.hidden = false;
+  const dd = box.closest('details'); if(dd) dd.open = true;
+  const f = focusId && document.getElementById(focusId);
+  if(f){ f.setAttribute('aria-invalid','true'); f.setAttribute('aria-describedby', boxId); try{ f.focus(); }catch(e){} }
+}
+function clearFormError(boxId, fieldIds){
+  const box = document.getElementById(boxId); if(box){ box.hidden = true; box.textContent = ''; }
+  (fieldIds||[]).forEach(id=>{ const f=document.getElementById(id); if(f){ f.removeAttribute('aria-invalid'); f.removeAttribute('aria-describedby'); } });
 }
 function parseTidToSec(str){
   if(!str) return 0;
@@ -1441,8 +1489,9 @@ function switchTab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   const view = document.getElementById('view-'+name);
   if(view) view.classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>{ t.setAttribute('aria-selected','false'); t.tabIndex=-1; });
   const tab = document.querySelector('.tab[data-view="'+name+'"]');
-  if(tab) tab.classList.add('active');
+  if(tab){ tab.classList.add('active'); tab.setAttribute('aria-selected','true'); tab.tabIndex=0; }
   renderAll();
 }
 
@@ -1455,7 +1504,7 @@ function saveOnboarding(){
   const startdato = document.getElementById('ob-startdato').value || localDateStr();
 
   if(!maxHR || !restHR){
-    alert('Udfyld mindst maxpuls og hvilepuls for at fortsætte.');
+    showFormError('ob-error','Udfyld mindst maxpuls og hvilepuls for at fortsætte.', !maxHR ? 'ob-maxhr' : 'ob-resthr');
     return;
   }
   const baselineVdot = testKm ? vdotFromDistanceTime(testKm, 20) : null;
@@ -1497,12 +1546,13 @@ function saveRun(){
   const feeling = (feelingRaw>=1 && feelingRaw<=5) ? feelingRaw : null;
   const notat = document.getElementById('lg-notat').value.trim();
 
-  if(!dist || dist<=0){ alert('Indtast en distance større end 0.'); return; }
-  if(!tidSec || tidSec<=0){ alert('Indtast en gyldig tid (mm:ss).'); return; }
+  clearFormError('lg-error',['lg-dist','lg-tid']);
+  if(!dist || dist<=0){ showFormError('lg-error','Indtast en distance større end 0 km.','lg-dist'); return; }
+  if(!tidSec || tidSec<=0){ showFormError('lg-error','Indtast en gyldig tid i formatet mm:ss (fx 45:30).','lg-tid'); return; }
 
   const check = checkRunPlausibility({distanceKm:dist, durationSec:tidSec, avgHR, maxHR, elev, date:dato});
   if(check.errors.length){
-    alert('Kan ikke gemme:\n- ' + check.errors.join('\n- '));
+    showFormError('lg-error','Kan ikke gemme: ' + check.errors.join(' · '),'lg-dist');
     return;
   }
   if(check.warnings.length){
@@ -1529,13 +1579,25 @@ function deleteRun(id){
   renderAll();
 }
 
+const RUNLIST_LIMIT = 5;
+let runListShowAll = false;
+function toggleRunListAll(){ runListShowAll = !runListShowAll; renderRunList(); }
+function syncCollapseCards(){
+  const desk = window.matchMedia && window.matchMedia('(min-width:1040px)').matches;
+  document.querySelectorAll('details.collapse-card').forEach(d=>{ if(desk) d.open = true; });
+}
+if(window.matchMedia){ try{ window.matchMedia('(min-width:1040px)').addEventListener('change', syncCollapseCards); }catch(e){} }
+document.addEventListener('DOMContentLoaded', syncCollapseCards);
 function renderRunList(){
   const el = document.getElementById('run-list');
   if(aState().runs.length===0){
     el.innerHTML = '<div class="empty">Ingen løbeture endnu. Tilføj din første ovenfor.</div>';
     return;
   }
-  const sorted = [...aState().runs].sort((a,b)=> b.date.localeCompare(a.date));
+  const sortedAll = [...aState().runs].sort((a,b)=> b.date.localeCompare(a.date));
+  const sorted = runListShowAll ? sortedAll : sortedAll.slice(0, RUNLIST_LIMIT);
+  const tg = document.getElementById('run-list-toggle');
+  if(tg){ tg.hidden = sortedAll.length <= RUNLIST_LIMIT; tg.textContent = runListShowAll ? 'Vis kun de seneste '+RUNLIST_LIMIT : 'Vis alle '+sortedAll.length+' løb'; tg.setAttribute('aria-expanded', String(runListShowAll)); }
   el.innerHTML = sorted.map(r=>{
     const pace = fmtPace(r.durationSec/r.distanceKm);
     const min = Math.floor(r.durationSec/60), sec = r.durationSec%60;
@@ -2666,36 +2728,6 @@ init().catch(function(e){
 });
 </script>
 
-<script>
-/* Tilgængelighed: kobl labels til felter, gør faner tastaturbetjente, rolle på timer */
-(function(){
-  var seq=0;
-  function enhance(){
-    try{
-      document.querySelectorAll('label:not([for])').forEach(function(l){
-        var f=l.querySelector('input,select,textarea')||(l.nextElementSibling&&/^(INPUT|SELECT|TEXTAREA)$/.test(l.nextElementSibling.tagName)?l.nextElementSibling:null);
-        if(!f||l.contains(f))return;
-        if(!f.id)f.id='a11y-f'+(++seq);
-        l.setAttribute('for',f.id);
-      });
-      document.querySelectorAll('.tabs .tab').forEach(function(t){
-        t.setAttribute('role','tab'); t.tabIndex=0;
-        t.setAttribute('aria-selected',t.classList.contains('active')?'true':'false');
-      });
-      var tb=document.querySelector('.tabs'); if(tb){tb.setAttribute('role','tablist');tb.setAttribute('aria-label','Hovedmenu');}
-      var cd=document.getElementById('tm-countdown'); if(cd)cd.setAttribute('role','timer');
-      document.querySelectorAll('button:not([type])').forEach(function(b){b.type='button';});
-    }catch(e){}
-  }
-  document.addEventListener('keydown',function(e){
-    var t=e.target;
-    if(t&&t.classList&&t.classList.contains('tab')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();t.click();}
-  });
-  var pend=0;
-  if(typeof MutationObserver!=="undefined") new MutationObserver(function(){ if(pend)return; pend=setTimeout(function(){pend=0;enhance();},150); })
-    .observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
-  if(document.readyState!=='loading')enhance(); else document.addEventListener('DOMContentLoaded',enhance);
-})();
-</script>
+<script src="../ds.js"></script>
 </body>
 </html>

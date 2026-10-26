@@ -30,14 +30,15 @@
   /* ── Semantik ── */
   --success:   #3db87a;
   --warning:   #e0a43a;
-  --danger:    #e05c4a;
-  --info:      #4a90d9;
+  --danger:    #ee7566;
+  --danger-bg: #c4402f;
+  --info:      #6aa8e8;
   --green:     var(--success);
   --red:       var(--danger);
 
   /* ── Løft + zoner ── */
-  --sq: #4a90d9;  --bp: #d4a843;  --dl: #e05c4a;
-  --z1: #4a90d9;  --z2: #5ea472;  --z3: #d4a843;  --z4: #d97b3a;  --z5: #c85450;
+  --sq: #6aa8e8;  --bp: #d4a843;  --dl: #ee7566;
+  --z1: #6aa8e8;  --z2: #5ea472;  --z3: #d4a843;  --z4: #d97b3a;  --z5: #c85450;
 
   /* ── Typografi ── */
   --font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
@@ -74,16 +75,19 @@ button { font-family: inherit; }
 button, [role="button"], a, label, select { touch-action: manipulation; }
 ::selection { background: rgba(212, 168, 67, 0.35); }
 
-/* ── Fokus: altid synligt for tastatur, aldrig for mus/touch ── */
-:focus { outline: none; }
+/* ── Fokus: tydelig indikator for tastatur (focus-visible), ingen ring ved museklik ──
+   !important, fordi enkelte sider har egne ".x:focus{outline:none}"-regler med højere specificitet. */
+:focus:not(:focus-visible) { outline: none; }
 :focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
+  outline: 2px solid var(--gold) !important;
+  outline-offset: 2px !important;
 }
 input:focus-visible, select:focus-visible, textarea:focus-visible {
-  outline-offset: 0;
+  outline-offset: 0 !important;
   border-color: var(--gold) !important;
 }
+/* Mørk baggrund + guld ring har 7:1+; på guld-fyldte knapper skiftes til lys ring */
+button:focus-visible[class*="primary"], .open-btn:focus-visible, .today-btn:focus-visible { outline-color: var(--text) !important; }
 
 /* ── Deaktiveret ── */
 button:disabled, [aria-disabled="true"], .is-disabled {
@@ -114,3 +118,7 @@ button:disabled, [aria-disabled="true"], .is-disabled {
 
 /* ── Rulleliste ── */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+
+/* Kontrast: hvid tekst på fyldte farveknapper skal ramme 4.5:1 */
+button.danger, .btn-danger, .danger-btn{ background:var(--danger-bg); color:#fff; }
+[hidden]{ display:none !important; }
