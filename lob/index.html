@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#111318">
 <title>Løbetræning Tracker</title>
 <link rel="manifest" href="manifest.json">
+<script src="../tp-core.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap');
 
@@ -539,12 +540,7 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
 
     <div class="card">
       <h2>Data</h2>
-      <div class="note">Backup gemmer begge profiler i én fil. Tag en backup jævnligt — hvis browserdata ryddes, er filen din eneste redning.</div>
-      <button class="secondary" onclick="exportData()">Download backup (begge profiler, JSON)</button>
-      <label for="backup-file" style="margin-top:12px;">Gendan fra backup</label>
-      <input type="file" id="backup-file" accept=".json,application/json">
-      <button class="secondary" onclick="importBackup()">Gendan backup</button>
-      <div id="backup-result"></div>
+      <div id="tp-backup-mount" style="margin-bottom:14px;"></div>
       <button class="danger" onclick="resetSeason()">Nulstil sæson (ny sæson-start)</button>
       <button class="danger" onclick="wipeAll()">Slet alt data</button>
     </div>
@@ -665,6 +661,7 @@ function loadState(key){
     if(parsed.profile.dismissedGapFor === undefined) parsed.profile.dismissedGapFor = null;
     if(!parsed.profile.raceGoal) parsed.profile.raceGoal = { active:false, distance:null, date:null, niveau:'mellem', activatedDate:null };
     if(!Array.isArray(parsed.profile.goals)) parsed.profile.goals = [];
+    if(window.TP) TP.migrateLob(parsed); // V3: stabile løbs-id'er + schema-version (tilføjende)
     // Selvreparation: en sæson-start i fremtiden (fx efter gentagne tryk på "Skub planen") giver uge 1 for evigt
     if(parsed.profile.seasonStart && parsed.profile.seasonStart > localDateStr()) parsed.profile.seasonStart = localDateStr();
     return parsed;
@@ -2669,6 +2666,7 @@ function renderGoals(){
 }
 
 function renderAll(){
+  if(!state || !partnerState) return; // data ikke indlæst endnu
   document.getElementById('headerSub').textContent = aState().profile.navn
     ? aState().profile.navn+' · Sæson-uge '+seasonWeekNumber()
     : 'Løbetræning';
@@ -2685,8 +2683,8 @@ function renderAll(){
 
 /* ================= INIT ================= */
 async function init(){
-  await syncPull(STORE_KEY);
-  await syncPull(STORE_KEY_PARTNER);
+  // Lokale data først, så appen er brugbar straks (også offline / ved langsomt net).
+  // Sync hentes bagefter i baggrunden og gen-renderer kun hvis noget faktisk ændrede sig.
   state = loadState(STORE_KEY);
   partnerState = loadState(STORE_KEY_PARTNER);
   activeProfile = localStorage.getItem('lob_active_profile') || 'main';
@@ -2721,6 +2719,18 @@ async function init(){
       console.log('SW kunne ikke tilgås (fx sandbox-preview):', e);
     }
   }
+
+  // Baggrunds-sync (se kommentaren øverst i init)
+  (async function bootstrapSync(){
+    const c1 = await syncPull(STORE_KEY);
+    const c2 = await syncPull(STORE_KEY_PARTNER);
+    if(c1 || c2){
+      state = loadState(STORE_KEY);
+      partnerState = loadState(STORE_KEY_PARTNER);
+      if(aState().profile.onboarded){ renderAll(); renderSyncStatus(); }
+    }
+    renderSyncStatus();
+  })().catch(function(e){ console.log('Baggrunds-sync fejlede:', e); });
 }
 init().catch(function(e){
   console.log('Init-fejl:', e);
@@ -2729,5 +2739,9 @@ init().catch(function(e){
 </script>
 
 <script src="../ds.js"></script>
+<script src="../tp-ui.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){ if(window.TPUI) TPUI.mountBackup(document.getElementById('tp-backup-mount')); });
+</script>
 </body>
 </html>

@@ -18,6 +18,7 @@ function rec(area, name, status, detail) {
   console.log((status === 'PASS' ? '  ✔ ' : status === 'FAIL' ? '  ✘ ' : '  – ') + area + ' · ' + name + (detail ? '  [' + detail + ']' : ''));
 }
 async function check(area, name, fn) {
+  if (process.env.ONLY && !new RegExp(process.env.ONLY).test(area + ' ' + name)) return; // ONLY=regex: kør kun matchende (til hurtig iteration)
   try { const d = await fn(); rec(area, name, 'PASS', typeof d === 'string' ? d : ''); }
   catch (e) { rec(area, name, 'FAIL', String(e.message || e).split('\n').slice(0,3).join(' ').slice(0, 300)); }
 }
@@ -44,7 +45,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
       return r.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' }, body: '' });
     });
     const page = await ctx.newPage();
-    page.setDefaultTimeout(8000); page.errors = []; page.on('pageerror', e => page.errors.push(e.message));
+    page.setDefaultTimeout(8000); page.errors = []; page.on('pageerror', e => page.errors.push(e.message + (process.env.STACK ? ' @ ' + String(e.stack).split('\n')[1] : '')));
     page.ctx = ctx;
     return page;
   }
@@ -283,6 +284,104 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     await p.ctx.close(); await q.ctx.close(); return 'MOCK – ikke verificeret mod rigtig Worker';
   });
 
+  /* ───────── V3 · FASE 1: SAMLET BACKUP & GENDANNELSE ───────── */
+  const settingsMount = async (p) => { await p.waitForSelector('#tp-backup-mount .tp-panel', { state: 'attached' }); await p.locator('#tp-backup-mount').scrollIntoViewIfNeeded().catch(() => {}); };
+  await check('Backup (V3)', 'Panelet findes i dashboard, SBD-indstillinger og løb-opsætning', async () => {
+    let p = await newPage(1366, 900); await open(p, 'index.html'); await settingsMount(p); await p.ctx.close();
+    p = await newPage(1366, 900); await open(p, 'sbd/index.html'); await p.click('.nav-btn:nth-child(4)'); await settingsMount(p); await p.ctx.close();
+    p = await newPage(1366, 900); await open(p, 'lob/index.html'); await p.click('#tab-settings'); await settingsMount(p); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Backup (V3)', 'Eksport (download) → fil har version/checksum/begge profiler og ingen sync_token', async () => {
+    const p = await newPage(1366, 900); await p.addInitScript(() => localStorage.setItem('sync_token', 'HEMMELIG-TEST-TOKEN'));
+    await open(p, 'index.html'); await settingsMount(p);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tp-backup-mount [data-act=exp-all]')]);
+    const txt = fs.readFileSync(await dl.path(), 'utf8'); const b = JSON.parse(txt);
+    eq(b.app, 'traening-platform'); eq(b.format, 3); ok(b.exportedAt && b.meta.checksum && b.appVersion);
+    ok(b.data.sbd_state && b.data.sbd_partner && b.data.lob_state && b.data.lob_partner, 'begge profiler mangler');
+    ok(!/HEMMELIG-TEST-TOKEN|sync_token/.test(txt), 'token lækket i backup'); await p.ctx.close();
+    return dl.suggestedFilename();
+  });
+  await check('Backup (V3)', 'Gendannelse: korrupt fil afvises uden ændring; gyldig fil viser plan+konflikt og kræver bekræftelse', async () => {
+    const p = await newPage(1366, 900); await open(p, 'index.html'); await settingsMount(p);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tp-backup-mount [data-act=exp-all]')]);
+    const good = fs.readFileSync(await dl.path(), 'utf8');
+    const before = await p.evaluate(() => JSON.stringify(Object.keys(localStorage).sort().map(k => [k, localStorage.getItem(k)])));
+    // 1) afkortet fil
+    await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(good.slice(0, good.length >> 1)) });
+    await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [role=alert]');
+    ok(/kan ikke gendannes/i.test(await p.innerText('#tp-backup-mount [role=alert]')));
+    eq(await p.evaluate(() => JSON.stringify(Object.keys(localStorage).sort().map(k => [k, localStorage.getItem(k)]))), before, 'afvist import ændrede data');
+    // 2) manipuleret indhold (checksum)
+    const tam = JSON.parse(good); tam.data.lob_state.runs[0].distanceKm = 42;
+    await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'y.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(tam)) });
+    await p.click('#tp-backup-mount [data-act=check]'); await p.waitForTimeout(300);
+    ok(/Kontrolsum/i.test(await p.innerText('#tp-backup-mount [role=alert]')), 'checksum-fejl vist ikke');
+    // 3) gyldig fil, men nuværende data har ét løb mere → konflikt, knap deaktiveret til bekræftelse
+    await p.evaluate(() => { const s = JSON.parse(localStorage.lob_state); s.runs.push({ id: 'ekstra', date: '2026-10-25', distanceKm: 5, durationSec: 1500 }); localStorage.lob_state = JSON.stringify(s); });
+    await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'z.json', mimeType: 'application/json', buffer: Buffer.from(good) });
+    await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-act=apply]');
+    ok(await p.isDisabled('#tp-backup-mount [data-act=apply]'), 'Gendan-knap skal være deaktiveret før bekræftelse');
+    ok(/færre løb/.test(await p.innerText('#tp-backup-mount')), 'konflikt ikke vist');
+    await p.check('#tp-backup-mount [data-role=confirm]'); ok(!(await p.isDisabled('#tp-backup-mount [data-act=apply]')));
+    await p.click('#tp-backup-mount [data-act=cancel]'); ok((await p.locator('#tp-backup-mount [data-act=apply]').count()) === 0);
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Backup (V3)', 'Gendannelse + genindlæs: data tilbage, Ellens data uændret ved Olivers-fil, "Fortryd" genskaber', async () => {
+    const p = await newPage(1366, 900); await open(p, 'index.html'); await settingsMount(p);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tp-backup-mount [data-act=exp-main]')]);
+    const mainOnly = fs.readFileSync(await dl.path(), 'utf8');
+    const orig = await p.evaluate(() => ({ r: JSON.parse(localStorage.lob_state).runs.length, p: localStorage.lob_partner, sp: localStorage.sbd_partner }));
+    await p.evaluate(() => { const s = JSON.parse(localStorage.lob_state); s.runs.push({ id: 'ekstra', date: '2026-10-25', distanceKm: 5, durationSec: 1500 }); localStorage.lob_state = JSON.stringify(s); const q = JSON.parse(localStorage.lob_partner); q.runs.push({ id: 'ellen-ny', date: '2026-10-25', distanceKm: 3, durationSec: 1000 }); localStorage.lob_partner = JSON.stringify(q); });
+    const ellenNow = await p.evaluate(() => localStorage.lob_partner);
+    await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'main.json', mimeType: 'application/json', buffer: Buffer.from(mainOnly) });
+    await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-act=apply]');
+    ok(!/Ellen/.test(await p.innerText('#tp-backup-mount .tp-box')) || /Oliver/.test(await p.innerText('#tp-backup-mount')), 'plan');
+    await p.check('#tp-backup-mount [data-role=confirm]');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'load' }), p.click('#tp-backup-mount [data-act=apply]')]); await p.waitForTimeout(900);
+    const after = await p.evaluate(() => ({ r: JSON.parse(localStorage.lob_state).runs.length, p: localStorage.lob_partner, snap: !!localStorage.tp_prerestore_snapshot }));
+    eq(after.r, orig.r, 'Olivers løb ikke gendannet'); eq(after.p, ellenNow, 'Ellens data ændret af Olivers backup'); ok(after.snap, 'ingen sikkerhedskopi');
+    await settingsMount(p); await p.waitForSelector('#tp-backup-mount [data-act=undo]');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'load' }), p.click('#tp-backup-mount [data-act=undo]')]); await p.waitForTimeout(700);
+    eq(await p.evaluate(() => JSON.parse(localStorage.lob_state).runs.length), orig.r + 1, 'fortryd genskabte ikke de nye data');
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Backup (V3)', 'Gammelt SBD-/løbe-format kan stadig gendannes (kun sin del)', async () => {
+    const p = await newPage(1366, 900); await open(p, 'sbd/index.html'); await p.click('.nav-btn:nth-child(4)'); await settingsMount(p);
+    const legacy = { app: 'lob-tracker', version: 1, exportedAt: new Date().toISOString(), main: demo.lob_state, partner: demo.lob_partner };
+    await p.evaluate(() => { const s = JSON.parse(localStorage.lob_state); s.runs = s.runs.slice(0, 3); localStorage.lob_state = JSON.stringify(s); });
+    const sbdBefore = await p.evaluate(() => localStorage.sbd_state);
+    await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'gammel.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(legacy)) });
+    await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-act=apply]');
+    ok(/Gammelt løbe-backupformat/.test(await p.innerText('#tp-backup-mount')));
+    await p.check('#tp-backup-mount [data-role=confirm]');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'load' }), p.click('#tp-backup-mount [data-act=apply]')]); await p.waitForTimeout(800);
+    eq(await p.evaluate(() => JSON.parse(localStorage.lob_state).runs.length), demo.lob_state.runs.length);
+    const sbdAfter = JSON.parse(await p.evaluate(() => localStorage.sbd_state)); eq(sbdAfter.completedDays.length, JSON.parse(sbdBefore).completedDays.length, 'SBD blev rørt af løbefil');
+    await p.ctx.close();
+  });
+  await check('Backup (V3)', 'Sync-sikkerhed (mock): gendannede data overskrives ikke af en ÆLDRE serverkopi ved næste opstart', async () => {
+    const p = await newPage(1366, 900); await open(p, 'index.html'); await settingsMount(p);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tp-backup-mount [data-act=exp-main]')]);
+    const backup = fs.readFileSync(await dl.path(), 'utf8'); const n = demo.lob_state.runs.length;
+    await p.evaluate(() => { const s = JSON.parse(localStorage.lob_state); s.runs.push({ id: 'ekstra', date: '2026-10-25', distanceKm: 5, durationSec: 1500 }); localStorage.lob_state = JSON.stringify(s); });
+    const old = JSON.parse(JSON.stringify(demo.lob_state)); old.runs = old.runs.slice(0, 2);
+    kv['lob_state'] = { value: old, updatedAt: Date.now() - 3600000 };  // serverens kopi er ÆLDRE end gendannelsen
+    await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'm.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+    await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-role=confirm]'); await p.check('#tp-backup-mount [data-role=confirm]');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'load' }), p.click('#tp-backup-mount [data-act=apply]')]); await p.waitForTimeout(1500);
+    eq(await p.evaluate(() => JSON.parse(localStorage.lob_state).runs.length), n, 'ældre serverkopi overskrev gendannelsen');
+    await open(p, 'lob/index.html'); await p.waitForTimeout(800);
+    eq(await p.evaluate(() => JSON.parse(localStorage.lob_state).runs.length), n, 'løb-siden hentede ældre serverdata');
+    eq(p.errors, []); await p.ctx.close(); return 'MOCK – ikke verificeret mod rigtig Worker';
+  });
+  await check('Backup (V3)', 'Gendannelse i én fane får en anden åben fane til at genindlæse (ingen forældet overskrivning)', async () => {
+    const a = await newPage(1366, 900); await open(a, 'sbd/index.html');
+    const b = await a.ctx.newPage(); await b.goto(url + 'index.html'); await b.waitForTimeout(600);
+    let reloaded = false; a.on('load', () => { reloaded = true; });
+    await b.evaluate(() => localStorage.setItem('tp_restore_epoch', String(Date.now()))); await a.waitForTimeout(1200);
+    ok(reloaded, 'SBD-fanen genindlæste ikke'); await a.ctx.close();
+  });
+
   /* ───────── AXE ───────── */
   let axeSrc = null;
   for (const c of [process.env.AXE_PATH, path.join(__dirname, '..', 'node_modules', 'axe-core', 'axe.min.js'), path.join(__dirname, '..', '..', 'axe', 'node_modules', 'axe-core', 'axe.min.js')]) if (c && fs.existsSync(c)) { axeSrc = fs.readFileSync(c, 'utf8'); break; }
@@ -300,6 +399,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
       ['Løb Timer (setup)', 'lob/index.html', async p => { await p.click('#tab-timer'); }],
       ['Løb Timer (kører)', 'lob/index.html', async p => { await p.click('#tab-timer'); await p.fill('#tm-reps', '2'); await p.fill('#tm-work', '0:30'); await p.fill('#tm-rest', '0:20'); await p.click('text=Start session'); await p.waitForTimeout(500); }],
       ['Løb Opsætning', 'lob/index.html', async p => { await p.click('#tab-settings'); }],
+      ['Dashboard backup-plan', 'index.html', async p => { await p.waitForSelector('#tp-backup-mount .tp-panel', { state: 'attached' }); if (!(await p.isVisible('#tp-backup-mount [data-act=check]'))) await p.locator('.section-label', { hasText: 'Indstillinger' }).click(); const b = JSON.stringify(await p.evaluate(() => TP.buildBackup('all'))); await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'a.json', mimeType: 'application/json', buffer: Buffer.from(b) }); await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-role=confirm]'); }],
     ];
     for (const w of [390, 1366]) for (const [name, rel, prep] of states) {
       await check('Tilgængelighed (axe)', name + ' @' + w, async () => {

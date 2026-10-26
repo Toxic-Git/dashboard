@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#111318">
 <link rel="manifest" href="manifest.json">
 <title>Træning — Dashboard</title>
+<script src="tp-core.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
 :root{
@@ -1207,8 +1208,16 @@ function renderInsights(sRaw, lRaw){
 }
 
 // ── Indstillinger — samlet sted for påmindelser, cyklus, sync og værktøjer ─
+function mountBackupPanel(){
+  const el=document.getElementById('tp-backup-mount');
+  if(el && window.TPUI && !el.firstChild) TPUI.mountBackup(el);
+}
+window.addEventListener('load', mountBackupPanel);
 function renderSettings(){
   const sync = syncEnabled();
+  // Behold backup-panelet (og dets tilstand, fx en vist gendannelsesplan) når indstillinger gen-renderes
+  const keepMount = document.getElementById('tp-backup-mount');
+  if(keepMount) keepMount.remove();
   document.getElementById('slot-settings').innerHTML = `
     <div class="section-card">
       <h3>Indstillinger</h3>
@@ -1222,9 +1231,13 @@ function renderSettings(){
       <div class="deferred-note">${sync
         ? 'Cross-device sync er aktiv — data deles automatisk mellem jeres enheder.'
         : 'Cross-device sync er ikke sat op — data gemmes kun lokalt på denne enhed. Se opsætningsguiden (SETUP.md, trin 2).'}</div>
+      <div class="schedule-settings-label" style="margin-top:14px;">Backup &amp; gendannelse</div>
+      <div id="tp-backup-mount"></div>
       <div class="schedule-settings-label" style="margin-top:14px;">Værktøjer</div>
       <a class="day-picker-btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;" href="./demo-data.html">Demo-data — se appen fyldt med eksempeldata</a>
     </div>`;
+  if(keepMount){ const ph=document.getElementById('tp-backup-mount'); if(ph) ph.replaceWith(keepMount); }
+  mountBackupPanel();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2048,5 +2061,6 @@ boot();
 </script>
 
 <script src="ds.js"></script>
+<script src="tp-ui.js"></script>
 </body>
 </html>

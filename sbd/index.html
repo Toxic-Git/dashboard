@@ -13,6 +13,7 @@
 <!-- iOS icons -->
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>SBD Tracker</title>
+<script src="../tp-core.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
 
@@ -854,9 +855,11 @@ html, body {
   <div class="settings-label" style="padding:0 18px;">Backup &amp; genstart</div>
   <div class="settings-card" style="padding:12px 14px;margin:0 18px 14px;">
     <button class="settings-btn" style="width:100%;margin-bottom:8px;" onclick="exportProgramData()">📁 Eksportér program-data (til analyse)</button>
-    <button class="settings-btn" style="width:100%;margin-bottom:8px;" onclick="exportFullBackup()">💾 Fuld backup (alt, rå JSON)</button>
+    <button class="settings-btn" style="width:100%;margin-bottom:8px;" onclick="exportFullBackup()">💾 Samlet backup nu (begge profiler)</button>
     <button class="settings-btn" style="width:100%;" onclick="openRestartModal()">🔄 Genstart til uge 1 (behold accessories)</button>
   </div>
+  <div class="settings-label" style="padding:0 18px;">Samlet backup &amp; gendannelse</div>
+  <div class="settings-card" style="padding:12px 14px;margin:0 18px 14px;" id="tp-backup-mount"></div>
   <button class="danger-btn" onclick="confirmReset()">Nulstil al data</button>
 </div>
 
@@ -1590,6 +1593,8 @@ if (!state.peakResults) state.peakResults = {};
 if (!state.dayOverrides) state.dayOverrides = {};
 if (!state.sessionNotes) state.sessionNotes = {};
 if (!partnerState.sessionNotes) partnerState.sessionNotes = {};
+// V3: versionering + nye felter (exerciseSubs, altOverrides, sessionEval, stabile session-id'er). Idempotent og kun tilføjende.
+if (window.TP) { TP.migrateSbd(state, 'main'); TP.migrateSbd(partnerState, 'partner'); }
 
 // ─── CROSS-DEVICE SYNC (Cloudflare Worker + KV) ────────────────────────────
 // Ingen adgangskontrol — Worker-URL'en er den eneste "nøgle". Sæt din egen
@@ -2134,6 +2139,7 @@ function renderToday() {
   // Init log if needed
   if (!as.logs[key]) {
     as.logs[key] = {
+      sid: window.TP ? TP.uid('sbd') : undefined,
       exercises: exercises.map(ex => ({
         name: ex.name,
         sets: Array.from({ length: ex.scheme.sets }, () => ({
@@ -4094,6 +4100,9 @@ function downloadJson(fileName, obj) {
 }
 
 function exportFullBackup() {
+  // V3: ét samlet backupformat for hele platformen (tp-core.js). Det gamle SBD-only format
+  // bruges kun som fald-tilbage, hvis fællesmodulet ikke kunne indlæses.
+  if (window.TPUI) { TPUI.exportBackup('all'); showToast('Samlet backup gemt 💾'); return; }
   downloadJson('sbd-fuld-backup-' + new Date().toISOString().slice(0,10) + '.json', {
     backupVersion: 1,
     exportedAt: new Date().toISOString(),
@@ -6456,5 +6465,9 @@ restoreTimer();
 </script>
 
 <script src="../ds.js"></script>
+<script src="../tp-ui.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){ if(window.TPUI) TPUI.mountBackup(document.getElementById('tp-backup-mount')); });
+</script>
 </body>
 </html>
