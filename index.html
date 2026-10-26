@@ -266,26 +266,7 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   color:var(--text); font-size:16px; cursor:pointer; font-family:'Barlow Condensed',sans-serif;
 }
 .cal-title{ font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; text-transform:uppercase; }
-.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
-.cal-dow{ font-size:11px; color:var(--muted); text-align:center; text-transform:uppercase; padding-bottom:4px; }
-.cal-cell{
-  aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  background:var(--surface2); border-radius:6px;
-}
-.cal-cell.empty{ background:transparent; }
-.cal-cell.today{ border:1px solid var(--gold-dim); }
-.cal-daynum{ font-size:var(--fs-xs); color:var(--muted); }
-.cal-cell.today .cal-daynum{ color:var(--gold); font-weight:700; }
-.cal-dots{ display:flex; gap:2px; margin-top:2px; min-height:6px; }
-.cal-dot{ width:5px; height:5px; border-radius:50%; }
-.cal-dot.sbd{ background:var(--sq); }
-.cal-dot.lob{ background:#5ea472; }
 /* Planlagte (fremtidige) dage: hul prik i stedet for udfyldt */
-.cal-dot.plan{ background:transparent; box-sizing:border-box; }
-.cal-dot.sbd.plan{ border:1px solid var(--sq); }
-.cal-dot.lob.plan{ border:1px solid #5ea472; }
-.cal-legend{ display:flex; gap:16px; margin-top:12px; font-size:var(--fs-xs); color:var(--muted); align-items:center; }
-.cal-legend span{ display:inline-flex; align-items:center; gap:5px; }
 .week-day-row{
   display:grid; grid-template-columns:38px minmax(0,1fr) minmax(0,1fr); gap:10px 12px; align-items:start;
   background:var(--surface2); border-radius:var(--r-md); padding:10px 12px; border:1px solid transparent;
@@ -435,9 +416,6 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   <div class="section-label">Denne uge</div>
   <div id="slot-schedule"></div>
 
-  <div class="section-label">Kalender</div>
-  <div id="slot-calendar"></div>
-
   <div class="section-label">Samlet kalender</div>
   <div id="slot-hybrid-cal"></div>
 
@@ -491,9 +469,9 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   const main = document.querySelector('main');
   const kids = Array.from(main.children);
   // Sektioner der er brede / smalle på desktop, og hvilke der kan foldes sammen.
-  const WIDE = ['I dag', 'Oversigt', 'Samlet kalender'];
-  const S8 = ['Denne uge']; const S4 = ['Kalender'];
-  const FOLD = ['Kalender','Samlet kalender','Månedsrapport','Oversigt','Powerbuilding','Løb','Recovery','Kropsudvikling','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
+  const WIDE = ['I dag', 'Oversigt', 'Denne uge', 'Samlet kalender'];
+  const S8 = []; const S4 = [];
+  const FOLD = ['Samlet kalender','Månedsrapport','Oversigt','Powerbuilding','Løb','Recovery','Kropsudvikling','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
   const OPEN_MOBILE = ['Oversigt','Mål'];
   const isDesktop = window.matchMedia('(min-width:760px)').matches;
   function saved(key){ try { return localStorage.getItem('dash_sec_'+key); } catch(e){ return null; } }
@@ -1911,88 +1889,6 @@ function renderWeeklyVerdictSection(sRaw){
   </div>`;
 }
 
-// ── Kalender — månedsoverblik over gennemførte SBD-/løbe-dage ─────────────
-let calendarMonthOffset = 0;
-const MONTH_NAMES=['Januar','Februar','Marts','April','Maj','Juni','Juli','August','September','Oktober','November','December'];
-
-function calendarShiftMonth(delta){
-  calendarMonthOffset += delta;
-  render();
-}
-
-function getCalendarMonthDates(offset){
-  const now=new Date();
-  const target=new Date(now.getFullYear(), now.getMonth()+offset, 1);
-  const year=target.getFullYear(), month=target.getMonth();
-  const firstOfMonth=new Date(year, month, 1);
-  const daysInMonth=new Date(year, month+1, 0).getDate();
-  const firstWeekday=firstOfMonth.getDay(); // 0=søn
-  const leadingBlanks=(firstWeekday===0) ? 6 : firstWeekday-1;
-  const cells=[];
-  for(let i=0;i<leadingBlanks;i++) cells.push(null);
-  for(let d=1; d<=daysInMonth; d++){
-    cells.push(`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
-  }
-  return { cells, year, month };
-}
-
-function renderCalendar(sRaw, lRaw, personKey){
-  const { cells, year, month } = getCalendarMonthDates(calendarMonthOffset);
-  const sbdDone = sbdCompletedByDate(sRaw);
-  const lobDone = lobCompletedByDate(lRaw);
-  const todayStr = localISO(new Date());
-  const dowHeaders=['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
-  const anchor=getScheduleAnchor();
-  const pattern=patternForPerson(personKey);
-  const blocked=getBlockedDates(personKey);
-  const catchup=getCatchupDates(personKey);
-
-  let grid = dowHeaders.map(d=>`<div class="cal-dow">${d}</div>`).join('');
-  cells.forEach(dateStr=>{
-    if(!dateStr){ grid += `<div class="cal-cell empty"></div>`; return; }
-    const isToday = dateStr===todayStr;
-    const hasSbd = !!sbdDone[dateStr];
-    const hasLob = !!(lobDone[dateStr] && lobDone[dateStr].length);
-    const dayNum = parseInt(dateStr.slice(-2));
-    let dots='', tip='';
-    if(hasSbd) dots += `<span class="cal-dot sbd"></span>`;
-    if(hasLob) dots += `<span class="cal-dot lob"></span>`;
-    // Planlagte dage: vis rytmen frem i tiden (hule prikker)
-    if(dateStr>=todayStr){
-      const slot=slotForDate(dateStr,anchor,personKey) || { sbd:null, lob:null };
-      const weekdayIdx=new Date(dateStr+'T12:00:00').getDay();
-      const lobPlan = personKey==='ellen'
-        ? (ELLEN_LOB_WEEKDAYS.has(weekdayIdx) ? { easy: !!slot.sbd } : null)
-        : slot.lob;
-      const tips=[];
-      if(slot.sbd && !hasSbd){ dots += `<span class="cal-dot sbd plan"></span>`; tips.push(slot.sbd.optional?'SBD (valgfri)':'SBD'); }
-      if(lobPlan && !hasLob){ dots += `<span class="cal-dot lob plan"></span>`; tips.push(lobPlan.easy?'Let løb':'Løb'); }
-      if(tips.length) tip=` title="Planlagt: ${tips.join(' + ')}"`;
-    }
-    grid += `<div class="cal-cell ${isToday?'today':''}"${tip}><div class="cal-daynum">${dayNum}</div><div class="cal-dots">${dots}</div></div>`;
-  });
-
-  const monthPrefix=`${year}-${String(month+1).padStart(2,'0')}`;
-  const sbdCount=Object.keys(sbdDone).filter(d=>d.startsWith(monthPrefix)).length;
-  const lobCount=Object.keys(lobDone).filter(d=>d.startsWith(monthPrefix) && lobDone[d].length).length;
-
-  document.getElementById('slot-calendar').innerHTML = `
-    <div class="section-card">
-      <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="calendarShiftMonth(-1)" aria-label="Forrige måned">‹</button>
-        <div class="cal-title">${MONTH_NAMES[month]} ${year}</div>
-        <button class="cal-nav-btn" onclick="calendarShiftMonth(1)" aria-label="Næste måned">›</button>
-      </div>
-      <div class="cal-grid">${grid}</div>
-      <div class="cal-legend">
-        <span><span class="cal-dot sbd"></span>SBD (${sbdCount})</span>
-        <span><span class="cal-dot lob"></span>Løb (${lobCount})</span>
-        <span><span class="cal-dot sbd plan"></span><span class="cal-dot lob plan" style="margin-left:2px;"></span>Planlagt</span>
-      </div>
-      <div class="deferred-note" style="margin-top:8px;">Udfyldte prikker = gennemført, hule = planlagt ud fra jeres rytme. Hold musen over en dag for at se hvad der er planlagt.</div>
-    </div>`;
-}
-
 // ═══════════════ V3 FASE 3: SAMLET KALENDER + HYBRID BELASTNING ═══════════════
 // Bygger oven på slotForDate/renderSchedule-logikken (samme data, samme blokerede dage). Ændringer ligger som overlay i tp_meta.planChanges.
 const HYB = { weekOffset: 0, sel: null, showDismissed: false, opts: {}, msg: '' };
@@ -2157,7 +2053,7 @@ function renderHybridCalendar(sRaw,lRaw,personKey){
       <div class="hy-legend"><span class="hy-chip plan sbd">🏋️ Styrke</span><span class="hy-chip plan run">🏃 Løb</span><span class="hy-chip done run">✓ Gennemført</span><span class="hy-chip skip run">⤫ Sprunget over</span><span>↪ flyttet · ↓ gjort let · ⚠ mulig konflikt</span>
         <button type="button" class="hy-btn small" onclick="hybToday()">I dag</button></div>
       ${HYB.msg?`<div class="hy-msg" role="status">${esc2(HYB.msg)}</div>`:''}
-      ${HYB.sel?hybDetail(HYB.sel,cx,personKey,sRaw,lRaw):'<div class="deferred-note">Tryk på en dag for at se detaljer, flytte et løb eller se konsekvenser. Intet ændres uden din bekræftelse, og alt kan fortrydes.</div>'}
+      ${HYB.sel?hybDetail(HYB.sel,cx,personKey,sRaw,lRaw):'<div class="deferred-note">Tryk på en dag for detaljer. Intet ændres uden din bekræftelse.</div>'}
       ${clist}
     </div>`;
     // En baggrunds-gentegning (fx løbe-prognosen) må ikke slette brugerens valgte flyttedag
@@ -2169,7 +2065,7 @@ function hybDetail(date,cx,personKey,sRaw,lRaw){
   const fs=TPPLAN.visible(cx.findings).filter(f=>f.dates.includes(date));
   let h=`<div class="hy-detail" id="hy-detail" tabindex="-1"><h4>${TPPLAN.fmtDate(date)}${date===cx.today?' · i dag':''}</h4>`;
   d.markers.forEach(m=>{ h+=`<div class="hy-note">${m.type==='race'?'🏁':(m.type==='goal'?'🎯':'↓')} ${esc2(m.label)}</div>`; });
-  if(!d.items.length) h+='<div class="hy-note">Hviledag — intet planlagt. Det er også en del af planen.</div>';
+  if(!d.items.length) h+='<div class="hy-note">Hviledag — intet planlagt.</div>';
   d.items.forEach(it=>{
     h+=`<div class="hy-item">${hybItemChip(it)}`;
     if(it.desc) h+=`<div class="hy-note">${esc2(it.desc)}</div>`;
@@ -2488,7 +2384,6 @@ function render(){
   renderToday(sRaw, lRaw, active, readSbd(sbdWho));
   renderOversigt(sRaw, lRaw);
   renderSchedule(sRaw, lRaw, active);
-  renderCalendar(sRaw, lRaw, active);
   renderHybridCalendar(sRaw, lRaw, active);
   renderAttempts(sRaw);
   renderStyrke(sRaw);
