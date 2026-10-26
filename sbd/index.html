@@ -6384,5 +6384,37 @@ renderToday();
 })();
 
 </script>
+
+<script>
+/* Tilgængelighed: kobl labels til felter, gør faner tastaturbetjente, rolle på timer */
+(function(){
+  var seq=0;
+  function enhance(){
+    try{
+      document.querySelectorAll('label:not([for])').forEach(function(l){
+        var f=l.querySelector('input,select,textarea')||(l.nextElementSibling&&/^(INPUT|SELECT|TEXTAREA)$/.test(l.nextElementSibling.tagName)?l.nextElementSibling:null);
+        if(!f||l.contains(f))return;
+        if(!f.id)f.id='a11y-f'+(++seq);
+        l.setAttribute('for',f.id);
+      });
+      document.querySelectorAll('.tabs .tab').forEach(function(t){
+        t.setAttribute('role','tab'); t.tabIndex=0;
+        t.setAttribute('aria-selected',t.classList.contains('active')?'true':'false');
+      });
+      var tb=document.querySelector('.tabs'); if(tb){tb.setAttribute('role','tablist');tb.setAttribute('aria-label','Hovedmenu');}
+      var cd=document.getElementById('tm-countdown'); if(cd)cd.setAttribute('role','timer');
+      document.querySelectorAll('button:not([type])').forEach(function(b){b.type='button';});
+    }catch(e){}
+  }
+  document.addEventListener('keydown',function(e){
+    var t=e.target;
+    if(t&&t.classList&&t.classList.contains('tab')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();t.click();}
+  });
+  var pend=0;
+  new MutationObserver(function(){ if(pend)return; pend=setTimeout(function(){pend=0;enhance();},150); })
+    .observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+  if(document.readyState!=='loading')enhance(); else document.addEventListener('DOMContentLoaded',enhance);
+})();
+</script>
 </body>
 </html>
