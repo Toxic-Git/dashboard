@@ -481,6 +481,110 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     eq(await set(2), false, 'for tidligt'); eq(await set(3), true, 'burde vises'); eq(p.errors, []); await p.ctx.close();
   });
 
+  /* ───────── FASE 3: SAMLET KALENDER + HYBRID BELASTNING ───────── */
+  const hybOpen = async (p, seed) => { await open(p, 'index.html'); await p.waitForSelector('#slot-hybrid-cal .hy-week', { state: 'attached' }); };
+  const hybUnfold = async p => { for (const t of ['Samlet kalender', 'Belastning']) { const sm = p.locator('summary.section-label', { hasText: t }); if (await sm.count() && !(await sm.evaluate(e => e.parentElement.open))) await sm.click(); } };
+  // finder en kombination af anker/totalDays der giver et R1-fund (tung benstyrke + hårdt løb tæt på hinanden) — bevis for integrationen
+  const findConflict = p => p.evaluate(() => {
+    const out = [];
+    for (let a = 0; a < 9; a++) for (let td = 0; td < 16; td++) {
+      localStorage.setItem('dash_schedule_anchor', TP.addDays(localISO(new Date()), -a));
+      const s = JSON.parse(localStorage.getItem('sbd_state')); s.totalDays = td; localStorage.setItem('sbd_state', JSON.stringify(s));
+      const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw);
+      if (cx.findings.some(f => f.rule === 'R1' && !f.dismissed)) return { a, td };
+    }
+    return null;
+  });
+  await check('Samlet kalender (V3)', 'Ugevisning viser både styrke og løb, ingen fejl; mobil uden vandret scroll; 7 kolonner på desktop', async () => {
+    let p = await newPage(390, 844); await hybOpen(p); await hybUnfold(p);
+    const n = await p.locator('#slot-hybrid-cal .hy-day').count(); eq(n, 7);
+    const txt = await p.innerText('#slot-hybrid-cal'); ok(/🏋️/.test(txt) && /🏃/.test(txt), 'både styrke og løb skal kunne ses i ugen/legend');
+    eq(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'vandret scroll på mobil');
+    const cols390 = await p.evaluate(() => getComputedStyle(document.querySelector('.hy-week')).gridTemplateColumns.split(' ').length); eq(cols390, 1);
+    eq(p.errors, []); await p.ctx.close();
+    p = await newPage(1366, 900); await hybOpen(p); await hybUnfold(p);
+    eq(await p.evaluate(() => getComputedStyle(document.querySelector('.hy-week')).gridTemplateColumns.split(' ').length), 7); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Samlet kalender (V3)', 'Flyt løb: forhåndsvisning af konsekvens → bekræft → overlay gemmes, styrke/løbs-data urørt → Fortryd genskaber', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p); await hybUnfold(p);
+    // find en fremtidig dag med planlagt løb
+    const date = await p.evaluate(() => { const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw); const d = cx.days.find(x => x.date >= cx.today && x.items.some(i => i.kind === 'run' && i.status === 'planned' && !i.movedFrom)); return d && d.date; });
+    ok(date, 'ingen planlagt løbedag fundet'); const before = { s: await p.evaluate(() => localStorage.getItem('sbd_state')), l: await p.evaluate(() => localStorage.getItem('lob_state')) };
+    await p.evaluate(d => { HYB.weekOffset = Math.floor(TP.diffDays(TP.weekStart(localISO(new Date())), TP.weekStart(d)) / 7); HYB.sel = d; render(); }, date); await p.waitForSelector('#hy-to');
+    const target = await p.evaluate(() => [...document.querySelectorAll('#hy-to option')].map(o => o.value).filter(Boolean)[0]); ok(target, 'ingen målmuligheder');
+    await p.selectOption('#hy-to', target); await p.waitForSelector('#hy-prev .hy-note'); ok(/Konsekvens/.test(await p.innerText('#hy-prev')), 'konsekvens mangler');
+    eq(await p.evaluate(() => (JSON.parse(localStorage.getItem('tp_meta_main') || '{"planChanges":[]}').planChanges || []).length), 0, 'intet må ændres før bekræftelse');
+    await p.click('#hy-apply-move'); await p.waitForTimeout(400);
+    const m = JSON.parse(await p.evaluate(() => localStorage.getItem('tp_meta_main'))); eq(m.planChanges.length, 1); eq([m.planChanges[0].type, m.planChanges[0].from, m.planChanges[0].to], ['moveRun', date, target]);
+    eq(await p.evaluate(() => localStorage.getItem('sbd_state')), before.s, 'sbd_state må ikke ændres'); eq(await p.evaluate(() => localStorage.getItem('lob_state')), before.l, 'lob_state må ikke ændres');
+    ok(/Dine ændringer \(1\)/.test(await p.innerText('#slot-hybrid-cal')), 'ændringslisten mangler');
+    await p.reload(); await p.waitForTimeout(800); eq(JSON.parse(await p.evaluate(() => localStorage.getItem('tp_meta_main'))).planChanges.length, 1, 'overlay skal overleve genindlæsning');
+    await p.evaluate(() => { const c = JSON.parse(localStorage.getItem('tp_meta_main')).planChanges[0]; hybUndo(c.id); });
+    await p.waitForTimeout(300); eq(JSON.parse(await p.evaluate(() => localStorage.getItem('tp_meta_main'))).planChanges.length, 0, 'fortryd'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Samlet kalender (V3)', 'Styrke "Kan ikke i dag…": eksisterende blokerede-dage-mekanisme bruges, ændring logges og kan fortrydes', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p); await hybUnfold(p);
+    const date = await p.evaluate(() => { const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw); const d = cx.days.find(x => x.date > cx.today && x.items.some(i => i.kind === 'sbd' && i.status === 'planned')); return d && d.date; });
+    ok(date, 'ingen planlagt styrkedag'); await p.evaluate(d => { HYB.weekOffset = Math.floor(TP.diffDays(TP.weekStart(localISO(new Date())), TP.weekStart(d)) / 7); HYB.sel = d; render(); }, date);
+    await p.click('button:has-text("Kan ikke i dag…")'); await p.waitForSelector('#hy-prev button.primary'); ok(/rykkes én dag frem/.test(await p.innerText('#hy-prev')));
+    eq(await p.evaluate(() => JSON.parse(localStorage.getItem('dash_blocked_dates_oliver') || '[]').length), 0);
+    await p.click('#hy-prev button.primary'); await p.waitForTimeout(500);
+    ok((await p.evaluate(() => JSON.parse(localStorage.getItem('dash_blocked_dates_oliver') || '[]'))).includes(date), 'blokeret dato skal være sat');
+    eq(JSON.parse(await p.evaluate(() => localStorage.getItem('tp_meta_main'))).planChanges[0].type, 'skipSbd');
+    await p.evaluate(() => hybUndo(JSON.parse(localStorage.getItem('tp_meta_main')).planChanges[0].id)); await p.waitForTimeout(400);
+    eq(await p.evaluate(() => JSON.parse(localStorage.getItem('dash_blocked_dates_oliver') || '[]').length), 0, 'fortryd skal fjerne blokering'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Samlet kalender (V3)', 'Ellen: løbedage er faste — ingen flytte-valg; Oliver↔Ellen deler ikke ændringer', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p);
+    await p.evaluate(() => { const m = TP.loadMeta('main'); m.planChanges.push({ id: 'o1', type: 'easyRun', date: TP.addDays(localISO(new Date()), 40) }); TP.saveMeta('main', m); });
+    await p.click('#btn-ellen'); await p.waitForTimeout(500); await hybUnfold(p);
+    eq(await p.evaluate(() => TP.loadMeta('partner').planChanges.length), 0, 'Ellen må ikke se Olivers ændringer');
+    const date = await p.evaluate(() => { const { sRaw, lRaw, personKey } = hybCurrent(); eq1 = personKey; const cx = hybCtx(personKey, sRaw, lRaw); const d = cx.days.find(x => x.date >= cx.today && x.items.some(i => i.kind === 'run' && i.status === 'planned')); return d && d.date; });
+    ok(date, 'Ellen har planlagt løb'); await p.evaluate(d => { HYB.weekOffset = Math.floor(TP.diffDays(TP.weekStart(localISO(new Date())), TP.weekStart(d)) / 7); HYB.sel = d; render(); }, date);
+    eq(await p.locator('#hy-to').count(), 0, 'Ellen må ikke kunne flytte løb'); ok(/faste/.test(await p.innerText('#hy-detail'))); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Hybrid belastning (V3)', 'Oversigtstabel uden samlet score; regler kan åbnes; ingen fejl', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p); await hybUnfold(p);
+    ok(await p.locator('#slot-hybrid-load table.hy-tbl').count() === 1); const t = await p.innerText('#slot-hybrid-load');
+    ok(/Styrkepas/.test(t) && /Løbeture/.test(t) && /ingen samlet score/i.test(t), 'oversigt/forklaring mangler'); ok(!/score:\s*\d/i.test(t));
+    await p.click('#slot-hybrid-load .hy-rules summary'); ok(/R1/.test(await p.innerText('#slot-hybrid-load .hy-rules'))); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Hybrid belastning (V3)', 'Konflikt findes, forklares, og forslag ændrer intet før "Anvend"; "Ikke relevant" skjuler og kan vises igen', async () => {
+    const p = await newPage(1366, 900); await open(p, 'index.html'); const combo = await findConflict(p); ok(combo, 'ingen kombination gav R1 — integrationen finder ikke konflikter');
+    await p.reload(); await p.waitForTimeout(800); await hybUnfold(p);
+    const card = p.locator('#slot-hybrid-load .hy-find.warn').first(); await card.waitFor();
+    const t = await card.innerText(); ok(/Hvorfor/.test(t) && /Hvis ignoreret/.test(t), 'forklaring mangler');
+    eq(await p.evaluate(() => (TP.loadMeta('main').planChanges || []).length), 0, 'intet må være ændret før "Anvend"');
+    if (await card.locator('.hy-opt').count()) { ok(/Advarsler: \d+ → \d+/.test(t), 'før/efter mangler'); await card.locator('.hy-opt .primary').first().click(); await p.waitForTimeout(500); ok((await p.evaluate(() => TP.loadMeta('main').planChanges.length)) >= 1 || (await p.evaluate(() => JSON.parse(localStorage.getItem('dash_blocked_dates_oliver') || '[]').length)) >= 1, 'anvend skal registrere ændring'); }
+    else rec('Hybrid belastning (V3)', '(note) ingen forslag fundet for første konflikt', 'SKIP');
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Hybrid belastning (V3)', '"Ikke relevant" skjuler fundet og "Vis igen" genskaber det', async () => {
+    const p = await newPage(1366, 900); await open(p, 'index.html'); const combo = await findConflict(p); ok(combo); await p.reload(); await p.waitForTimeout(800); await hybUnfold(p);
+    const n0 = await p.locator('#slot-hybrid-load .hy-find.warn').count(); ok(n0 >= 1);
+    await p.locator('#slot-hybrid-load .hy-find.warn').first().locator('button:has-text("Ikke relevant")').click(); await p.waitForTimeout(400);
+    ok(await p.locator('#slot-hybrid-load .hy-find.warn').count() < n0, 'skal skjules'); ok(Object.keys(await p.evaluate(() => TP.loadMeta('main').dismissed)).length === 1);
+    await p.click('button:has-text("Vis skjulte")'); await p.click('button:has-text("Vis igen")'); await p.waitForTimeout(300);
+    eq(Object.keys(await p.evaluate(() => TP.loadMeta('main').dismissed)).length, 0); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Samlet kalender (V3)', 'slotMapForRange er identisk med slotForDate (blokerede dage, indhentning, begge personer, dage før anker)', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p);
+    const bad = await p.evaluate(() => {
+      const bad = []; const today = localISO(new Date());
+      for (const pk of ['oliver', 'ellen']) for (const sc of [{ b: [], c: [] }, { b: [TP.addDays(today, 2)], c: [] }, { b: [TP.addDays(today, 1), TP.addDays(today, 9)], c: [TP.addDays(today, 4)] }]) for (const off of [0, 40, 200]) {
+        const anchor = TP.addDays(today, -off); const from = TP.addDays(today, -35), to = TP.addDays(today, 40);
+        const m = slotMapForRange(from, to, anchor, pk, sc.b, sc.c);
+        for (let i = 0; i <= 75; i++) { const ds = TP.addDays(from, i); const a = slotForDate(ds, anchor, pk, sc.b, sc.c); const b = m[ds]; if (JSON.stringify(a) !== JSON.stringify(b)) bad.push([pk, off, ds, JSON.stringify(a), JSON.stringify(b)].join(' ')); }
+      }
+      return bad.slice(0, 5);
+    });
+    eq(bad, []); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Samlet kalender (V3)', 'Backup indeholder planændringer (tp_meta) og ingen sync_token', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p);
+    await p.evaluate(() => { const m = TP.loadMeta('main'); m.planChanges.push({ id: 'zz', type: 'easyRun', date: TP.addDays(localISO(new Date()), 3) }); TP.saveMeta('main', m); });
+    const bk = await p.evaluate(() => JSON.stringify(TP.buildBackup('all'))); ok(/"zz"/.test(bk) && !/sync_token/.test(bk)); eq(p.errors, []); await p.ctx.close();
+  });
   /* ───────── AXE ───────── */
   let axeSrc = null;
   for (const c of [process.env.AXE_PATH, path.join(__dirname, '..', 'node_modules', 'axe-core', 'axe.min.js'), path.join(__dirname, '..', '..', 'axe', 'node_modules', 'axe-core', 'axe.min.js')]) if (c && fs.existsSync(c)) { axeSrc = fs.readFileSync(c, 'utf8'); break; }
@@ -501,6 +605,8 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
       ['SBD skift-øvelse-ark', 'sbd/index.html', async p => { await startSession(p); await p.click('#tp-switch-0'); await p.waitForSelector('#modal.open input[name=tp-alt]'); }],
       ['SBD evaluering', 'sbd/index.html', async p => { await startSession(p); await p.click('#finish-btn'); await p.waitForSelector('#modal.open .tp-chip'); await p.click('.tp-chip[data-grp=effort][data-v="7"]'); }],
       ['Løb evaluering', 'lob/index.html', async p => { if (!(await p.locator('#lg-dist').isVisible())) await p.click('#newrun-card > summary'); await p.fill('#lg-dist', '5'); await p.fill('#lg-tid', '28:00'); await p.click('text=Gem løbetur'); await p.waitForSelector('#tp-run-eval:not([hidden]) .tp-chip'); }],
+      ['Dashboard samlet kalender (dag valgt)', 'index.html', async p => { await hybUnfold(p); await p.evaluate(() => { const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw); const d = cx.days.find(x => x.date >= cx.today && x.items.some(i => i.kind === 'run' && i.status === 'planned')); HYB.sel = d.date; HYB.weekOffset = Math.floor(TP.diffDays(TP.weekStart(cx.today), TP.weekStart(d.date)) / 7); render(); }); await p.waitForSelector('#hy-to'); await p.selectOption('#hy-to', { index: 1 }); }],
+      ['Dashboard hybrid belastning (konflikter)', 'index.html', async p => { await findConflict(p); await p.evaluate(() => render()); await hybUnfold(p); await p.waitForSelector('#slot-hybrid-load .hy-find'); await p.click('#slot-hybrid-load .hy-rules summary'); }],
       ['Dashboard backup-plan', 'index.html', async p => { await p.waitForSelector('#tp-backup-mount .tp-panel', { state: 'attached' }); if (!(await p.isVisible('#tp-backup-mount [data-act=check]'))) await p.locator('.section-label', { hasText: 'Indstillinger' }).click(); const b = JSON.stringify(await p.evaluate(() => TP.buildBackup('all'))); await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'a.json', mimeType: 'application/json', buffer: Buffer.from(b) }); await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-role=confirm]'); }],
     ];
     for (const w of [390, 1366]) for (const [name, rel, prep] of states) {

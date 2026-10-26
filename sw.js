@@ -1,6 +1,6 @@
 // Dashboard Service Worker
-const CACHE_NAME = 'dash-tracker-v7';
-const ASSETS = ['./index.html', './ds.css', './ds.js','./tp-core.js','./tp-ui.js', './manifest.json'];
+const CACHE_NAME = 'dash-tracker-v8';
+const ASSETS = ['./index.html', './ds.css', './ds.js','./tp-core.js','./tp-plan.js','./tp-ui.js', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
