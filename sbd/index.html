@@ -420,6 +420,13 @@ html, body {
   letter-spacing:2px; text-transform:uppercase; cursor:pointer;
 }
 
+.settings-btn {
+  padding:12px; border-radius:var(--radius); border:1px solid var(--border);
+  background:var(--surface2); color:var(--text); cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:700;
+  letter-spacing:1px;
+}
+
 /* ── MODAL ── */
 .modal-overlay {
   display:none; position:fixed; inset:0; z-index:300;
@@ -790,6 +797,12 @@ html, body {
     </div>
 
     <div id="setting-history-section"></div>
+  </div>
+  <div class="settings-label" style="padding:0 18px;">Backup &amp; genstart</div>
+  <div class="settings-card" style="padding:12px 14px;margin:0 18px 14px;">
+    <button class="settings-btn" style="width:100%;margin-bottom:8px;" onclick="exportProgramData()">📁 Eksportér program-data (til analyse)</button>
+    <button class="settings-btn" style="width:100%;margin-bottom:8px;" onclick="exportFullBackup()">💾 Fuld backup (alt, rå JSON)</button>
+    <button class="settings-btn" style="width:100%;" onclick="openRestartModal()">🔄 Genstart til uge 1 (behold accessories)</button>
   </div>
   <button class="danger-btn" onclick="confirmReset()">Nulstil al data</button>
 </div>
@@ -1324,6 +1337,15 @@ function rpeHtml(type, week, exName) {
   return `<span class="rpe-pill ${cls}">RPE ${val}</span>`;
 }
 
+// Startvægt for accessory: gemt tal fra forrige program (genstart) ellers skabelonens
+function accStartKg(name, templateKg) {
+  try {
+    const b = aState().accBaseline && aState().accBaseline[name];
+    if (b && b.kg > 0) return b.kg;
+  } catch (e) {}
+  return templateKg;
+}
+
 function getExercises(dayId, week) {
   const cacheKey = `${dayId}_${week}_${state.profile}`;
   if (_exercisesCache[cacheKey]) return _exercisesCache[cacheKey];
@@ -1367,7 +1389,7 @@ function _getExercises(dayId, week) {
       if (dl) sets = Math.max(1, Math.round(sets * 0.4));
       return {
         name: a.name, badge: 'acc', type: 'acc',
-        scheme: { sets, reps, repsRange, kg: a.kg },
+        scheme: { sets, reps, repsRange, kg: accStartKg(a.name, a.kg) },
         note: a.note || null, warmup: false,
       };
     });
@@ -1415,7 +1437,7 @@ function _getExercises(dayId, week) {
     }
     return {
       name: a.name, badge: a.badge || 'acc', type: 'acc',
-      scheme: { sets, reps, repsRange, kg: a.kg },
+      scheme: { sets, reps, repsRange, kg: accStartKg(a.name, a.kg) },
       note: a.note || null, warmup: false,
     };
   });
@@ -3983,6 +4005,134 @@ function adjustDay(d) {
   saveState(); renderSettings();
 }
 
+// ─── BACKUP & GENSTART TIL UGE 1 ─────────────────────────────────────────────
+function downloadJson(fileName, obj) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportFullBackup() {
+  downloadJson('sbd-fuld-backup-' + new Date().toISOString().slice(0,10) + '.json', {
+    backupVersion: 1,
+    exportedAt: new Date().toISOString(),
+    sbd_state: state,
+    sbd_partner: partnerState,
+  });
+  showToast('Fuld backup gemt 💾');
+}
+
+// Alle accessory-navne på tværs af blokke (uge 1, 5, 9) for den aktive profil
+function getAccessoryNames() {
+  const names = new Set();
+  [1, 5, 9].forEach(w => {
+    CYCLE.forEach(d => {
+      if (d.type === 'rest') return;
+      try {
+        getExercises(d.id, w).forEach(e => { if (e.type === 'acc') names.add(e.name); });
+      } catch (err) { /* spring over */ }
+    });
+  });
+  return Array.from(names);
+}
+
+function openRestartModal() {
+  const body = `
+    <div style="font-size:13px;line-height:1.5;color:var(--muted);margin-bottom:12px;">
+      Starter forfra i uge 1. Dine accessories-vægte (seneste tal pr. øvelse) bliver gemt og bruges som startvægte.
+      Historik, PR og kropsvægt bevares. Hele det gamle program lægges i historikken.
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <span>Sænk SBD (1RM-baseline) med</span>
+      <span><input class="set-input" id="rs-sbd-pct" type="number" inputmode="decimal" value="10" min="0" max="30" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span>Accessories-vægte</span>
+      <span><input class="set-input" id="rs-acc-pct" type="number" inputmode="decimal" value="100" min="50" max="110" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
+    </div>`;
+  showModal('Genstart til uge 1', body, () => {
+    const sbdPct = parseFloat((document.getElementById('rs-sbd-pct') || {}).value);
+    const accPct = parseFloat((document.getElementById('rs-acc-pct') || {}).value);
+    if (isNaN(sbdPct) || sbdPct < 0 || sbdPct > 30 || isNaN(accPct) || accPct < 50 || accPct > 110) {
+      showToast('Ugyldige procenter (SBD 0–30, accessories 50–110)');
+      return;
+    }
+    exportFullBackup(); // altid backup først
+    restartToWeek1(sbdPct, accPct);
+    showToast('Genstartet til uge 1 ✅');
+  }, false);
+}
+
+function restartToWeek1(sbdPct, accPct) {
+  const as = aState();
+  const sf = 1 - sbdPct / 100;
+  const af = accPct / 100;
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 1) Gem accessories-tal (seneste loggede vægt pr. øvelse) før loggen ryddes
+  const accNames = getAccessoryNames();
+  const baseline = Object.assign({}, as.accBaseline || {});
+  accNames.forEach(n => {
+    const lp = getLastPerformance(n, true);
+    if (lp) baseline[n] = { kg: roundForExercise(lp.kg * af, n), reps: lp.reps, setsSummary: lp.setsSummary, from: today };
+  });
+  as.accBaseline = baseline;
+
+  // 2) Behold kun accessories i autoreg-historikken (SBD-løft skal regnes fra den nye, lavere 1RM)
+  const oldAuto = as.autoregAdj || {};
+  const keptAuto = {};
+  accNames.forEach(n => {
+    if (oldAuto[n] && Array.isArray(oldAuto[n].sessions)) {
+      keptAuto[n] = { sessions: oldAuto[n].sessions.map(x => Object.assign({}, x, { day: -1, applyFromDay: 0 })) };
+    }
+  });
+  as.autoregAdj = keptAuto;
+
+  // 3) Ny baseline for SBD
+  const oldRM = { sq: getSQ(), bp: getBP(), dl: getDL() };
+  const newRM = {
+    sq: Math.round(oldRM.sq * sf * 2) / 2,
+    bp: Math.round(oldRM.bp * sf * 2) / 2,
+    dl: Math.round(oldRM.dl * sf * 2) / 2,
+  };
+  if (!as.programHistory) as.programHistory = [];
+  as.programHistory.push({
+    date: new Date().toLocaleDateString('da-DK'),
+    sq: oldRM.sq, bp: oldRM.bp, dl: oldRM.dl,
+    newSq: newRM.sq, newBp: newRM.bp, newDl: newRM.dl,
+    program: as.logs, restart: true, sbdPct, accPct,
+  });
+  as.oneRM = Object.assign({}, newRM);
+  as.programStart1RM = Object.assign({}, newRM);
+
+  // 4) Nulstil program-tilstand (samme felter som startNewProgram)
+  as.totalDays = 0;
+  as.logs = {};
+  as.completedDays = [];
+  as.pending1RM = {};
+  as.deloadWeeks = [];
+  as.restScore = {};
+  as.sleepLog = {};
+  as.autoDeloadTriggered = null;
+  as.peakAttempts = {};
+  as.peakResults = {};
+  as.dayOverrides = {};
+  as.sessionTimes = {};
+  as.checkpointExported = {};
+  as.programStartDate = today;
+
+  saveState();
+  closeModal();
+  renderToday();
+  renderSettings();
+}
+
 function confirmReset() {
   const isPartner = state.profile === 'partner';
   showModal(`Nulstil din træning`, `Dette sletter al din træningshistorik og starter fra uge 1. Er du sikker?`, () => {
@@ -4015,6 +4165,12 @@ function confirmReset() {
 
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 function showModal(title, body, onConfirm, danger = false) {
+  // Andre modaler (fx dag-skift) kan have fjernet bekræft-knappen — gendan standardknapperne
+  const acts = document.querySelector('#modal .modal-actions');
+  if (acts && !document.getElementById('modal-confirm-btn')) {
+    acts.innerHTML = '<button class="modal-btn modal-cancel" onclick="closeModal()">Annuller</button>' +
+      '<button class="modal-btn modal-confirm" id="modal-confirm-btn">OK</button>';
+  }
   document.getElementById('modal-title').textContent = title;
   document.getElementById('modal-body').innerHTML = body;
   const btn = document.getElementById('modal-confirm-btn');
@@ -4959,7 +5115,7 @@ function roundForExercise(kg, exName) {
 // de sæt hvor den faktisk er logget.
 // Finder seneste gang en given øvelse blev logget (uanset dag i cyklussen),
 // søger bagud gennem gennemførte dage. Bruges til "Sidst: X kg × Y reps".
-function getLastPerformance(exName) {
+function getLastPerformance(exName, skipBaseline) {
   const as = aState();
   const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
   for (const day of completed) {
@@ -4975,6 +5131,9 @@ function getLastPerformance(exName) {
     const setsSummary = doneSets.map(s => `${s.kg}×${s.reps}`).join(', ');
     return { kg: parseFloat(best.kg), reps: parseInt(best.reps), setsSummary };
   }
+  // Intet logget i dette program endnu: brug gemte tal fra forrige program
+  const b = !skipBaseline && as.accBaseline && as.accBaseline[exName];
+  if (b && b.kg > 0) return { kg: b.kg, reps: b.reps || 0, setsSummary: (b.setsSummary || (b.kg + '×' + b.reps)) + ' (forrige program)' };
   return null;
 }
 
