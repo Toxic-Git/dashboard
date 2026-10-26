@@ -79,6 +79,10 @@ main{padding:14px 12px 20px; max-width:640px; margin:0 auto;}
   background:var(--surface); border:1px solid var(--border); border-radius:10px;
   padding:14px; margin-bottom:12px;
 }
+.tp-q{font-size:13px;font-weight:600;margin:12px 0 6px}
+.tp-chips{display:flex;flex-wrap:wrap;gap:6px}
+.tp-chip{width:auto;min-width:44px;min-height:44px;padding:8px 12px;margin-top:0;font-size:14px}
+.tp-chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#181a1f;font-weight:700}
 .card h2{font-size:18px; margin-bottom:10px; color:var(--text);}
 .card h2 .accent{color:var(--accent);}
 label{display:block; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; margin-top:10px;}
@@ -338,6 +342,8 @@ code{ overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
       <div id="week-overview"></div>
       <div class="note">En prognose for resten af ugen, baseret på din fase og hvad du allerede har kørt. Tryk på en kommende dag for at låse den til Kvalitet, Let eller Hvile — eller "Auto" for at lade appen vurdere igen. Ændrer kun denne oversigt, ikke "Næste løbetur" ovenfor, som altid regner ud fra dine faktiske løb.</div>
     </details>
+
+    <div class="card" id="tp-run-eval" hidden aria-live="polite"></div>
 
     <div class="card" id="hist-card">
       <h2>Seneste løb</h2>
@@ -1556,8 +1562,9 @@ function saveRun(){
     if(!confirm('Tjek lige før du gemmer:\n- ' + check.warnings.join('\n- ') + '\n\nGem alligevel?')) return;
   }
 
+  const newRunId = uid();
   aState().runs.push({
-    id: uid(), date: dato, distanceKm: dist, durationSec: tidSec,
+    id: newRunId, date: dato, distanceKm: dist, durationSec: tidSec,
     avgHR, maxHR, elev, feeling, notat, source:'manual'
   });
   aState().runs.sort((a,b)=> a.date.localeCompare(b.date));
@@ -1567,6 +1574,43 @@ function saveRun(){
     document.getElementById(id).value='';
   });
   renderAll();
+  tpOpenRunEval(newRunId);
+}
+
+/* ---- Evaluering efter løb (V3 fase 2): kort, valgfri, gemmes på løbet (run.eval) ---- */
+let _tpRunEval = null;
+function tpOpenRunEval(runId){
+  const box = document.getElementById('tp-run-eval');
+  if(!box || !window.TP) return;
+  _tpRunEval = { id: runId, effort:null, vs:null, pain:new Set() };
+  const chips = (arr, grp, fmt) => arr.map(v=>`<button type="button" class="secondary tp-chip" data-grp="${grp}" data-v="${v}" aria-pressed="false" onclick="tpRunEvalPick(this)">${fmt?fmt(v):v}</button>`).join('');
+  box.innerHTML = `<h2>Hvordan gik turen?</h2>
+    <div class="note">Valgfrit — din egen vurdering, ikke en måling.</div>
+    <div class="tp-q">Anstrengelse (1 let – 10 maks)</div><div class="tp-chips">${chips([1,2,3,4,5,6,7,8,9,10],'effort')}</div>
+    <div class="tp-q">Sammenlignet med forventning</div><div class="tp-chips">${chips(Object.keys(TP.EVAL_VS),'vs',k=>TP.EVAL_VS[k])}</div>
+    <div class="tp-q">Ømhed / smerte (hvis nogen)</div><div class="tp-chips">${chips(TP.EVAL_PAIN,'pain')}</div>
+    <textarea id="tp-run-eval-comment" maxlength="500" aria-label="Kommentar" placeholder="Kommentar (valgfri)" style="margin-top:10px;width:100%;min-height:54px;"></textarea>
+    <div class="tp-chips" style="margin-top:10px;"><button type="button" onclick="tpRunEvalSave()">Gem</button><button type="button" class="secondary" onclick="tpRunEvalClose()">Spring over</button></div>`;
+  box.hidden = false;
+  try{ box.scrollIntoView({block:'nearest'}); }catch(e){}
+}
+function tpRunEvalPick(btn){
+  const g = btn.dataset.grp, v = btn.dataset.v;
+  if(g==='pain'){ if(_tpRunEval.pain.has(v)) _tpRunEval.pain.delete(v); else _tpRunEval.pain.add(v); btn.setAttribute('aria-pressed', _tpRunEval.pain.has(v)); return; }
+  const val = g==='effort' ? parseInt(v,10) : v;
+  _tpRunEval[g] = _tpRunEval[g]===val ? null : val;
+  document.querySelectorAll('#tp-run-eval .tp-chip[data-grp="'+g+'"]').forEach(c=>{
+    const cv = g==='effort' ? parseInt(c.dataset.v,10) : c.dataset.v;
+    c.setAttribute('aria-pressed', String(_tpRunEval[g]!==null && cv===_tpRunEval[g]));
+  });
+}
+function tpRunEvalClose(){ const b=document.getElementById('tp-run-eval'); if(b){ b.hidden=true; b.innerHTML=''; } _tpRunEval=null; }
+function tpRunEvalSave(){
+  if(!_tpRunEval) return;
+  const run = aState().runs.find(r=>r.id===_tpRunEval.id);
+  const ev = TP.normalizeEval({ effort:_tpRunEval.effort, vs:_tpRunEval.vs, pain:[..._tpRunEval.pain], comment:(document.getElementById('tp-run-eval-comment')||{}).value }, Date.now());
+  if(run && ev){ run.eval = ev; saveState(); }
+  tpRunEvalClose(); renderAll();
 }
 
 function deleteRun(id){
@@ -1603,6 +1647,7 @@ function renderRunList(){
       <div class="rd">
         <div class="date">${fmtDate(r.date)} ${r.flagged? `<span title="${flagTitle}" style="color:#e0a030;font-size:11px;">⚠ til gennemsyn</span>`:''}</div>
         <div class="main">${r.distanceKm.toFixed(2)} km · ${min}:${String(sec).padStart(2,'0')}</div>
+        ${r.eval ? `<div style="font-size:11px;color:var(--text-dim);">Selvvurdering: ${[r.eval.effort!=null?'anstr. '+r.eval.effort+'/10':'', r.eval.vs?TP.EVAL_VS[r.eval.vs]:'', (r.eval.pain||[]).length?'ømhed: '+r.eval.pain.join(', '):''].filter(Boolean).join(' · ')}</div>` : ''}
       </div>
       <div class="rp">
         <div class="pace">${pace}</div>

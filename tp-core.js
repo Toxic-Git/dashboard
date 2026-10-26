@@ -486,5 +486,243 @@
   };
   TP.RESTORE_EPOCH_KEY = EPOCH_KEY;
 
+  /* ═══════════════ FASE 2: ØVELSESBIBLIOTEK (alternativer) ═══════════════
+     Hver planlagt øvelse har som udgangspunkt 2 alternativer — men KUN hvor de er fagligt forsvarlige.
+     Felter: g = muskelgruppe (som i dashboardets MUSCLE_MAP), p = bevægelsesmønster, e = udstyr, w = kort begrundelse.
+     Hovedløft (squat/bænk/dødløft + backdowns + sekundære varianter) har alternativer, men er "beskyttede":
+     et skift tæller ikke i programmets progression/1RM og kræver ekstra bekræftelse (se TP.substitutionPolicy).
+     Øvelser uden jævnbyrdig erstatning (fx Jefferson Curl) har BEVIDST ingen alternativer.            */
+  var A = function (n, g, p, e, w) { return { n: n, g: g, p: p, e: e, w: w }; };
+  TP.ALT_LIB = {
+    // ── Hovedløft (beskyttede) ──
+    'Squat': { g: 'Quad', role: 'main', alts: [
+      A('Front Squat', 'Quad', 'squat', 'stang+rack', 'Samme knæ-dominante squat-mønster med mere quad og oprejst overkrop; kræver lavere vægt — tæller ikke som din squat.'),
+      A('Safety Bar Squat', 'Quad', 'squat', 'safety bar', 'Tæt på lavstang-squat, men lettere for skuldre/albuer; bruges ved skulder- eller håndledsgener.')] },
+    'Bench Press': { g: 'Bryst', role: 'main', alts: [
+      A('Dumbbell Bench Press', 'Bryst', 'push-horisontal', 'hantler+bænk', 'Samme bryst/skulder/triceps-mønster med friere bane og større bevægelsesudslag; vægte er ikke sammenlignelige med stang.'),
+      A('Smith Machine Bench Press', 'Bryst', 'push-horisontal', 'Smith', 'Fast bane — en mulighed uden spotter eller når stangen er optaget; ikke 1:1 med fri stang.')] },
+    'Deadlift (Conv.)': { g: 'Post. Chain', role: 'main', alts: [
+      A('Trap Bar Deadlift', 'Post. Chain', 'hinge', 'trap bar', 'Samme hofte/ben-løft med mere quad-bidrag og lettere for lænden; vægte ikke direkte sammenlignelige.'),
+      A('Rack Pull', 'Post. Chain', 'hinge', 'stang+rack', 'Dødløft fra forhøjet start: træner lockout og ryg/greb med mindre træthed i bunden.')] },
+    // ── Sekundære hovedløft-varianter (beskyttede) ──
+    'Pause Bench Press': { g: 'Bryst', role: 'main', alts: [
+      A('Spoto Press', 'Bryst', 'push-horisontal', 'stang+bænk', 'Pause lige over brystet — træner samme svage punkt som pause-bænk.'),
+      A('Dumbbell Bench Press (pause)', 'Bryst', 'push-horisontal', 'hantler+bænk', 'Pause i bunden med hantler — skulder-venligere og styrer ensidighed.')] },
+    'Box Squat': { g: 'Quad', role: 'main', alts: [
+      A('Pause Squat', 'Quad', 'squat', 'stang+rack', 'Pause i bunden uden boks — samme styrke i hullet og kontrol.'),
+      A('Front Squat', 'Quad', 'squat', 'stang+rack', 'Quad-dominant squat med oprejst overkrop; lavere vægte.')] },
+    'Deficit Deadlift (2 cm)': { g: 'Post. Chain', role: 'main', alts: [
+      A('Rack Pull', 'Post. Chain', 'hinge', 'stang+rack', 'Kortere vej: mindre krævende alternativ ved træthed — men træner ikke starten som deficit.'),
+      A('Trap Bar Deadlift', 'Post. Chain', 'hinge', 'trap bar', 'Hofte/ben-løft med lavere lændebelastning.')] },
+    'Box Jump': { g: 'Core', role: 'power', alts: [
+      A('Squat Jump (bodyvægt)', 'Quad', 'power', 'ingen', 'Samme eksplosive hoftestræk/knæstræk uden boks — mindre landingsbelastning.'),
+      A('Standing Broad Jump', 'Quad', 'power', 'ingen', 'Horisontal power — samme rate-of-force-development uden udstyr.')] },
+    // ── Accessories ──
+    'Incline DB Press': { g: 'Bryst', role: 'acc', alts: [
+      A('Incline Machine Press', 'Bryst', 'push-skrå', 'maskine', 'Samme øvre-bryst-mønster med fast bane — nemt at køre tæt på udmattelse.'),
+      A('Incline Smith Machine Press', 'Bryst', 'push-skrå', 'Smith', 'Skråt press med stabil bane; justerbar bænk kræves.')] },
+    'Overhead Triceps Ext. (Cable)': { g: 'Triceps', role: 'acc', alts: [
+      A('Overhead Triceps Extension (Hantel)', 'Triceps', 'triceps-over-hoved', 'hantel', 'Samme overhead-position og langhoved-fokus uden kabel.'),
+      A('Skull Crushers (EZ-stang)', 'Triceps', 'triceps-lig', 'EZ-stang+bænk', 'Tung triceps-ekstension med god belastning i strakt arm.')] },
+    'Triceps Extension (Cable)': { g: 'Triceps', role: 'acc', alts: [
+      A('Triceps Pushdown (Reb)', 'Triceps', 'triceps-nedtryk', 'kabel', 'Nedtræk med reb — samme triceps-funktion, lidt mere udadrotation i bunden.'),
+      A('Skull Crushers (EZ-stang)', 'Triceps', 'triceps-lig', 'EZ-stang+bænk', 'Fri-vægt triceps-ekstension.')] },
+    'Chest Fly (Machine)': { g: 'Bryst', role: 'acc', alts: [
+      A('Cable Fly', 'Bryst', 'fly', 'kabel', 'Samme adduktions-mønster med konstant spænding gennem hele bevægelsen.'),
+      A('Dumbbell Fly', 'Bryst', 'fly', 'hantler+bænk', 'Strakt-muskel-stimulus i bunden; brug moderat vægt.')] },
+    'Lateral Raise (Machine)': { g: 'Skulder', role: 'acc', alts: [
+      A('Lateral Raise (Kabel)', 'Skulder', 'sidehæv', 'kabel', 'Konstant spænding i bunden — samme midt-deltoid-fokus.'),
+      A('Lateral Raise (Hantler)', 'Skulder', 'sidehæv', 'hantler', 'Klassisk sidehæv; mest spænding i toppen.')] },
+    'Hack Squat (Machine)': { g: 'Quad', role: 'acc', alts: [
+      A('Leg Press', 'Quad', 'squat-maskine', 'maskine', 'Samme knæ-dominante mønster og quad-fokus med fast bane og mindre rygbelastning.'),
+      A('Smith Machine Squat', 'Quad', 'squat-maskine', 'Smith', 'Stabil bane — foden frem giver quad-fokus som hack squat.')] },
+    'Leg Extension (Machine)': { g: 'Quad', role: 'acc', alts: [
+      A('Sissy Squat', 'Quad', 'quad-isolation', 'ingen/støtte', 'Isolerer quad (især rectus femoris) med kropsvægt; god i strakt position.'),
+      A('Reverse Nordic Curl', 'Quad', 'quad-isolation', 'ingen/pude', 'Excentrisk quad-stimulus i lang muskellængde — kropsvægt.')] },
+    'Seated Leg Curl (Machine)': { g: 'Post. Chain', role: 'acc', alts: [
+      A('Lying Leg Curl (Machine)', 'Post. Chain', 'knæbøj', 'maskine', 'Samme hamstring-knæfleksion; liggende position belaster hamstrings lidt anderledes.'),
+      A('Nordic Hamstring Curl (støttet)', 'Post. Chain', 'knæbøj', 'ingen/støtte', 'Excentrisk hamstring-arbejde; brug elastik/hænder til at tage af.')] },
+    'Calf Raise (Machine)': { g: 'Lægge', role: 'acc', alts: [
+      A('Standing Calf Raise (Smith)', 'Lægge', 'lægge', 'Smith', 'Samme stående lægge-hæv med fri bane.'),
+      A('Leg Press Calf Raise', 'Lægge', 'lægge', 'benpres', 'Lægge-hæv i benpres — stabil og let at lægge vægt på.')] },
+    'Cable Crunch': { g: 'Core', role: 'acc', alts: [
+      A('Machine Crunch', 'Core', 'bugfleksion', 'maskine', 'Samme belastede mavebøjning med fast bane.'),
+      A('Hanging Knee Raise', 'Core', 'bugfleksion', 'chinsstang', 'Bug/hoftebøjere med kropsvægt; kræver greb.')] },
+    'Overhead Press (Seated DB)': { g: 'Skulder', role: 'acc', alts: [
+      A('Overhead Press (Maskine)', 'Skulder', 'push-lodret', 'maskine', 'Samme skulderpres med fast bane.'),
+      A('Overhead Press (Stående stang)', 'Skulder', 'push-lodret', 'stang+rack', 'Klassisk skulderpres — mere core/balancekrav.')] },
+    'Lat Pulldown Wide Grip': { g: 'Ryg', role: 'acc', alts: [
+      A('Assisted Pull-up (Maskine)', 'Ryg', 'træk-lodret', 'maskine', 'Samme lodrette træk i bredt greb med kropsvægt-reference.'),
+      A('Single-Arm Cable Pulldown', 'Ryg', 'træk-lodret', 'kabel', 'Ensidigt lodret træk — længere bevægelse og lat-fokus.')] },
+    'Smith Machine Row': { g: 'Ryg', role: 'acc', alts: [
+      A('Barbell Row (Pendlay)', 'Ryg', 'træk-vandret', 'stang', 'Samme vandrette roning med stang fra gulvet.'),
+      A('One-Arm Dumbbell Row', 'Ryg', 'træk-vandret', 'hantel+bænk', 'Ensidig roning med støtte — skåner lænden.')] },
+    'Seated Cable Row (V-Grip)': { g: 'Ryg', role: 'acc', alts: [
+      A('Seated Row (Maskine)', 'Ryg', 'træk-vandret', 'maskine', 'Samme vandrette træk med fast bane og brystpude.'),
+      A('One-Arm Cable Row', 'Ryg', 'træk-vandret', 'kabel', 'Ensidigt kabelroning — større bevægelsesudslag.')] },
+    'Hammer Curl (DB)': { g: 'Biceps', role: 'acc', alts: [
+      A('Hammer Curl (Kabel)', 'Biceps', 'curl', 'kabel', 'Samme neutrale greb (brachialis/underarm) med konstant spænding.'),
+      A('Cross-Body Hammer Curl', 'Biceps', 'curl', 'hantler', 'Neutral curl henover kroppen — fokus på brachialis.')] },
+    'Close Grip Bench Press': { g: 'Triceps', role: 'acc', alts: [
+      A('Close Grip Bench Press (Smith)', 'Triceps', 'push-horisontal', 'Smith', 'Samme smalle bænk med fast bane.'),
+      A('Dumbbell Close-Grip Press (neutral)', 'Triceps', 'push-horisontal', 'hantler+bænk', 'Neutral håndled-position — mere triceps, skånsom for albuer.')] },
+    'Rear Delt Reverse Fly (Machine)': { g: 'Skulder', role: 'acc', alts: [
+      A('Rear Delt Fly (Kabel)', 'Skulder', 'bagskulder', 'kabel', 'Samme bagskulder-træk med kabel.'),
+      A('Rear Delt Fly (Hantler, foroverbøjet)', 'Skulder', 'bagskulder', 'hantler', 'Klassisk bagskulderløft — brug let vægt og kontrol.')] },
+    'Face Pull (Cable)': { g: 'Skulder', role: 'acc', alts: [
+      A('Band Pull-Apart', 'Skulder', 'bagskulder', 'elastik', 'Samme bagskulder/rotator-fokus uden kabel.'),
+      A('Rear Delt Row (Kabel)', 'Skulder', 'bagskulder', 'kabel', 'Højt roning mod brystet — samme muskler.')] },
+    'Romanian Deadlift': { g: 'Post. Chain', role: 'acc', alts: [
+      A('Romanian Deadlift (Hantler)', 'Post. Chain', 'hinge', 'hantler', 'Samme hofte-hinge og hamstring-stræk med hantler.'),
+      A('Cable Pull-Through', 'Post. Chain', 'hinge', 'kabel', 'Hinge-mønster med kabel — skånsomt for lænden.')] },
+    'Hip Thrust (Barbell)': { g: 'Post. Chain', role: 'acc', alts: [
+      A('Hip Thrust (Maskine)', 'Post. Chain', 'hofte-ekstension', 'maskine', 'Samme glute-hofteekstension med fast bane.'),
+      A('Glute Bridge (Stang)', 'Post. Chain', 'hofte-ekstension', 'stang', 'Fra gulvet — kortere bane, samme glute-mønster.')] },
+    'Hip Adduction (Machine)': { g: 'Adduktor', role: 'acc', alts: [
+      A('Cable Hip Adduction', 'Adduktor', 'adduktion', 'kabel', 'Samme adduktor-funktion med kabel (ensidigt).'),
+      A('Copenhagen Plank', 'Adduktor', 'adduktion', 'bænk', 'Isometrisk adduktor-arbejde med kropsvægt.')] },
+    'Weighted Pull-up': { g: 'Ryg', role: 'acc', alts: [
+      A('Pull-up (Assisteret)', 'Ryg', 'træk-lodret', 'maskine/elastik', 'Samme pull-up med hjælp — når vægt-pull-ups er for tunge.'),
+      A('Lat Pulldown Wide Grip', 'Ryg', 'træk-lodret', 'kabel', 'Lodret træk i maskine, nem at doseres.')] },
+    'Chest Supported Row (Machine)': { g: 'Ryg', role: 'acc', alts: [
+      A('Chest Supported DB Row', 'Ryg', 'træk-vandret', 'hantler+bænk', 'Samme understøttede roning med hantler.'),
+      A('T-Bar Row (brystunderstøttet)', 'Ryg', 'træk-vandret', 'T-bar', 'Tung, understøttet roning — mindre lændebelastning.')] },
+    'Neutral Grip Pulldown': { g: 'Ryg', role: 'acc', alts: [
+      A('Lat Pulldown (Underhånd)', 'Ryg', 'træk-lodret', 'kabel', 'Lodret træk med underhånd — mere biceps og lat.'),
+      A('Assisted Pull-up (Neutral)', 'Ryg', 'træk-lodret', 'maskine', 'Neutralt greb, kropsvægt-reference.')] },
+    'Preacher Curl (DB)': { g: 'Biceps', role: 'acc', alts: [
+      A('Preacher Curl (Maskine)', 'Biceps', 'curl', 'maskine', 'Samme understøttede curl med fast bane.'),
+      A('Incline Dumbbell Curl', 'Biceps', 'curl', 'hantler+bænk', 'Strakt-position curl — stor muskellængde.')] },
+    // ── Ingen jævnbyrdig erstatning: bevidst tom ──
+    'Jefferson Curl': { g: 'Post. Chain', role: 'acc', alts: [], noAltWhy: 'Mobilitets-/rygøvelse under let belastning — ingen jævnbyrdig erstatning. Spring over eller behold.' }
+  };
+  // Muskelgrupper for alternative navne (flettes ind i sidernes MUSCLE_MAP, så historik/volumen tæller dem rigtigt)
+  TP.MUSCLE_EXTRA = (function () {
+    var m = {};
+    Object.keys(TP.ALT_LIB).forEach(function (k) {
+      var L = TP.ALT_LIB[k];
+      L.alts.forEach(function (a) { m[a.n] = a.g; });
+    });
+    return m;
+  })();
+
+  /* ═══════════════ FASE 2: SUBSTITUTION — rene regler ═══════════════ */
+  // Basisnavn: fjerner suffikser, så "Squat — Backdown", "… — Let", "… — Volumen" slår op på samme bibliotekspost.
+  TP.baseName = function (name) {
+    return String(name || '').replace(/ — (Backdown|Let|Volumen|1RM Forsøg)$/i, '').replace(/ \(variation\)$/i, '').trim();
+  };
+  // Beskyttede = hovedløft, backdowns og sekundære hovedløft-varianter. Deres progression må aldrig påvirkes af et skift.
+  TP.isProtectedType = function (type) { return type === 'primary' || type === 'secondary' || type === 'backdown'; };
+
+  // Alternativer for en planlagt øvelse. state = profilens SBD-blob (kun til altOverrides). Altid max 2.
+  TP.altsFor = function (plannedName, state) {
+    var base = TP.baseName(plannedName), lib = TP.ALT_LIB[base] || null;
+    var ov = state && state.altOverrides && state.altOverrides[TP.exId(base)];
+    var out = { planned: plannedName, base: base, role: lib ? lib.role : null, group: lib ? lib.g : null, alts: [], custom: false, noAltWhy: null };
+    if (Array.isArray(ov) && ov.length) {
+      out.custom = true;
+      ov.slice(0, 2).forEach(function (n) {
+        var hit = null;
+        Object.keys(TP.ALT_LIB).forEach(function (k) { TP.ALT_LIB[k].alts.forEach(function (a) { if (a.n === n) hit = a; }); });
+        out.alts.push({ name: n, group: hit ? hit.g : (lib && lib.g), pattern: hit ? hit.p : null, equip: hit ? hit.e : null, why: hit ? hit.w : 'Valgt af dig som alternativ.', source: 'custom' });
+      });
+      return out;
+    }
+    if (/1RM Forsøg$/i.test(plannedName)) { out.noAltWhy = 'Et 1RM-forsøg kan ikke erstattes — det måler netop den konkrete øvelse.'; return out; }
+    if (!lib) { out.noAltWhy = 'Ingen standardalternativer er defineret for denne øvelse.'; return out; }
+    lib.alts.slice(0, 2).forEach(function (a) { out.alts.push({ name: a.n, group: a.g, pattern: a.p, equip: a.e, why: a.w, source: 'standard' }); });
+    if (!out.alts.length) out.noAltWhy = lib.noAltWhy || 'Ingen jævnbyrdig erstatning.';
+    return out;
+  };
+  // Redigér alternativer for én øvelse (valgfrit: max 2 navne). Returnerer ny override-liste.
+  TP.setAltOverride = function (state, plannedName, names) {
+    if (!state.altOverrides) state.altOverrides = {};
+    var key = TP.exId(TP.baseName(plannedName));
+    var clean = (names || []).map(function (n) { return String(n || '').trim(); }).filter(Boolean).slice(0, 2);
+    if (!clean.length) delete state.altOverrides[key]; else state.altOverrides[key] = clean;
+    return state.altOverrides[key] || null;
+  };
+
+  // Lægger substitutioner oven på en planlagt øvelsesliste. Returnerer ny liste (muterer ikke input).
+  //  ctx.subs      : state.exerciseSubs  { plannedName: { to, since } }  (permanent/"fremtidige")
+  //  ctx.log       : dagens log (eller null) — logEx.plannedName/name er kilde til "kun dette pas"
+  //  ctx.lastPerf  : fn(name) -> { kg, reps } | null  — KUN den valgte øvelses egen historik
+  // Regler: vægte overføres ALDRIG fra den planlagte øvelse; navnet bliver den faktisk udførte øvelse
+  // (så historik, PR og 1RM automatisk holdes adskilt); plannedName bevares; beskyttede typer får ingen auto-vægt.
+  TP.applySubstitutions = function (list, ctx) {
+    ctx = ctx || {};
+    return list.map(function (ex, ei) {
+      var logEx = ctx.log && ctx.log.exercises && ctx.log.exercises[ei];
+      var to = null, scope = null;
+      if (logEx && logEx.plannedName === ex.name && logEx.name && logEx.name !== ex.name) { to = logEx.name; scope = (logEx.sub && logEx.sub.scope) || 'session'; }
+      else if (!logEx && ctx.subs && ctx.subs[ex.name] && ctx.subs[ex.name].to) { to = ctx.subs[ex.name].to; scope = 'future'; }
+      if (!to) return ex;
+      var out = {}; Object.keys(ex).forEach(function (k) { out[k] = ex[k]; });
+      out.plannedName = ex.name; out.name = to; out.substituted = true; out.subScope = scope;
+      out.scheme = {}; Object.keys(ex.scheme || {}).forEach(function (k) { out.scheme[k] = ex.scheme[k]; });
+      var lp = ctx.lastPerf ? ctx.lastPerf(to) : null;
+      out.scheme.kg = lp && lp.kg > 0 ? lp.kg : '';
+      delete out.scheme.pct; delete out.scheme.isRampBack; delete out.scheme.rampCeilingKg;
+      if (TP.isProtectedType(ex.type)) { out.warmup = false; out.protectedSub = true; }
+      return out;
+    });
+  };
+  // Opretter/ændrer en logpost (kun hvis ingen sæt er gennemført). Returnerer {ok, reason}.
+  TP.switchLogExercise = function (state, key, ei, plannedName, toName, scope, now) {
+    var log = state.logs && state.logs[key]; var logEx = log && log.exercises && log.exercises[ei];
+    if (!logEx) return { ok: false, reason: 'Øvelsen findes ikke i dagens log.' };
+    if ((logEx.sets || []).some(function (s) { return s.done; })) return { ok: false, reason: 'Du har allerede gennemført sæt — skift er kun muligt før første sæt.' };
+    var planned = logEx.plannedName || logEx.name;
+    if (planned !== plannedName) return { ok: false, reason: 'Planlagt øvelse matcher ikke.' };
+    if (toName === plannedName) { // tilbage til primær
+      logEx.name = plannedName; delete logEx.plannedName; delete logEx.sub;
+    } else {
+      logEx.plannedName = plannedName; logEx.name = toName; logEx.sub = { scope: scope || 'session', at: now || Date.now() };
+    }
+    (logEx.sets || []).forEach(function (s) { s.kg = ''; }); // aldrig overfør vægt til/fra en anden øvelse
+    delete logEx.warmupKg;
+    if (scope === 'future') {
+      if (!state.exerciseSubs) state.exerciseSubs = {};
+      if (toName === plannedName) delete state.exerciseSubs[plannedName];
+      else state.exerciseSubs[plannedName] = { to: toName, since: TP.localISO(new Date(now || Date.now())) };
+    }
+    return { ok: true };
+  };
+  TP.clearFutureSub = function (state, plannedName) { if (state.exerciseSubs) delete state.exerciseSubs[plannedName]; };
+  // Resumé af substitutioner i en session (til historik/visning).
+  TP.sessionSubstitutions = function (log) {
+    return ((log && log.exercises) || []).filter(function (e) { return e && e.plannedName && e.plannedName !== e.name; })
+      .map(function (e) { return { planned: e.plannedName, actual: e.name, scope: (e.sub && e.sub.scope) || 'session' }; });
+  };
+
+  /* ═══════════════ FASE 2: EFTER-TRÆNING-EVALUERING ═══════════════
+     Subjektiv selvrapportering — vises ALDRIG som fysiologisk måling. Bruges forsigtigt: først ved gentagne mønstre. */
+  TP.EVAL_PAIN = ['Skulder', 'Albue', 'Håndled', 'Lænd', 'Hofte', 'Knæ', 'Ankel/fod', 'Andet'];
+  TP.EVAL_VS = { easier: 'Lettere end ventet', as: 'Som ventet', harder: 'Hårdere end ventet' };
+  // Renser og validerer en evaluering. Returnerer null hvis intet meningsfuldt er udfyldt.
+  TP.normalizeEval = function (e, now) {
+    if (!e || typeof e !== 'object') return null;
+    var int = function (v, lo, hi) { v = parseInt(v, 10); return isFinite(v) && v >= lo && v <= hi ? v : null; };
+    var out = { effort: int(e.effort, 1, 10), energy: int(e.energy, 1, 5), vs: TP.EVAL_VS[e.vs] ? e.vs : null,
+      pain: Array.isArray(e.pain) ? e.pain.filter(function (p, i, a) { return TP.EVAL_PAIN.indexOf(p) >= 0 && a.indexOf(p) === i; }) : [],
+      comment: String(e.comment || '').replace(/\s+/g, ' ').trim().slice(0, 500), ts: e.ts || now || Date.now() };
+    if (out.effort == null && out.energy == null && !out.vs && !out.pain.length && !out.comment) return null;
+    return out;
+  };
+  // Resumé af seneste evalueringer (liste af {date, effort, energy, vs, pain}). Gentagelser kræves før noget udledes.
+  TP.evalPattern = function (list) {
+    var l = (list || []).filter(Boolean).slice(-6), n = l.length, res = { n: n, notes: [] };
+    if (n < 3) return res; // én eller to svar er for tyndt et grundlag
+    var harder = l.filter(function (x) { return x.vs === 'harder'; }).length;
+    var lowEnergy = l.filter(function (x) { return x.energy != null && x.energy <= 2; }).length;
+    var hiEffort = l.filter(function (x) { return x.effort != null && x.effort >= 9; }).length;
+    var painCount = {}; l.forEach(function (x) { (x.pain || []).forEach(function (p) { painCount[p] = (painCount[p] || 0) + 1; }); });
+    if (harder >= 3) res.notes.push('Du har oplevet ' + harder + ' af de seneste ' + n + ' pas som hårdere end ventet.');
+    if (lowEnergy >= 3) res.notes.push('Lav energi (1–2) rapporteret i ' + lowEnergy + ' af de seneste ' + n + ' pas.');
+    if (hiEffort >= 3) res.notes.push('Anstrengelse 9–10 rapporteret i ' + hiEffort + ' af de seneste ' + n + ' pas.');
+    Object.keys(painCount).forEach(function (p) { if (painCount[p] >= 2) res.notes.push(p + ' er nævnt som ømhed/smerte i ' + painCount[p] + ' af de seneste ' + n + ' pas. Det er selvrapporteret — ikke en diagnose; tal med en fagperson hvis det fortsætter.'); });
+    return res;
+  };
+
   return TP;
 });

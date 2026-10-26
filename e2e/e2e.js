@@ -382,6 +382,105 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     ok(reloaded, 'SBD-fanen genindlæste ikke'); await a.ctx.close();
   });
 
+  /* ───────── FASE 2: ØVELSESSKIFT + EVALUERING ───────── */
+  const curLog = p => p.evaluate(() => { const as = aState(); return JSON.parse(JSON.stringify({ log: as.logs[logKey()], subs: as.exerciseSubs || {}, ev: as.sessionEval || {}, oneRM: as.oneRM, pr: as.pr })); });
+  await check('Øvelsesskift (V3)', 'Arket viser primær + 2 alternativer med begrundelse; skift "kun i dag" gemmer plannedName og rører ikke 1RM/PR', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    const b0 = await curLog(p); const planned = b0.log.exercises[0].name;
+    await p.click('#tp-switch-0'); await p.waitForSelector('#modal.open input[name=tp-alt]');
+    eq(await p.locator('#modal input[name=tp-alt]').count(), 3, 'primær + A + B');
+    const txt = await p.innerText('#modal'); ok(/alternativ A/.test(txt) && /alternativ B/.test(txt), 'A/B-mærkat mangler'); ok(/Sidst:|Ingen tidligere data/.test(txt), 'historik-linje mangler');
+    const alt = await p.locator('#modal input[name=tp-alt]').nth(1).getAttribute('value');
+    await p.locator('#modal input[name=tp-alt]').nth(1).check(); await p.click('#modal-confirm-btn'); await p.waitForTimeout(500);
+    const a1 = await curLog(p); const e = a1.log.exercises[0];
+    eq(e.name, alt); eq(e.plannedName, planned); eq(e.sub.scope, 'session'); eq(a1.subs, {}, 'kun-i-dag må ikke skrive exerciseSubs');
+    ok(e.sets.every(s => s.kg === '' || s.kg === 0 || s.kg > 0), 'sæt');
+    ok(await p.locator('.tp-sub-note').first().innerText().then(t => t.includes(planned) && /kun i dag/.test(t)), 'synligt skift-mærkat');
+    await p.fill('#kg_0_0', '60'); await p.dispatchEvent('#kg_0_0', 'change'); await p.fill('#reps_0_0', '5'); await p.dispatchEvent('#reps_0_0', 'change');
+    await p.click('#chk_0_0'); await p.waitForTimeout(500);
+    const a2 = await curLog(p); eq(a2.oneRM, b0.oneRM, '1RM ændret af alternativ'); eq(a2.pr[planned], b0.pr[planned], 'primærens PR ændret af alternativ'); ok(a2.pr[alt], 'alternativet skal have sin egen PR-post (adskilt)');
+    eq(await p.locator('#tp-switch-0').count(), 0, 'skift-knap skal forsvinde efter første sæt');
+    await p.reload(); await p.waitForTimeout(800); const a3 = await curLog(p); eq(a3.log.exercises[0].name, alt); eq(a3.log.exercises[0].plannedName, planned);
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Øvelsesskift (V3)', 'Hovedløftets progression/graf ignorerer skiftet pas; skift tilbage genskaber planlagt øvelse', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    const r = await p.evaluate(() => { const as = aState(); const l = as.logs[logKey()]; return { before: primaryLogEx(l) && primaryLogEx(l).name, }; });
+    ok(r.before, 'primær bør være synlig før skift');
+    await p.click('#tp-switch-0'); await p.locator('#modal input[name=tp-alt]').nth(2).check(); await p.click('#modal-confirm-btn'); await p.waitForTimeout(400);
+    eq(await p.evaluate(() => primaryLogEx(aState().logs[logKey()])), null, 'primaryLogEx skal være null for skiftet primær');
+    await p.click('#tp-switch-0'); await p.locator('#modal input[name=tp-alt]').nth(0).check(); await p.click('#modal-confirm-btn'); await p.waitForTimeout(400);
+    const l = (await curLog(p)).log.exercises[0]; eq(l.name, r.before); ok(!('plannedName' in l), 'plannedName skal ryddes');
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Øvelsesskift (V3)', '"Fremtidige pas" kræver separat bekræftelse; derefter bruges alternativet næste gang og kan fortrydes', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    const planned = (await curLog(p)).log.exercises[0].name;
+    await p.click('#tp-switch-0'); await p.locator('#modal input[name=tp-alt]').nth(1).check(); await p.locator('#modal input[name=tp-scope][value=future]').check();
+    ok(await p.isVisible('#tp-future-chk'), 'bekræftelsesboks skal vises');
+    await p.click('#modal-confirm-btn'); await p.waitForTimeout(300);
+    eq((await curLog(p)).subs, {}, 'må ikke gemme uden bekræftelse'); ok(await p.locator('#modal.open').count() === 1, 'arket skal stå åbent');
+    await p.check('#tp-future-chk'); await p.click('#modal-confirm-btn'); await p.waitForTimeout(500);
+    const a = await curLog(p); ok(a.subs[planned] && a.subs[planned].to, 'exerciseSubs mangler'); eq(a.log.exercises[0].sub.scope, 'future');
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Øvelsesskift (V3)', 'Ellens profil påvirkes ikke af Olivers skift (profil-isolation + backup indeholder skift/evaluering)', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    await p.click('#tp-switch-0'); await p.locator('#modal input[name=tp-alt]').nth(1).check(); await p.locator('#modal input[name=tp-scope][value=future]').check(); await p.check('#tp-future-chk'); await p.click('#modal-confirm-btn'); await p.waitForTimeout(400);
+    const partner = await ls(p, 'sbd_partner'); ok(!partner.exerciseSubs || !Object.keys(partner.exerciseSubs).length, 'Ellen fik Olivers skift');
+    const bk = await p.evaluate(() => JSON.stringify(TP.buildBackup('all')));
+    ok(/exerciseSubs/.test(bk) && /plannedName/.test(bk), 'backup mangler substitutioner'); ok(!/sync_token/.test(bk));
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Øvelsesskift (V3)', 'Dækning: alle programøvelser (begge profiler, alle dage/uger) har 2 alternativer ELLER en begrundet undtagelse', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html');
+    const rep = await p.evaluate(() => {
+      const names = new Set(); const prof = state.profile;
+      ['main', 'partner'].forEach(pr => { state.profile = pr; invalidateCache(); CYCLE.filter(c => c.type === 'workout').forEach(c => { for (let w = 1; w <= 12; w++) { try { getExercisesBase(c.id, w).forEach(e => names.add(e.name)); } catch (e) {} } }); });
+      state.profile = prof; invalidateCache();
+      const bad = []; names.forEach(n => { const a = TP.altsFor(n); if (a.alts.length !== 2 && !a.noAltWhy) bad.push(n); if (a.alts.length === 0 && !TP.ALT_LIB[TP.baseName(n)] && !/1RM Forsøg$/.test(n)) bad.push('UDEFINERET:' + n); });
+      return { total: names.size, bad, none: [...names].filter(n => TP.altsFor(n).alts.length === 0) };
+    });
+    eq(rep.bad, [], 'mangler alternativ-definition'); return rep.total + ' øvelser; uden alternativer (bevidst): ' + rep.none.join(', ');
+  });
+  await check('Evaluering (V3)', 'Styrke: evaluering vises først ved afslut, gemmes ved sessionen; "Spring over" gemmer intet og afslutter', async () => {
+    let p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    await p.click('#finish-btn'); await p.waitForSelector('#modal.open .tp-chip');
+    await p.click('.tp-chip[data-grp=effort][data-v="7"]'); await p.click('.tp-chip[data-grp=energy][data-v="3"]'); await p.click('.tp-chip[data-grp=vs][data-v=harder]'); await p.click('.tp-chip[data-grp=pain][data-v="Knæ"]');
+    await p.fill('#tp-eval-comment', 'Tung dag'); await p.click('#modal-confirm-btn'); await p.waitForTimeout(500);
+    if (await p.locator('#session-reason-text').count()) await p.click('#modal-confirm-btn');
+    await p.waitForTimeout(500);
+    const ev = await p.evaluate(() => JSON.parse(localStorage.getItem('sbd_state')).sessionEval);
+    const k = Object.keys(ev); eq(k.length, 1); const e = ev[k[0]];
+    eq([e.effort, e.energy, e.vs, e.pain, e.comment], [7, 3, 'harder', ['Knæ'], 'Tung dag']); eq(p.errors, []); await p.ctx.close();
+    p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    await p.click('#finish-btn'); await p.waitForSelector('#tp-eval-skip'); await p.click('#tp-eval-skip'); await p.waitForTimeout(500);
+    if (await p.locator('#session-reason-text').count()) await p.click('#modal-confirm-btn'); await p.waitForTimeout(400);
+    eq(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('sbd_state')).sessionEval || {}).length), 0, 'spring over må ikke gemme');
+    ok(await p.evaluate(() => JSON.parse(localStorage.getItem('sbd_state')).completedDays.length) > 0, 'træning skulle være afsluttet'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Evaluering (V3)', 'Styrke: "Annuller" i evaluering afslutter ikke træningen', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    const n0 = await p.evaluate(() => JSON.parse(localStorage.getItem('sbd_state')).completedDays.length);
+    await p.click('#finish-btn'); await p.waitForSelector('#modal.open .tp-chip'); await p.click('#modal .modal-cancel'); await p.waitForTimeout(300);
+    eq(await p.evaluate(() => JSON.parse(localStorage.getItem('sbd_state')).completedDays.length), n0); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Evaluering (V3)', 'Løb: efter gem vises evaluering; gem lagrer run.eval og vises i listen; "Spring over" lagrer intet', async () => {
+    let p = await newPage(); await open(p, 'lob/index.html'); await p.click('#newrun-card > summary');
+    await p.fill('#lg-dist', '5'); await p.fill('#lg-tid', '28:00'); await p.click('text=Gem løbetur'); await p.waitForSelector('#tp-run-eval:not([hidden]) .tp-chip');
+    await p.click('#tp-run-eval .tp-chip[data-grp=effort][data-v="6"]'); await p.click('#tp-run-eval .tp-chip[data-grp=vs][data-v=easier]'); await p.click('#tp-run-eval button:has-text("Gem")'); await p.waitForTimeout(400);
+    const runs = (await ls(p, 'lob_state')).runs; const r = runs[runs.length - 1]; eq([r.eval.effort, r.eval.vs], [6, 'easier']);
+    ok(/Selvvurdering/.test(await p.innerText('#run-list')), 'vises ikke i listen'); eq(p.errors, []); await p.ctx.close();
+    p = await newPage(); await open(p, 'lob/index.html'); await p.click('#newrun-card > summary');
+    await p.fill('#lg-dist', '5'); await p.fill('#lg-tid', '28:00'); await p.click('text=Gem løbetur'); await p.waitForSelector('#tp-run-eval:not([hidden])'); await p.click('#tp-run-eval button:has-text("Spring over")'); await p.waitForTimeout(300);
+    const r2 = (await ls(p, 'lob_state')).runs.slice(-1)[0]; ok(!r2.eval, 'skal ikke have eval'); ok(await p.isHidden('#tp-run-eval')); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Evaluering (V3)', 'Forsigtig brug: kontekstboks vises først ved ≥3 svar med gentaget mønster', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html');
+    const set = n => p.evaluate(n => { const as = aState(); as.sessionEval = {}; for (let i = 0; i < n; i++) as.sessionEval['day' + (900 + i)] = { vs: 'harder', energy: 2, ts: i }; saveState(); renderToday(); return /din selvvurdering/i.test(document.body.innerText); }, n);
+    eq(await set(2), false, 'for tidligt'); eq(await set(3), true, 'burde vises'); eq(p.errors, []); await p.ctx.close();
+  });
+
   /* ───────── AXE ───────── */
   let axeSrc = null;
   for (const c of [process.env.AXE_PATH, path.join(__dirname, '..', 'node_modules', 'axe-core', 'axe.min.js'), path.join(__dirname, '..', '..', 'axe', 'node_modules', 'axe-core', 'axe.min.js')]) if (c && fs.existsSync(c)) { axeSrc = fs.readFileSync(c, 'utf8'); break; }
@@ -399,6 +498,9 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
       ['Løb Timer (setup)', 'lob/index.html', async p => { await p.click('#tab-timer'); }],
       ['Løb Timer (kører)', 'lob/index.html', async p => { await p.click('#tab-timer'); await p.fill('#tm-reps', '2'); await p.fill('#tm-work', '0:30'); await p.fill('#tm-rest', '0:20'); await p.click('text=Start session'); await p.waitForTimeout(500); }],
       ['Løb Opsætning', 'lob/index.html', async p => { await p.click('#tab-settings'); }],
+      ['SBD skift-øvelse-ark', 'sbd/index.html', async p => { await startSession(p); await p.click('#tp-switch-0'); await p.waitForSelector('#modal.open input[name=tp-alt]'); }],
+      ['SBD evaluering', 'sbd/index.html', async p => { await startSession(p); await p.click('#finish-btn'); await p.waitForSelector('#modal.open .tp-chip'); await p.click('.tp-chip[data-grp=effort][data-v="7"]'); }],
+      ['Løb evaluering', 'lob/index.html', async p => { if (!(await p.locator('#lg-dist').isVisible())) await p.click('#newrun-card > summary'); await p.fill('#lg-dist', '5'); await p.fill('#lg-tid', '28:00'); await p.click('text=Gem løbetur'); await p.waitForSelector('#tp-run-eval:not([hidden]) .tp-chip'); }],
       ['Dashboard backup-plan', 'index.html', async p => { await p.waitForSelector('#tp-backup-mount .tp-panel', { state: 'attached' }); if (!(await p.isVisible('#tp-backup-mount [data-act=check]'))) await p.locator('.section-label', { hasText: 'Indstillinger' }).click(); const b = JSON.stringify(await p.evaluate(() => TP.buildBackup('all'))); await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'a.json', mimeType: 'application/json', buffer: Buffer.from(b) }); await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-role=confirm]'); }],
     ];
     for (const w of [390, 1366]) for (const [name, rel, prep] of states) {

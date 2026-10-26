@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lobe-tracker-v4';
+const CACHE_NAME = 'lobe-tracker-v5';
 const ASSETS = ['./index.html', './manifest.json', '../ds.css', '../ds.js', '../tp-core.js', '../tp-ui.js'];
 
 self.addEventListener('install', function(event){

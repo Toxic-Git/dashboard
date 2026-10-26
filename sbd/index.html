@@ -139,6 +139,19 @@ html, body {
   border-bottom:1px solid var(--border);
   gap:8px;
 }
+.tp-q{font-size:13px;font-weight:600;margin:12px 0 6px}
+.tp-chips{display:flex;flex-wrap:wrap;gap:6px}
+.tp-chip{min-width:44px;min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:inherit;font-size:14px;cursor:pointer}
+.tp-chip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#181a1f;font-weight:700}
+.tp-chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.tp-sub-note{font-size:12px;color:var(--gold);margin-top:3px;line-height:1.4}
+.tp-switch-btn{margin-top:6px;min-height:36px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.tp-switch-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.tp-opt{display:block;width:100%;text-align:left;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface);color:var(--text);cursor:pointer;font:inherit}
+.tp-opt input{margin-right:8px;accent-color:var(--gold)}
+.tp-opt.on{border-color:var(--gold)}
+.tp-opt .why{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tp-opt .lp{display:block;font-size:12.5px;margin-top:4px;color:var(--text)}
 .ex-name {
   font-family:'Barlow Condensed',sans-serif;
   font-size:17px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
@@ -431,7 +444,7 @@ html, body {
 .modal-overlay.open { display:flex; }
 .modal {
   background:var(--surface); border-radius:var(--radius) var(--radius) 0 0;
-  width:100%; max-width:480px; padding:24px 20px 40px;
+  width:100%; max-width:480px; padding:24px 20px 40px; max-height:92vh; overflow-y:auto;
   animation:slideUp .25s ease;
 }
 @keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
@@ -1419,7 +1432,27 @@ function accStartKg(name, templateKg) {
   return templateKg;
 }
 
+// Hovedløftets logpost — null hvis dagens primær blev skiftet til et alternativ (så progression/e1RM/graf ikke blandes)
+function primaryLogEx(log) {
+  const e = log && log.exercises && log.exercises[0];
+  return e && !e.plannedName ? e : null;
+}
+
+// Substitutioner lægges ovenpå den cachede plan (planen selv ændres aldrig).
 function getExercises(dayId, week) {
+  const base = getExercisesBase(dayId, week);
+  if (!window.TP || !TP.applySubstitutions) return base;
+  try {
+    const as = aState();
+    const cur = !isPeakWeek() && CYCLE[getCycleDay()] && CYCLE[getCycleDay()].id === dayId && week === getWeek();
+    if (!cur) return base;
+    const log = as.logs && as.logs[logKey()];
+    if (!log && !(as.exerciseSubs && Object.keys(as.exerciseSubs).length)) return base;
+    return TP.applySubstitutions(base, { subs: as.exerciseSubs, log: log || null, lastPerf: n => getLastPerformance(n) });
+  } catch (e) { return base; }
+}
+
+function getExercisesBase(dayId, week) {
   const cacheKey = `${dayId}_${week}_${state.profile}`;
   if (_exercisesCache[cacheKey]) return _exercisesCache[cacheKey];
   const result = _getExercises(dayId, week);
@@ -1898,6 +1931,13 @@ function renderToday() {
     </div>`;
   }
 
+  // Selvvurderinger (V3 fase 2): vises kun som forsigtig kontekst ved gentagne mønstre (min. 3 svar) — ændrer ikke planen
+  if (window.TP && as.sessionEval) {
+    const evs = Object.keys(as.sessionEval).map(k => ({ k, n: parseInt(k.replace('day',''), 10), e: as.sessionEval[k] })).sort((x, y) => x.n - y.n).slice(-6).map(x => x.e);
+    const pat = TP.evalPattern(evs);
+    if (pat.notes.length) html += `<div class="suggestion-bar" style="flex-direction:column;align-items:flex-start;gap:4px;"><div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);">Din selvvurdering — kontekst</div>${pat.notes.map(n => `<div style="font-size:13px;">${esc(n)}</div>`).join('')}<div style="font-size:12px;color:var(--muted);">Kun en observation fra dine egne svar. Planen er uændret.</div></div>`;
+  }
+
   // Weekly summary — show on first workout day of each new week
   const isFirstDayOfWeek = aState().totalDays % 7 === 0 && day.type === 'workout';
   if (isFirstDayOfWeek && getWeek() > 1) {
@@ -2142,6 +2182,7 @@ function renderToday() {
       sid: window.TP ? TP.uid('sbd') : undefined,
       exercises: exercises.map(ex => ({
         name: ex.name,
+        ...(ex.plannedName ? { plannedName: ex.plannedName, sub: { scope: 'future', at: Date.now() } } : {}),
         sets: Array.from({ length: ex.scheme.sets }, () => ({
           kg: ex.scheme.kg || '',
           reps: ex.scheme.reps || '',
@@ -2276,7 +2317,9 @@ function renderToday() {
         <div>
           <div class="ex-name">${ex.name} <span onclick="showExercisePerformance('${ex.name.replace(/'/g, "\\'")}')" style="font-size:12px;cursor:pointer;opacity:0.6;" title="Se performance-oversigt">📊</span></div>
           <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeHintHtml} &nbsp;${ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown' ? rpeHtml(ex.type, week, ex.name) : ''}</div>
+          ${ex.plannedName ? `<div class="tp-sub-note">↔ Skiftet fra <b>${esc(ex.plannedName)}</b> ${ex.subScope === 'future' ? '(fremtidige pas)' : '(kun i dag)'}${ex.protectedSub ? ' · tæller ikke i hovedløftets progression' : ''}</div>` : ''}
           ${lastPerfHtml}
+          ${tpSwitchBtn(ex, ei, logEx, alreadyDone)}
         </div>
         <div class="ex-badge ${badgeClass}">${badgeLabel}</div>
       </div>`;
@@ -2722,6 +2765,7 @@ function toggleSet(ei, si) {
   if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
   if (!s.reps) s.reps = ex.scheme.reps;
   s.done = !s.done;
+  if (s.done) { const sb = document.getElementById('tp-switch-' + ei); if (sb) sb.remove(); } // skift kun før første sæt
 
   // Track granular session timestamps
   if (s.done) {
@@ -2988,7 +3032,49 @@ function fmtDuration(secs) {
 const SESSION_NOTE_TAGS = ['⏱ Tidsbegrænset', '😩 Udmattet', '🤒 Syg/øm', '😴 Dårlig søvn', '🍽 Ikke spist nok', '🧠 Distraheret'];
 let _pendingSessionNoteTags = new Set();
 
+// ── Evaluering efter træning (V3 fase 2) — kort, valgfri, gemmes ved sessionen ──
+let _tpEval = null;
 function finishWorkout() {
+  const as = aState(), key = logKey();
+  const dayInfo = isPeakWeek() ? PEAK_WEEK[getPeakDay()] : CYCLE[getCycleDay()];
+  const skip = !window.TP || as.completedDays.includes(as.totalDays) || !as.logs[key] || dayInfo?.type !== 'workout' || (as.sessionEval && as.sessionEval[key]);
+  if (skip) { finishWorkoutCore(); return; }
+  openEvalSheet();
+}
+function openEvalSheet() {
+  _tpEval = { effort: null, energy: null, vs: null, pain: new Set() };
+  const chips = (arr, grp, fmt) => arr.map(v => `<button type="button" class="tp-chip" data-grp="${grp}" data-v="${esc(v)}" aria-pressed="false" onclick="tpEvalPick(this)">${esc(fmt ? fmt(v) : v)}</button>`).join('');
+  const body = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Helt valgfrit — tager 10 sekunder. Det er din egen vurdering, ikke en måling.</div>
+    <div class="tp-q">Hvor hårdt føltes det? <span style="color:var(--muted)">(1 let – 10 maks)</span></div><div class="tp-chips">${chips([1,2,3,4,5,6,7,8,9,10], 'effort')}</div>
+    <div class="tp-q">Energi under passet <span style="color:var(--muted)">(1 lav – 5 høj)</span></div><div class="tp-chips">${chips([1,2,3,4,5], 'energy')}</div>
+    <div class="tp-q">Sammenlignet med forventning</div><div class="tp-chips">${chips(Object.keys(TP.EVAL_VS), 'vs', k => TP.EVAL_VS[k])}</div>
+    <div class="tp-q">Ømhed / smerte (hvis nogen)</div><div class="tp-chips">${chips(TP.EVAL_PAIN, 'pain')}</div>
+    <textarea aria-label="Kommentar" id="tp-eval-comment" maxlength="500" placeholder="Kommentar (valgfri)" style="width:100%;min-height:54px;margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-family:inherit;font-size:14px;box-sizing:border-box;"></textarea>
+    <button type="button" class="tp-switch-btn" id="tp-eval-skip" style="margin-top:10px;" onclick="tpEvalSkip()">Spring over</button>`;
+  showModal('Hvordan gik det?', body, tpEvalSave);
+  const b = document.getElementById('modal-confirm-btn'); if (b) b.textContent = 'Gem og afslut';
+}
+function tpEvalPick(btn) {
+  const g = btn.dataset.grp, v = btn.dataset.v;
+  if (g === 'pain') {
+    if (_tpEval.pain.has(v)) _tpEval.pain.delete(v); else _tpEval.pain.add(v);
+    btn.setAttribute('aria-pressed', _tpEval.pain.has(v));
+  } else {
+    const val = (g === 'vs') ? v : parseInt(v, 10);
+    _tpEval[g] = _tpEval[g] === val ? null : val;
+    document.querySelectorAll(`.tp-chip[data-grp="${g}"]`).forEach(c => c.setAttribute('aria-pressed', String(_tpEval[g] !== null && (g === 'vs' ? c.dataset.v === _tpEval[g] : parseInt(c.dataset.v, 10) === _tpEval[g]))));
+  }
+}
+function tpEvalSkip() { closeModal(); const b = document.getElementById('modal-confirm-btn'); if (b) b.textContent = 'OK'; finishWorkoutCore(); }
+function tpEvalSave() {
+  const as = aState(), key = logKey();
+  const ev = TP.normalizeEval({ effort: _tpEval.effort, energy: _tpEval.energy, vs: _tpEval.vs, pain: [..._tpEval.pain], comment: document.getElementById('tp-eval-comment')?.value }, Date.now());
+  if (ev) { if (!as.sessionEval) as.sessionEval = {}; as.sessionEval[key] = ev; saveState(); }
+  closeModal(); const b = document.getElementById('modal-confirm-btn'); if (b) b.textContent = 'OK';
+  finishWorkoutCore();
+}
+
+function finishWorkoutCore() {
   const as = aState();
   const key = logKey();
   const log = as.logs[key];
@@ -3650,7 +3736,7 @@ function renderWeeklySummary() {
         .sort((a,b) => b-a);
       if (sessions.length >= 2) {
         const getE1rm = d => {
-          const sets = as.logs[`day${d}`]?.exercises[0]?.sets?.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) || [];
+          const sets = primaryLogEx(as.logs[`day${d}`])?.sets?.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) || [];
           return sets.length ? Math.max(...sets.map(s => epley(parseFloat(s.kg), parseInt(s.reps)))) : 0;
         };
         const last = getE1rm(sessions[0]);
@@ -3786,6 +3872,8 @@ function renderHistory() {
     if (!log || !dayInfo || dayInfo.type === 'rest') return;
     const w = Math.floor(d / 7) + 1;
     const noteData = as.sessionNotes?.[key];
+    const evD = as.sessionEval?.[key];
+    const evHtml = evD && window.TP ? `<div style="margin-top:6px;font-size:12px;color:var(--muted);">Selvvurdering: ${[evD.effort != null ? 'anstrengelse ' + evD.effort + '/10' : '', evD.energy != null ? 'energi ' + evD.energy + '/5' : '', evD.vs ? TP.EVAL_VS[evD.vs] : '', (evD.pain || []).length ? 'ømhed: ' + evD.pain.map(esc).join(', ') : '', evD.comment ? '“' + esc(evD.comment) + '”' : ''].filter(Boolean).join(' · ')}</div>` : '';
     const noteHtml = noteData && (noteData.tags?.length || noteData.text)
       ? `<div style="margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:8px;">
           ${noteData.tags?.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;${noteData.text ? 'margin-bottom:6px;' : ''}">
@@ -3799,7 +3887,7 @@ function renderHistory() {
         <div class="hist-entry-day">${dayInfo.name}</div>
         <div class="hist-entry-date">Uge ${w} · Dag ${d + 1}</div>
       </div>
-      ${noteHtml}`;
+      ${noteHtml}${evHtml}`;
     log.exercises.forEach(ex => {
       const doneSets = ex.sets.filter(s => s.done);
       if (doneSets.length === 0) return;
@@ -3807,7 +3895,7 @@ function renderHistory() {
       const maxReps = Math.max(...doneSets.map(s => parseInt(s.reps) || 0));
       const e1rm = maxKg > 0 && maxReps > 0 ? epley(maxKg, maxReps).toFixed(1) : null;
       html += `<div class="hist-lift-row">
-        <span class="hist-lift-name">${ex.name}</span>
+        <span class="hist-lift-name">${ex.name}${ex.plannedName ? ` <span style="font-size:12px;color:var(--gold);">↔ i stedet for ${esc(ex.plannedName)}</span>` : ''}</span>
         <span class="hist-lift-val">${doneSets.length} sæt · ${maxKg > 0 ? maxKg + ' kg' : ''}${e1rm ? ' <span style="font-size:12px;color:var(--muted);">~'+e1rm+' 1RM</span>' : ''}</span>
       </div>`;
     });
@@ -4259,6 +4347,63 @@ function confirmReset() {
 }
 
 // ─── MODAL ───────────────────────────────────────────────────────────────────
+function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ── Øvelsesskift (V3 fase 2) ──────────────────────────────────────────────
+function tpSwitchBtn(ex, ei, logEx, alreadyDone) {
+  if (!window.TP || alreadyDone) return '';
+  if ((logEx?.sets || []).some(s => s.done)) return '';
+  const info = TP.altsFor(ex.plannedName || ex.name, aState());
+  if (!info.alts.length) return '';
+  return `<button class="tp-switch-btn" id="tp-switch-${ei}" onclick="openSwitchSheet(${ei})">⇄ Skift øvelse</button>`;
+}
+function openSwitchSheet(ei) {
+  const as = aState(), key = logKey(), log = as.logs[key], logEx = log?.exercises[ei];
+  if (!logEx) return;
+  if (logEx.sets.some(s => s.done)) { showToast('Skift er kun muligt før første sæt.'); return; }
+  const planned = logEx.plannedName || logEx.name;
+  const info = TP.altsFor(planned, as);
+  const cur = logEx.name;
+  const protectedLift = ['primary','secondary','backdown'].includes((getExercisesBase(CYCLE[getCycleDay()].id, getWeek()).find(e => e.name === planned) || {}).type);
+  const opts = [{ name: planned, why: 'Programmets planlagte øvelse.', primary: true }].concat(info.alts.map(a => ({ name: a.name, why: a.why, equip: a.equip })));
+  const lpTxt = n => { const lp = getLastPerformance(n); return lp ? `Sidst: ${lp.kg} kg × ${lp.reps}` : 'Ingen tidligere data for denne øvelse — start let. Vægte fra andre øvelser overføres ikke.'; };
+  let body = `<div style="font-size:13px;color:var(--muted);margin-bottom:10px;">Vælg hvad du faktisk udfører. Historik, PR og 1RM gemmes separat for den valgte øvelse.</div>`;
+  opts.forEach((o, i) => {
+    body += `<label class="tp-opt ${o.name === cur ? 'on' : ''}"><input type="radio" name="tp-alt" value="${esc(o.name)}" ${o.name === cur ? 'checked' : ''}><b>${esc(o.name)}</b>${o.primary ? ' · primær' : ' · alternativ ' + 'AB'[i - 1]}<span class="why">${esc(o.why)}</span><span class="lp">${esc(lpTxt(o.name))}</span></label>`;
+  });
+  if (protectedLift) body += `<div class="tp-sub-note" style="margin-bottom:8px;">⚠ Hovedløft: et alternativ tæller ikke i dit programs progression, 1RM eller PR. Dagens belastning vælger du selv.</div>`;
+  body += `<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:6px 0;">Gælder</div>
+    <label class="tp-opt on" id="tp-scope-s"><input type="radio" name="tp-scope" value="session" checked>Kun dette pas</label>
+    <label class="tp-opt" id="tp-scope-f"><input type="radio" name="tp-scope" value="future">Dette og fremtidige pas<span class="why">Ændrer ikke programmet — kun hvilken øvelse der foreslås. Kan fortrydes her når som helst.</span></label>
+    <label id="tp-future-ok" style="display:none;font-size:13px;margin:4px 0 8px;"><input type="checkbox" id="tp-future-chk" style="margin-right:8px;accent-color:var(--gold)">Ja, brug alternativet i fremtidige pas</label>`;
+  showModal('Skift øvelse', body, () => {
+    const to = document.querySelector('input[name="tp-alt"]:checked')?.value;
+    const scope = document.querySelector('input[name="tp-scope"]:checked')?.value || 'session';
+    if (!to) return;
+    if (scope === 'future' && to !== planned && !document.getElementById('tp-future-chk').checked) { showToast('Bekræft først at det gælder fremtidige pas.'); return; }
+    applySwitch(ei, planned, to, scope);
+  });
+  const sync = () => {
+    const f = document.querySelector('input[name="tp-scope"]:checked')?.value === 'future';
+    const o = document.querySelector('input[name="tp-alt"]:checked')?.value;
+    document.getElementById('tp-future-ok').style.display = f && o !== planned ? 'block' : 'none';
+    document.querySelectorAll('#modal .tp-opt').forEach(l => l.classList.toggle('on', !!l.querySelector('input')?.checked));
+  };
+  document.querySelectorAll('#modal input[type=radio]').forEach(i => i.addEventListener('change', sync));
+}
+function applySwitch(ei, planned, to, scope) {
+  const as = aState(), key = logKey();
+  const res = TP.switchLogExercise(as, key, ei, planned, to, scope, Date.now());
+  if (!res.ok) { showToast(res.reason); return; }
+  saveState();
+  const day = CYCLE[getCycleDay()];
+  const ex = getExercises(day.id, getWeek())[ei];
+  const kg = ex?.scheme?.kg;
+  (as.logs[key].exercises[ei].sets || []).forEach(s => { if (!s.done) s.kg = kg || ''; });
+  saveState(); closeModal(); renderToday();
+  showToast(to === planned ? 'Tilbage til planlagt øvelse' : 'Skiftet til ' + to);
+}
+
 function showModal(title, body, onConfirm, danger = false) {
   // Andre modaler (fx dag-skift) kan have fjernet bekræft-knappen — gendan standardknapperne
   const acts = document.querySelector('#modal .modal-actions');
@@ -4270,6 +4415,7 @@ function showModal(title, body, onConfirm, danger = false) {
   document.getElementById('modal-body').innerHTML = body;
   const btn = document.getElementById('modal-confirm-btn');
   if (btn) {
+    btn.textContent = 'OK';
     btn.style.background = danger ? 'var(--red)' : 'var(--green)';
     btn.onclick = onConfirm;
   }
@@ -4610,7 +4756,7 @@ function renderBlockProgression() {
     as.completedDays
       .filter(d => CYCLE[d%8].id === dayId && d >= dayStart && d < dayEnd)
       .forEach(d => {
-        const sets = as.logs[`day${d}`]?.exercises[0]?.sets?.filter(
+        const sets = primaryLogEx(as.logs[`day${d}`])?.sets?.filter(
           s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) || [];
         sets.forEach(s => {
           const e = epley(parseFloat(s.kg), parseInt(s.reps));
@@ -5501,6 +5647,7 @@ const MUSCLE_MAP = {
   'Box Jump': 'Core',
   'Calf Raise (Machine)': 'Lægge', 'Single Leg Calf Raise (BB)': 'Lægge', 'Calf Raise': 'Lægge',
 };
+if (window.TP && TP.MUSCLE_EXTRA) Object.keys(TP.MUSCLE_EXTRA).forEach(k => { if (!(k in MUSCLE_MAP)) MUSCLE_MAP[k] = TP.MUSCLE_EXTRA[k]; });
 
 // Evidensbaserede ugentlige sæt-anbefalinger per muskelgruppe
 const VOLUME_TARGETS = {
@@ -6277,9 +6424,9 @@ function getLastWorkingKg(dayId) {
   if (matches.length === 0) return null;
   const lastKey = `day${matches[0]}`;
   const log = state.logs[lastKey];
-  if (!log || !log.exercises || !log.exercises[0]) return null;
+  if (!log || !log.exercises || !primaryLogEx(log)) return null; // skiftet primær (plannedName) tæller ikke som hovedløftets progression
   // Primary lift is always exercises[0]
-  const primarySets = log.exercises[0].sets.filter(s => s.done && parseFloat(s.kg) > 0);
+  const primarySets = primaryLogEx(log).sets.filter(s => s.done && parseFloat(s.kg) > 0);
   if (primarySets.length === 0) return null;
   return Math.max(...primarySets.map(s => parseFloat(s.kg)));
 }
@@ -6300,8 +6447,8 @@ function getProgressionSuggestion(dayId, week) {
     .sort((a, b) => b - a);
   if (!matches.length) return null;
   const lastLog = aState().logs[`day${matches[0]}`];
-  if (!lastLog?.exercises[0]?.sets) return null;
-  const primarySets = lastLog.exercises[0].sets.filter(s => s.done) || [];
+  if (!primaryLogEx(lastLog)?.sets) return null;
+  const primarySets = primaryLogEx(lastLog).sets.filter(s => s.done) || [];
   const allHitReps = primarySets.length > 0 && primarySets.every(s => parseInt(s.reps) >= (lastLog.exercises[0].targetReps || 5));
 
   let suggestion;
@@ -6330,8 +6477,8 @@ function getChartData(liftKey) {
     .sort((a, b) => a - b)
     .map(d => {
       const log = as.logs[`day${d}`];
-      if (!log?.exercises[0]) return null;
-      const sets = log.exercises[0].sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+      if (!primaryLogEx(log)) return null;
+      const sets = primaryLogEx(log).sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
       if (!sets.length) return null;
       // Use best e1RM across all sets
       const bestE1RM = Math.max(...sets.map(s => epley(parseFloat(s.kg), parseInt(s.reps))));

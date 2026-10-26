@@ -704,6 +704,7 @@ const MUSCLE_MAP = {
   'Cable Crunch':'Core', 'Box Jump':'Core',
   'Calf Raise (Machine)':'Lægge', 'Single Leg Calf Raise (BB)':'Lægge', 'Calf Raise':'Lægge',
 };
+if (window.TP && TP.MUSCLE_EXTRA) Object.keys(TP.MUSCLE_EXTRA).forEach(k => { if (!(k in MUSCLE_MAP)) MUSCLE_MAP[k] = TP.MUSCLE_EXTRA[k]; });
 const VOLUME_TARGETS = {
   'Bryst':{min:10,max:20}, 'Skulder':{min:10,max:20}, 'Triceps':{min:8,max:18},
   'Quad':{min:12,max:20}, 'Post. Chain':{min:10,max:20}, 'Ryg':{min:12,max:22},

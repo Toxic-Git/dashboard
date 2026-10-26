@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sbd-tracker-v5';
+const CACHE_NAME = 'sbd-tracker-v6';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png', '../ds.css', '../ds.js', '../tp-core.js', '../tp-ui.js'];
 
 self.addEventListener('install', function(event){
