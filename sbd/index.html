@@ -1337,6 +1337,23 @@ function rpeHtml(type, week, exName) {
   return `<span class="rpe-pill ${cls}">RPE ${val}</span>`;
 }
 
+// Letvægts-start (efter genstart): i uge 1–4 springes de øvelser over, som i forrige program
+// aldrig blev nået (tid/træthed), så sessionerne bliver kortere og mere realistiske.
+const LIGHT_START_WEEKS = 4;
+const LIGHT_START_DROP = {
+  low1: ['Hack Squat (Machine)', 'Cable Crunch', 'Box Jump'],
+  bb1:  ['Smith Machine Row'],
+  low2: ['Cable Crunch', 'Hip Adduction (Machine)', 'Box Jump'],
+  bb2:  ['Neutral Grip Pulldown', 'Overhead Triceps Ext. (Cable) — Let'],
+};
+function isLightStartDropped(dayId, name, week) {
+  try {
+    if (state.profile === 'partner') return false;
+    if (!state.lightStart || week > LIGHT_START_WEEKS) return false;
+    return (LIGHT_START_DROP[dayId] || []).includes(name);
+  } catch (e) { return false; }
+}
+
 // Startvægt for accessory: gemt tal fra forrige program (genstart) ellers skabelonens
 function accStartKg(name, templateKg) {
   try {
@@ -1396,7 +1413,7 @@ function _getExercises(dayId, week) {
   }
 
   const primary = getPrimaryLift(dayId, week);
-  const accTemplate = ACC_TEMPLATES[dayId] || [];
+  const accTemplate = (ACC_TEMPLATES[dayId] || []).filter(a => !isLightStartDropped(dayId, a.name, week));
 
   const accExercises = accTemplate.map(a => {
     let sets = a.sets, reps = a.reps, repsRange = a.repsRange;
@@ -1446,7 +1463,7 @@ function _getExercises(dayId, week) {
 
   // Power exercise on Lower days — always first after primary, never on deload/test
   const powerEx = [];
-  if ((dayId === 'low1' || dayId === 'low2') && !isDeload(week) && !isTest(week)) {
+  if ((dayId === 'low1' || dayId === 'low2') && !isDeload(week) && !isTest(week) && !isLightStartDropped(dayId, 'Box Jump', week)) {
     powerEx.push({
       name: 'Box Jump',
       badge: 'sq',
@@ -4043,35 +4060,45 @@ function getAccessoryNames() {
 }
 
 function openRestartModal() {
+  const row = (label, id, val, min, max) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <span>${label}</span>
+      <span><input class="set-input" id="${id}" type="number" inputmode="decimal" value="${val}" min="${min}" max="${max}" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
+    </div>`;
   const body = `
     <div style="font-size:13px;line-height:1.5;color:var(--muted);margin-bottom:12px;">
       Starter forfra i uge 1. Dine accessories-vægte (seneste tal pr. øvelse) bliver gemt og bruges som startvægte.
       Historik, PR og kropsvægt bevares. Hele det gamle program lægges i historikken.
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-      <span>Sænk SBD (1RM-baseline) med</span>
-      <span><input class="set-input" id="rs-sbd-pct" type="number" inputmode="decimal" value="10" min="0" max="30" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <span>Accessories-vægte</span>
-      <span><input class="set-input" id="rs-acc-pct" type="number" inputmode="decimal" value="100" min="50" max="110" step="1" style="width:72px;max-width:72px;text-align:center;"> %</span>
-    </div>`;
+    ${row('Sænk Squat med', 'rs-sq-pct', 15, 0, 30)}
+    ${row('Sænk Bench med', 'rs-bp-pct', 6, 0, 30)}
+    ${row('Sænk Deadlift med', 'rs-dl-pct', 10, 0, 30)}
+    ${row('Accessories-vægte', 'rs-acc-pct', 100, 50, 110)}
+    <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.4;margin-top:6px;">
+      <input type="checkbox" id="rs-light" checked style="margin-top:3px;">
+      <span>Lette uger 1–4: spring de øvelser over, som du ikke nåede sidst (Hack Squat, Cable Crunch, Box Jump, Smith Row m.fl.)</span>
+    </label>`;
   showModal('Genstart til uge 1', body, () => {
-    const sbdPct = parseFloat((document.getElementById('rs-sbd-pct') || {}).value);
-    const accPct = parseFloat((document.getElementById('rs-acc-pct') || {}).value);
-    if (isNaN(sbdPct) || sbdPct < 0 || sbdPct > 30 || isNaN(accPct) || accPct < 50 || accPct > 110) {
-      showToast('Ugyldige procenter (SBD 0–30, accessories 50–110)');
+    const val = id => parseFloat((document.getElementById(id) || {}).value);
+    const sbd = { sq: val('rs-sq-pct'), bp: val('rs-bp-pct'), dl: val('rs-dl-pct') };
+    const accPct = val('rs-acc-pct');
+    const light = !!((document.getElementById('rs-light') || {}).checked);
+    const badSbd = Object.values(sbd).some(v => isNaN(v) || v < 0 || v > 30);
+    if (badSbd || isNaN(accPct) || accPct < 50 || accPct > 110) {
+      showToast('Ugyldige procenter (løft 0–30, accessories 50–110)');
       return;
     }
     exportFullBackup(); // altid backup først
-    restartToWeek1(sbdPct, accPct);
+    restartToWeek1(sbd, accPct, light);
     showToast('Genstartet til uge 1 ✅');
   }, false);
 }
 
-function restartToWeek1(sbdPct, accPct) {
+function restartToWeek1(sbdPct, accPct, light) {
   const as = aState();
-  const sf = 1 - sbdPct / 100;
+  // sbdPct kan være ét tal (alle løft) eller { sq, bp, dl }
+  const pcts = (typeof sbdPct === 'object' && sbdPct) ? sbdPct : { sq: sbdPct, bp: sbdPct, dl: sbdPct };
+  const sf = { sq: 1 - pcts.sq / 100, bp: 1 - pcts.bp / 100, dl: 1 - pcts.dl / 100 };
   const af = accPct / 100;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -4097,16 +4124,16 @@ function restartToWeek1(sbdPct, accPct) {
   // 3) Ny baseline for SBD
   const oldRM = { sq: getSQ(), bp: getBP(), dl: getDL() };
   const newRM = {
-    sq: Math.round(oldRM.sq * sf * 2) / 2,
-    bp: Math.round(oldRM.bp * sf * 2) / 2,
-    dl: Math.round(oldRM.dl * sf * 2) / 2,
+    sq: Math.round(oldRM.sq * sf.sq * 2) / 2,
+    bp: Math.round(oldRM.bp * sf.bp * 2) / 2,
+    dl: Math.round(oldRM.dl * sf.dl * 2) / 2,
   };
   if (!as.programHistory) as.programHistory = [];
   as.programHistory.push({
     date: new Date().toLocaleDateString('da-DK'),
     sq: oldRM.sq, bp: oldRM.bp, dl: oldRM.dl,
     newSq: newRM.sq, newBp: newRM.bp, newDl: newRM.dl,
-    program: as.logs, restart: true, sbdPct, accPct,
+    program: as.logs, restart: true, sbdPct: pcts, accPct, light: !!light,
   });
   as.oneRM = Object.assign({}, newRM);
   as.programStart1RM = Object.assign({}, newRM);
@@ -4126,6 +4153,7 @@ function restartToWeek1(sbdPct, accPct) {
   as.sessionTimes = {};
   as.checkpointExported = {};
   as.programStartDate = today;
+  if (state.profile !== 'partner') state.lightStart = !!light;
 
   saveState();
   closeModal();
@@ -5059,6 +5087,8 @@ function saveAutoregAdjustment(exName, pctAdj, currentKg) {
     applyFromDay = applyWeek * 7; // start of week after deload
   }
 
+  // Samme øvelse, samme dag: seneste beregning erstatter den forrige (undgår dobbelt-tælling i trenden)
+  while (hist.length && hist[hist.length - 1].day === as.totalDays) hist.pop();
   hist.push({ kg: currentKg, pct: pctAdj, day: as.totalDays, nextKg, applyFromDay });
   if (hist.length > 5) hist.shift();
   as.autoregAdj[exName] = { sessions: hist };

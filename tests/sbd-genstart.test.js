@@ -59,4 +59,43 @@ T('uden baseline: skabelonens vægt uændret',()=>{
   state.profile='main';delete state.accBaseline;clear();
   assert.equal(accStartKg('Romanian Deadlift',80),80);
 });
+
+// ── Pr. løft-procent, letvægts-start og autoreg-dedupe ──
+T('pr. løft-procenter (sq 15, bp 6, dl 10) rammer hvert løft for sig',()=>{
+  state.profile='main';clear();
+  state.oneRM={sq:117.02,bp:95.58,dl:178.19};
+  restartToWeek1({sq:15,bp:6,dl:10},100,false);
+  assert.equal(state.oneRM.sq,Math.round(117.02*0.85*2)/2);
+  assert.equal(state.oneRM.bp,Math.round(95.58*0.94*2)/2);
+  assert.equal(state.oneRM.dl,Math.round(178.19*0.90*2)/2);
+  assert.deepStrictEqual(state.programStart1RM,state.oneRM);
+  const h=state.programHistory[state.programHistory.length-1];assert.deepStrictEqual(h.sbdPct,{sq:15,bp:6,dl:10});
+});
+T('letvægts-start: dropper aldrig-nåede øvelser i uge 1–4, men ikke i uge 5+ eller for partner',()=>{
+  state.profile='main';
+  restartToWeek1({sq:15,bp:6,dl:10},100,true);clear();
+  const names=(d,w)=>getExercises(d,w).map(e=>e.name);
+  assert(state.lightStart===true);
+  for(const w of [1,2,3,4]){
+    assert(!names('low1',w).includes('Hack Squat (Machine)')&&!names('low1',w).includes('Cable Crunch')&&!names('low1',w).includes('Box Jump'),'low1 uge '+w);
+    assert(!names('bb1',w).includes('Smith Machine Row'));
+    assert(!names('low2',w).includes('Hip Adduction (Machine)')&&!names('low2',w).includes('Cable Crunch'));
+    assert(!names('bb2',w).includes('Neutral Grip Pulldown')&&!names('bb2',w).includes('Overhead Triceps Ext. (Cable) — Let'));
+  }
+  assert(names('low1',1).includes('Leg Extension (Machine)')&&names('low1',1).includes('Squat'));
+  assert(names('low1',5).includes('Hack Squat (Machine)')&&names('low1',5).includes('Box Jump'),'uge 5 uændret');
+  state.profile='partner';clear();
+  assert(names('low1',1).includes('Hack Squat (Machine)'),'partner uændret');
+  state.profile='main';clear();
+});
+T('letvægts-start slås fra når fravalgt',()=>{
+  state.profile='main';restartToWeek1({sq:0,bp:0,dl:0},100,false);clear();
+  assert(!state.lightStart);assert(getExercises('low1',1).some(e=>e.name==='Hack Squat (Machine)'));
+});
+T('autoreg: samme øvelse samme dag erstattes, ikke dobbelt-tælles',()=>{
+  state.profile='main';const as=aState();as.autoregAdj={};as.totalDays=9;
+  saveAutoregAdjustment('Squat',-0.03,90);saveAutoregAdjustment('Squat',0,90);
+  assert.equal(getSessionHistory('Squat').length,1);assert.equal(getSessionHistory('Squat')[0].pct,0);
+  as.totalDays=10;saveAutoregAdjustment('Squat',-0.05,90);assert.equal(getSessionHistory('Squat').length,2);
+});
 console.log(`\n${ok} ok, ${bad} fejl`);process.exit(bad?1:0);
