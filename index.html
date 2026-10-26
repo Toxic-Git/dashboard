@@ -12,6 +12,7 @@
 <title>Træning — Dashboard</title>
 <script src="tp-core.js"></script>
 <script src="tp-plan.js"></script>
+<script src="tp-report.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
 :root{
@@ -392,6 +393,15 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
 .hy-ft{ font-weight:600; font-size:14px; } .hy-lv{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--gold); }
 .hy-opt{ display:flex; gap:10px; justify-content:space-between; align-items:flex-start; padding:8px 0; border-top:1px solid var(--border); } .hy-opt .hy-btn{ flex:0 0 auto; }
 .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.fc-set{ border:0; padding:0; margin:10px 0 0; display:flex; flex-direction:column; gap:6px; min-width:0; }
+.fc-opt{ display:flex; gap:10px; align-items:flex-start; padding:10px; min-height:44px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); cursor:pointer; } .fc-opt.on{ border-color:var(--gold); }
+.fc-opt input,.fc-chk input{ margin-top:4px; accent-color:var(--gold); width:18px; height:18px; flex:0 0 auto; } .fc-opt .hy-note{ display:block; }
+.fc-chk{ display:flex; gap:8px; align-items:flex-start; min-height:36px; font-size:14px; } .fc-explain{ margin-top:12px; padding:10px; border-radius:10px; background:var(--surface2); font-size:13px; } .fc-explain ul{ margin:6px 0 6px 18px; padding:0; }
+.rp-badge{ display:inline-block; font-size:12px; padding:4px 8px; border-radius:8px; background:rgba(212,168,67,0.12); color:var(--gold); margin-bottom:8px; }
+.rp-grid{ display:grid; grid-template-columns:1fr; gap:8px; margin:8px 0; } @media (min-width:760px){ .rp-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+.rp-card{ padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); font-size:13.5px; display:flex; flex-direction:column; gap:3px; } .rp-card h4,.rp-block h4{ margin:0 0 4px; font-size:14px; }
+.rp-block{ margin-top:10px; padding:10px 12px; border-radius:10px; border-left:3px solid var(--border); background:var(--surface2); } .rp-block.good{ border-left-color:var(--green); } .rp-block.bad{ border-left-color:var(--red); } .rp-block.focus{ border-left-color:var(--gold); }
+.rp-block ul{ margin:4px 0 0 18px; padding:0; font-size:14px; line-height:1.5; } .rp-rule{ color:var(--muted); } .rp-basis summary{ cursor:pointer; font-size:12.5px; color:var(--muted); } .rp-basis{ font-size:12.5px; color:var(--muted); }
 </style>
 <link rel="stylesheet" href="ds.css">
 </head>
@@ -457,9 +467,13 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
 
   <div class="section-label">Mål</div>
   <div id="slot-mal"></div>
+  <div id="slot-focus"></div>
 
   <div class="section-label">Personlige rekorder</div>
   <div id="slot-pr"></div>
+
+  <div class="section-label">Månedsrapport</div>
+  <div id="slot-report"></div>
 
   <div class="section-label">AI-analyse</div>
   <div id="slot-insights"></div>
@@ -477,7 +491,7 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   // Sektioner der er brede / smalle på desktop, og hvilke der kan foldes sammen.
   const WIDE = ['I dag', 'Oversigt', 'Samlet kalender'];
   const S8 = ['Denne uge']; const S4 = ['Kalender'];
-  const FOLD = ['Kalender','Samlet kalender','Oversigt','Powerbuilding','Løb','Recovery','Kropsudvikling','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
+  const FOLD = ['Kalender','Samlet kalender','Månedsrapport','Oversigt','Powerbuilding','Løb','Recovery','Kropsudvikling','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
   const OPEN_MOBILE = ['Oversigt','Mål'];
   const isDesktop = window.matchMedia('(min-width:760px)').matches;
   function saved(key){ try { return localStorage.getItem('dash_sec_'+key); } catch(e){ return null; } }
@@ -1980,10 +1994,7 @@ const HYB = { weekOffset: 0, sel: null, showDismissed: false, opts: {}, msg: '' 
 const HYB_SBD_FLAGS = { cst1:{lower:false}, low1:{lower:true}, bb1:{lower:true,hinge:true}, cst2:{lower:false}, low2:{lower:true}, bb2:{lower:true,hinge:true} };
 function hybProfileKey(personKey){ return personKey==='ellen' ? 'partner' : 'main'; }
 function hybMeta(personKey){ return TP.loadMeta(hybProfileKey(personKey)); }
-function hybFocus(meta){
-  const f = meta && meta.goalPriority && meta.goalPriority.focus;
-  return f==='strength' ? 'strength' : (f==='run' ? 'run' : 'balanced'); // 'hypertrophy' bruger de balancerede regler
-}
+function hybFocus(meta){ return TPPLAN.engineFocus(meta); } // hypertrofi bruger styrke-reglerne (beskytter styrkepas)
 function hybMedianKm(lRaw){
   const km=((lRaw&&lRaw.runs)||[]).slice(-12).map(r=>+r.distanceKm||0).filter(x=>x>0).sort((a,b)=>a-b);
   return km.length ? km[Math.floor(km.length/2)] : 0;
@@ -2080,14 +2091,15 @@ function hybAnalyzeCtx(personKey,sRaw,lRaw,meta){
 function hybCtx(personKey,sRaw,lRaw){
   const meta=hybMeta(personKey), today=localISO(new Date());
   const analyzeCtx=hybAnalyzeCtx(personKey,sRaw,lRaw,meta);
-  const raceDate=analyzeCtx.races[0]&&analyzeCtx.races[0].date;
+  const prof=lRaw&&lRaw.profile; const raceDate=analyzeCtx.races[0]&&analyzeCtx.races[0].date;
+  const near=TPPLAN.attachedDates(meta,(prof&&prof.goals)||[],raceDate).concat(raceDate?[raceDate]:[]);
   const days=hybBuild(personKey,sRaw,lRaw);
   const findings=TPPLAN.analyze(days,analyzeCtx).filter(f=>{
     const last=f.dates[f.dates.length-1]; return last>=TP.addDays(today,-3);
   });
   return { meta, today, analyzeCtx, days, findings,
     sugCtx:{ today, analyzeCtx, focus:hybFocus(meta), runsFixed:personKey==='ellen',
-      raceNear:d=>!!raceDate && TP.diffDays(d,raceDate)>=0 && TP.diffDays(d,raceDate)<=14,
+      raceNear:d=>near.some(x=>TP.diffDays(d,x)>=0 && TP.diffDays(d,x)<=14),
       rebuild:(extra,blocked)=>hybBuild(personKey,sRaw,lRaw,extra,blocked) } };
 }
 
@@ -2271,7 +2283,7 @@ function renderHybridLoad(sRaw,lRaw,personKey){
     const cx=hybCtx(personKey,sRaw,lRaw), today=cx.today;
     const o7=TPPLAN.overview(cx.days,today,7), o28=TPPLAN.overview(cx.days,today,28);
     const vis=cx.findings.filter(f=>!f.dismissed), hid=cx.findings.filter(f=>f.dismissed);
-    const sortedAll=vis.slice().sort((a,b)=>(a.level===b.level?0:(a.level==='warn'?-1:1))||a.dates[0].localeCompare(b.dates[0])); const sorted=sortedAll.slice(0,8);
+    const sortedAll=TPPLAN.sortFindings(vis,cx.sugCtx.focus); const sorted=sortedAll.slice(0,8);
     HYB.opts={};
     const card=f=>{
       const opts=f.level==='warn'?TPPLAN.suggest(f,cx.sugCtx):[]; HYB.opts[f.key]=opts;
@@ -2290,6 +2302,7 @@ function renderHybridLoad(sRaw,lRaw,personKey){
         ${hybOverviewRow('Længste løb (km)',o7.longestRunKm.toFixed(1),o28.longestRunKm.toFixed(1))}${hybOverviewRow('Træningsdage',o7.trainingDays,o28.trainingDays)}${hybOverviewRow('Hviledage',o7.restDays,o28.restDays)}
         ${hybOverviewRow('Tunge/hårde dage',o7.intensiveDays,o28.intensiveDays)}${hybOverviewRow('Tungt ben + hårdt løb samme dag',o7.sameDayHard,o28.sameDayHard)}</tbody></table>
       <div class="hy-note">Restitution (selvrapporteret): ${rec?`hvile ${rec.rest!=null?rec.rest+'/5':'—'}, energi ${rec.energy!=null?rec.energy+'/100':'—'}`:'ingen data'}${ep.n?` · dine efter-træning-svar: ${ep.n} (mønster kræver ≥3)`:''}. Der vises bevidst ingen samlet score — tallene er fakta, ikke en diagnose.</div>
+      <div class="hy-note">Dit fokus: <b>${esc2(TPPLAN.FOCUS[TPPLAN.focusKey(cx.meta)].label)}</b> — ændres under "Mål". Det påvirker kun hvilke forslag der foretrækkes.</div>
       <h4 style="margin:14px 0 6px;">Opmærksomhedspunkter (${vis.filter(f=>f.level==='warn').length})</h4>
       ${HYB.msg&&HYB.sel==null?`<div class="hy-msg" role="status">${esc2(HYB.msg)}</div>`:''}
       ${vis.length>sorted.length?`<div class="hy-note">Viser de ${sorted.length} første af ${vis.length}.</div>`:''}${sorted.length?sorted.map(card).join(''):'<div class="hy-note ok">Ingen konflikter fundet i den planlagte periode ud fra reglerne nedenfor.</div>'}
@@ -2300,6 +2313,129 @@ function renderHybridLoad(sRaw,lRaw,personKey){
         <div class="hy-note">Reglerne er bevidst konservative og er vejledende. De giver forslag — de ændrer aldrig din plan uden din bekræftelse. Ellens styrketræning er tilbehør og tæller ikke som tung benstyrke. Intet her er medicinsk rådgivning.</div></details>
     </div>`;
   }catch(e){ el.innerHTML='<div class="section-card"><div class="deferred-note">Belastningsanalysen kunne ikke vises ('+esc2(e.message)+').</div></div>'; }
+}
+
+// ═══════════════ V3 FASE 4: MÅLPRIORITERING + MÅNEDSRAPPORT ═══════════════
+const FOCUS_ORDER = ['balanced','strength','hypertrophy','run'];
+const GOAL_KIND_LABEL = { weekKm:'Km pr. uge', monthKm:'Km pr. måned', yearKm:'Km i år', longest:'Længste tur (km)', weekRuns:'Løbeture pr. uge', streak:'Streak (uger)', time:'Tid på distance', pace:'Snittempo' };
+function focusGoalChoices(sRaw,lRaw){
+  const out=[];
+  ['sq','bp','dl'].forEach(k=>out.push({ id:'sbd:'+k, label:LIFT_LABEL[k]+'-mål (programmet)', kind:'strength' }));
+  if(lRaw&&lobGoal(lRaw)) out.push({ id:'vdot', label:'VDOT-forbedring', kind:'run' });
+  const rg=lRaw&&lRaw.profile&&lRaw.profile.raceGoal;
+  if(rg&&rg.active&&rg.date) out.push({ id:'race', label:'Løbsmål'+(rg.distance?' '+rg.distance+' km':'')+' · '+TPPLAN.fmtDate(rg.date), kind:'run' });
+  ((lRaw&&lRaw.profile&&lRaw.profile.goals)||[]).forEach(g=>{ if(g&&g.id&&!g.achievedDate) out.push({ id:g.id, label:'Løbemål: '+(GOAL_KIND_LABEL[g.kind]||'Mål')+(g.target?' '+g.target:'')+(g.deadline?' · deadline '+TPPLAN.fmtDate(g.deadline):''), kind:'run' }); });
+  return out;
+}
+function hybSaveFocus(){
+  const {personKey}=hybCurrent(); const meta=hybMeta(personKey);
+  const focus=(document.querySelector('input[name="fc-focus"]:checked')||{}).value||'balanced';
+  const ids=[...document.querySelectorAll('input[name="fc-goal"]:checked')].map(i=>i.value);
+  try{ TPPLAN.setFocus(meta,focus,ids); }catch(e){ HYB.msg='Ugyldigt fokus.'; render(); return; }
+  hybCommit(personKey,meta,'Fokus gemt: '+TPPLAN.FOCUS[focus].label+'. Dine programmer og planer er uændrede.'); render();
+}
+function renderFocusPanel(sRaw,lRaw,personKey){
+  const el=document.getElementById('slot-focus'); if(!el) return;
+  if(!window.TPPLAN||!window.TP){ el.innerHTML=''; return; }
+  try{
+    const meta=hybMeta(personKey), fk=TPPLAN.focusKey(meta), ids=(meta.goalPriority&&meta.goalPriority.goalIds)||[];
+    const choices=focusGoalChoices(sRaw,lRaw), prof=lRaw&&lRaw.profile;
+    const goals=(prof&&prof.goals)||[]; const rg=prof&&prof.raceGoal&&prof.raceGoal.active?prof.raceGoal.date:null;
+    const near=TPPLAN.attachedDates(meta,goals,rg).sort()[0]||null;
+    const ex=TPPLAN.explainFocus(meta,{nearDate:near});
+    el.innerHTML=`<div class="section-card hy-card"><h3>Fokus og prioritering</h3>
+      <div class="hy-note">Vælg hvad der vægtes først, når styrke og løb støder sammen. Det <b>ændrer ikke</b> dit program eller din plan — kun hvilke forslag der foretrækkes. ${personKey==='ellen'?'(Gælder Ellens profil.)':''}</div>
+      <fieldset class="fc-set"><legend class="sr-only">Træningsfokus</legend>
+        ${FOCUS_ORDER.map(k=>`<label class="fc-opt${k===fk?' on':''}"><input type="radio" name="fc-focus" value="${k}" ${k===fk?'checked':''} onchange="hybSaveFocus()"><span><b>${esc2(TPPLAN.FOCUS[k].label)}</b><span class="hy-note">${esc2(TPPLAN.FOCUS[k].short)}</span></span></label>`).join('')}
+      </fieldset>
+      ${choices.length?`<fieldset class="fc-set"><legend class="hy-lbl">Knyt eksisterende mål til fokus (valgfrit)</legend>${choices.map(c=>`<label class="fc-chk"><input type="checkbox" name="fc-goal" value="${esc2(c.id)}" ${ids.includes(c.id)?'checked':''} onchange="hybSaveFocus()"> ${esc2(c.label)}</label>`).join('')}</fieldset>`:''}
+      <div class="fc-explain" aria-live="polite"><b>Sådan påvirker "${esc2(ex.label)}" forslagene</b><ul>${ex.lines.map(l=>`<li>${esc2(l)}</li>`).join('')}</ul>
+        <div class="hy-note">Tilknyttede løbsmål/-datoer udvider "tæt på"-beskyttelsen (14 dage) omkring deres dato. Tilknyttede styrkemål vises som kontekst.</div></div>
+      ${HYB.msg&&HYB.sel==null?`<div class="hy-msg" role="status">${esc2(HYB.msg)}</div>`:''}
+    </div>`;
+  }catch(e){ el.innerHTML='<div class="section-card"><div class="deferred-note">Fokus kunne ikke vises ('+esc2(e.message)+').</div></div>'; }
+}
+
+// ── Månedsrapport ──
+const RPT = { ym:null, cache:{}, msg:'' };
+function rptNow(){ return localISO(new Date()).slice(0,7); }
+function rptFirstMonth(sRaw,lRaw){
+  let first=rptNow();
+  const sd=sbdCompletedByDate(sRaw); Object.keys(sd).forEach(d=>{ if(d.slice(0,7)<first) first=d.slice(0,7); });
+  ((lRaw&&lRaw.runs)||[]).forEach(r=>{ if(r.date&&r.date.slice(0,7)<first) first=r.date.slice(0,7); });
+  return first;
+}
+// Planlagt ud fra rytmen — kun hvis ankeret ligger før månedens start (ellers kendes planen ikke)
+function rptPlanned(personKey,ym){
+  const rg=TPREPORT.monthRange(ym), anchor=getScheduleAnchor(); if(anchor>rg.first) return null;
+  const m=slotMapForRange(rg.first,rg.last,anchor,personKey); let sbd=0, run=0;
+  for(let i=0;i<rg.days;i++){
+    const ds=TP.addDays(rg.first,i), sl=m[ds]; if(!sl) continue; if(sl.sbd) sbd++;
+    const wd=new Date(ds+'T12:00:00').getDay();
+    const lp=personKey==='ellen'?(ELLEN_LOB_WEEKDAYS.has(wd)?{easy:!!sl.sbd}:null):sl.lob; if(lp) run++;
+  }
+  return { sbd, run };
+}
+function rptSignature(sRaw,lRaw,meta){
+  const runs=(lRaw&&lRaw.runs)||[]; const ev=sRaw&&sRaw.sessionEval?Object.keys(sRaw.sessionEval).length:0;
+  return [(sRaw&&sRaw.completedDays||[]).length, runs.length, runs.length?runs[runs.length-1].id:'', ev, runs.filter(r=>r.eval).length, TPPLAN.focusKey(meta), getScheduleAnchor(), getBlockedDates(localStorage.getItem('dash_profile')||'oliver').length].join('|');
+}
+function rptBuild(personKey,sRaw,lRaw,meta,ym,force){
+  const key=personKey+'|'+ym+'|'+rptSignature(sRaw,lRaw,meta);
+  const snap=meta.reports&&meta.reports[ym];
+  if(snap&&!force&&ym<rptNow()) return { rep:snap, snapshot:true };
+  if(!force&&RPT.cache[key]) return { rep:RPT.cache[key], snapshot:false };
+  const rep=TPREPORT.build({ sbd:sRaw, lob:lRaw, profile:hybProfileKey(personKey), planned:rptPlanned(personKey,ym), focus:TPPLAN.focusKey(meta), today:localISO(new Date()) },ym,Date.now());
+  RPT.cache[key]=rep; return { rep, snapshot:false };
+}
+function rptShift(d){ RPT.ym=d>0?TPREPORT.nextMonth(RPT.ym):TPREPORT.prevMonth(RPT.ym); RPT.msg=''; render(); }
+function rptSaveSnapshot(force){
+  const {personKey,sRaw,lRaw}=hybCurrent(); const meta=hybMeta(personKey);
+  const b=rptBuild(personKey,sRaw,lRaw,meta,RPT.ym,true); meta.reports=meta.reports||{}; meta.reports[RPT.ym]=b.rep;
+  RPT.msg=TP.saveMeta(hybProfileKey(personKey),meta)?'Rapporten er gemt som snapshot. Den kan åbnes igen senere, også hvis data ændres.':'Kunne ikke gemme rapporten (lager fuldt eller blokeret).'; render();
+}
+function rptGo(ym){ RPT.ym=ym; RPT.msg=''; render(); }
+function rptCurrentReport(){ const {personKey,sRaw,lRaw}=hybCurrent(); return rptBuild(personKey,sRaw,lRaw,hybMeta(personKey),RPT.ym,false).rep; }
+function rptDownload(kind){
+  const rep=rptCurrentReport(); const html=kind==='html'; const data=html?TPREPORT.toHtml(rep):TPREPORT.toText(rep);
+  const blob=new Blob([data],{type:html?'text/html;charset=utf-8':'text/plain;charset=utf-8'}); const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='maanedsrapport-'+rep.month+(html?'.html':'.txt'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function rptPrint(){
+  const rep=rptCurrentReport(); const f=document.createElement('iframe'); f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(f); const d=f.contentWindow.document; d.open(); d.write(TPREPORT.toHtml(rep)); d.close();
+  setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){} setTimeout(()=>f.remove(),2000); },250);
+}
+function rptStmt(x){ return `<li>${esc2(x.text)}${x.rule?` <small class="rp-rule">[${esc2(x.rule)}]</small>`:''}${x.basis.length?`<details class="rp-basis"><summary>Grundlag</summary>${x.basis.map(b=>`<div>${esc2(b[0])}: <b>${esc2(b[1])}</b></div>`).join('')}</details>`:''}</li>`; }
+function rptBlock(title,cls,arr){ return `<div class="rp-block ${cls}"><h4>${title}</h4>${arr.length?`<ul>${arr.map(rptStmt).join('')}</ul>`:'<div class="hy-note">—</div>'}</div>`; }
+function renderMonthReport(sRaw,lRaw,personKey){
+  const el=document.getElementById('slot-report'); if(!el) return;
+  if(!window.TPREPORT||!window.TPPLAN||!window.TP){ el.innerHTML=''; return; }
+  try{
+    const meta=hybMeta(personKey), now=rptNow(), first=rptFirstMonth(sRaw,lRaw);
+    if(!RPT.ym||RPT.ym>now) RPT.ym=now;
+    const {rep,snapshot}=rptBuild(personKey,sRaw,lRaw,meta,RPT.ym,false);
+    const snaps=Object.keys(meta.reports||{}).sort().reverse();
+    const c=rep.conclusion, f=v=>v==null?'—':v;
+    const vc=rep.overall.volumeChange;
+    el.innerHTML=`<div class="section-card hy-card"><div class="cal-nav"><button class="cal-nav-btn" onclick="rptShift(-1)" aria-label="Forrige måned" ${RPT.ym<=first?'disabled':''}>‹</button>
+      <div class="cal-title">${esc2(rep.label)}<div style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;">${rep.partial?'Måneden er ikke slut — foreløbige tal':'Afsluttet måned'}</div></div>
+      <button class="cal-nav-btn" onclick="rptShift(1)" aria-label="Næste måned" ${RPT.ym>=now?'disabled':''}>›</button></div>
+      <div class="rp-badge">Regelbaseret opsummering — ingen AI. Hvert udsagn kan spores til tallene under "Grundlag".</div>
+      ${snapshot?`<div class="hy-note">Gemt snapshot fra ${new Date(rep.generatedAt).toISOString().slice(0,10)}. Data kan være ændret siden. <button type="button" class="hy-btn small" onclick="rptSaveSnapshot(true)">Genberegn og gem</button></div>`:''}
+      <div class="rp-grid">
+        <div class="rp-card"><h4>Styrke</h4><div>${rep.strength.sessions} pas (${rep.strength.perWeek}/uge)</div><div>${rep.strength.sets} arbejdssæt</div><div>Tonnage ${rep.strength.tonnage} kg</div>${Object.keys(rep.strength.lifts).map(k=>{const l=rep.strength.lifts[k]; return `<div class="hy-note">${esc2(l.label)}: ${l.monthBest!=null?l.monthBest+' kg e1RM':'—'}${l.priorBest!=null?' (før: '+l.priorBest+')':''}</div>`;}).join('')}</div>
+        <div class="rp-card"><h4>Løb</h4><div>${rep.running.runs} ture · ${rep.running.km} km</div><div>Snit ${rep.running.avgKm} km · længste ${(+rep.running.longestKm).toFixed(1)} km</div>${rep.running.paceSecPerKm?`<div>Snit-tempo ${TPREPORT.fmtPace(rep.running.paceSecPerKm)}</div>`:''}</div>
+        <div class="rp-card"><h4>Samlet</h4><div>${rep.overall.sessions} pas på ${rep.overall.trainingDays} dage</div>${rep.overall.planned?`<div>Planlagt ${rep.overall.planned.total} · gennemført ${rep.overall.planned.completed}</div>`:'<div class="hy-note">Planlagt kendes ikke for hele måneden</div>'}<div>Fordeling: ${f(rep.overall.split.strengthPct)} % styrke / ${f(rep.overall.split.runPct)} % løb</div><div class="hy-note">Ændring vs. forrige: pas ${vc.sessions==null?'—':(vc.sessions>0?'+':'')+vc.sessions+' %'} · km ${vc.km==null?'—':(vc.km>0?'+':'')+vc.km+' %'}</div></div>
+        <div class="rp-card"><h4>Selvvurdering <small>(selvrapporteret)</small></h4>${rep.evaluation.n?`<div>${rep.evaluation.n} svar${rep.evaluation.avgEffort!=null?' · snit anstrengelse '+rep.evaluation.avgEffort+'/10':''}</div><div class="hy-note">Hårdere: ${rep.evaluation.harder} · som ventet: ${rep.evaluation.as} · lettere: ${rep.evaluation.easier}</div>`:'<div class="hy-note">Ingen svar i måneden</div>'}</div>
+      </div>
+      ${rptBlock('Hvad gik godt','good',c.good)}${rptBlock('Hvad udviklede sig','dev',c.developed)}${rptBlock('Hvad gik tilbage','bad',c.regressed)}${rptBlock('Fokus næste måned','focus',c.focus)}
+      <div class="hy-row" style="margin-top:12px;"><button type="button" class="hy-btn" onclick="rptDownload('html')">Hent som HTML</button><button type="button" class="hy-btn" onclick="rptDownload('txt')">Hent som tekst</button><button type="button" class="hy-btn" onclick="rptPrint()">Print / PDF</button>${(!snapshot)?`<button type="button" class="hy-btn" onclick="rptSaveSnapshot()">Gem som snapshot</button>`:''}</div>
+      ${RPT.msg?`<div class="hy-msg" role="status">${esc2(RPT.msg)}</div>`:''}
+      ${snaps.length?`<details class="hy-changes"><summary>Tidligere gemte rapporter (${snaps.length})</summary><div class="hy-row" style="margin-top:6px;">${snaps.map(m=>`<button type="button" class="hy-btn small" onclick="rptGo('${m}')">${esc2(TPREPORT.monthLabel(m))}</button>`).join('')}</div></details>`:''}
+      <details class="hy-rules"><summary>Regler bag konklusionerne</summary><ul>${TPREPORT.RULES.map(r=>`<li><b>${esc2(r.id)}</b> — ${esc2(r.text)}</li>`).join('')}</ul></details>
+    </div>`;
+  }catch(e){ el.innerHTML='<div class="section-card"><div class="deferred-note">Månedsrapporten kunne ikke vises ('+esc2(e.message)+').</div></div>'; }
 }
 
 const PROFILES = {
@@ -2354,6 +2490,8 @@ function render(){
   renderBelastning(sRaw, lRaw);
   renderHybridLoad(sRaw, lRaw, active);
   renderMal(sRaw, lRaw);
+  renderFocusPanel(sRaw, lRaw, active);
+  renderMonthReport(sRaw, lRaw, active);
   renderPR(sRaw, lRaw);
   renderInsights(sRaw, lRaw);
   renderSettings();
