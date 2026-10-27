@@ -952,15 +952,28 @@ function getBP() { return aState().oneRM?.bp || STARTING_BP; }
 function getDL() { return aState().oneRM?.dl || STARTING_DL; }
 
 // Day types in 8-day cycle
+// Ellens pas har eget indhold (se PARTNER_TEMPLATES) og dermed egne navne; Olivers navne er uændrede.
+// "name" er en getter, så alle visninger (dagskort, historik, toasts, eksport) følger den aktive profil.
+const PARTNER_DAY_NAMES = {
+  cst1: 'Overkrop A — Skulder & Arme',
+  low1: 'Lower 1 — Quad & Hamstring',
+  bb1:  'Baller & Back',
+  cst2: 'Overkrop B — Skulder & Arme',
+  low2: 'Lower 2 — Baller & Hamstring',
+  bb2:  'Back & Baller (let)',
+};
+function dayNameFor(id, dflt) {
+  try { return (state.profile === 'partner' && PARTNER_DAY_NAMES[id]) || dflt; } catch (e) { return dflt; }
+}
 const CYCLE = [
-  { id:'cst1',  name:'Chest, Skulder & Tricep', short:'CST', type:'workout' },
-  { id:'low1',  name:'Lower',                   short:'Lower', type:'workout' },
+  { id:'cst1',  get name(){ return dayNameFor('cst1', 'Chest, Skulder & Tricep'); }, short:'CST', type:'workout' },
+  { id:'low1',  get name(){ return dayNameFor('low1', 'Lower'); },                   short:'Lower', type:'workout' },
   { id:'rest1', name:'Pause',                   short:'Pause', type:'rest' },
-  { id:'bb1',   name:'Ryg & Bicep',             short:'B&B', type:'workout' },
-  { id:'cst2',  name:'Chest, Skulder & Tricep', short:'CST', type:'workout' },
+  { id:'bb1',   get name(){ return dayNameFor('bb1', 'Ryg & Bicep'); },             short:'B&B', type:'workout' },
+  { id:'cst2',  get name(){ return dayNameFor('cst2', 'Chest, Skulder & Tricep'); }, short:'CST', type:'workout' },
   { id:'rest2', name:'Pause',                   short:'Pause', type:'rest' },
-  { id:'low2',  name:'Lower',                   short:'Lower', type:'workout' },
-  { id:'bb2',   name:'Ryg & Bicep',             short:'B&B', type:'workout' },
+  { id:'low2',  get name(){ return dayNameFor('low2', 'Lower'); },                   short:'Lower', type:'workout' },
+  { id:'bb2',   get name(){ return dayNameFor('bb2', 'Ryg & Bicep'); },             short:'B&B', type:'workout' },
 ];
 
 // Block per week (1-indexed)

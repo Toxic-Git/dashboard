@@ -101,4 +101,10 @@ T('[partner] Ellens nye program: sæt/øvelser pr. dag, ca. 50–55 % underkrop,
   const share=lower/(lower+upper); assert(share>=0.45&&share<=0.6,'underkrop-andel '+share.toFixed(2));
   assert.equal(get('bb2',2,'partner').find(e=>e.name==='Standing Calf Raise').scheme.sets,3);
 });
+T('dagsnavne følger profilen: Ellens pas har egne navne, Olivers er uændrede (getter)',()=>{
+  state.profile='main'; assert.equal(CYCLE[3].name,'Ryg & Bicep'); assert.equal(CYCLE[0].name,'Chest, Skulder & Tricep'); assert.equal(CYCLE[2].name,'Pause');
+  state.profile='partner'; assert.equal(CYCLE[3].name,'Baller & Back'); assert.equal(CYCLE[1].name,'Lower 1 — Quad & Hamstring'); assert.equal(CYCLE[7].name,'Back & Baller (let)'); assert.equal(CYCLE[2].name,'Pause');
+  assert.equal(CYCLE[3].short,'B&B'); assert(JSON.stringify(CYCLE[3]).includes('Baller & Back'),'getter skal med i JSON');
+  state.profile='main';
+});
 console.log(bad?`\n${bad} FEJL`:`\nAlle ${ok} tests bestået`);process.exit(bad?1:0);
