@@ -1280,48 +1280,44 @@ const ACC_TEMPLATES = {
 
 // ── PARTNER TEMPLATES (samme split, kun accessories, styrke 4-6 reps) ────────
 const PARTNER_TEMPLATES = {
-  cst1: [
+  // Ellens program (45 min efter Olivers SBD): ca. 50-55 % underkrop. Navnene følger cyklussen (CST / Lower / B&B).
+  // Startvægte er forsigtige gæt for nye øvelser — justér efter første pas.
+  cst1: [   // Overkrop kort A
     { name:'Incline DB Press',               sets:3, reps:5, repsRange:'4–6', kg:16    },
-    { name:'Overhead Triceps Ext. (Cable)',  sets:3, reps:10,repsRange:'8–12',kg:12    },
-    { name:'Chest Fly (Machine)',            sets:3, reps:10,repsRange:'8–12',kg:25    },
     { name:'Lateral Raise (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:50    },
-  ],
-  low1: [
-    { name:'Hack Squat (Machine)',           sets:3, reps:8, repsRange:'6–10',kg:40    },
-    { name:'Leg Extension (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:35    },
-    { name:'Seated Leg Curl (Machine)',      sets:3, reps:5, repsRange:'4–6', kg:35    },
-    { name:'Calf Raise (Machine)',           sets:3, reps:8, repsRange:'8–15', kg:60 },
-    { name:'Cable Crunch',                   sets:3, reps:12,repsRange:'10–15',kg:20   },
-    { name:'Overhead Press (Seated DB)',     sets:2, reps:8, repsRange:'6–10', kg:8 },
-  ],
-  bb1: [
-    { name:'Lat Pulldown Wide Grip',         sets:3, reps:5, repsRange:'4–6', kg:30    },
-    { name:'Smith Machine Row',              sets:3, reps:5, repsRange:'4–6', kg:25    },
-    { name:'Seated Cable Row (V-Grip)',      sets:3, reps:5, repsRange:'4–6', kg:25    },
-    { name:'Hammer Curl (DB)',               sets:3, reps:10,repsRange:'8–12',kg:8     },
-    { name:'Close Grip Bench Press',         sets:2, reps:8, repsRange:'6–10',kg:20    },
-  ],
-  cst2: [
-    { name:'Incline DB Press (variation)',   sets:3, reps:5, repsRange:'4–6', kg:14    },
-    { name:'Triceps Extension (Cable)',      sets:3, reps:10,repsRange:'8–12',kg:10    },
     { name:'Rear Delt Reverse Fly (Machine)',sets:3, reps:10,repsRange:'8–12',kg:40    },
+    { name:'Overhead Triceps Ext. (Cable)',  sets:2, reps:10,repsRange:'8–12',kg:12    },
+  ],
+  low1: [   // Lower 1 — quad + hamstring
+    { name:'Hack Squat (Machine)',           sets:4, reps:8, repsRange:'6–10',kg:40    },
+    { name:'Leg Extension (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:35    },
+    { name:'Seated Leg Curl (Machine)',      sets:3, reps:10,repsRange:'8–12',kg:35    },
+    { name:'Calf Raise (Machine)',           sets:3, reps:8, repsRange:'8–15', kg:60 },
+  ],
+  bb1: [    // Baller + ryg
+    { name:'Hip Thrust (Barbell)',           sets:4, reps:8, repsRange:'6–10',kg:50    },
+    { name:'Lat Pulldown Wide Grip',         sets:3, reps:5, repsRange:'4–6', kg:30    },
+    { name:'Seated Cable Row (V-Grip)',      sets:3, reps:5, repsRange:'4–6', kg:25    },
+    { name:'Hammer Curl (DB)',               sets:2, reps:10,repsRange:'8–12',kg:8     },
+  ],
+  cst2: [   // Overkrop kort B
+    { name:'Incline DB Press (variation)',   sets:3, reps:5, repsRange:'4–6', kg:14    },
     { name:'Face Pull (Cable)',              sets:3, reps:15,repsRange:'12–20',kg:15   },
-  ],
-  low2: [
-    { name:'Romanian Deadlift',              sets:3, reps:8, repsRange:'6–10',kg:40    },
-    { name:'Hip Thrust (Barbell)',           sets:3, reps:5, repsRange:'4–6', kg:50    },
-    { name:'Hip Adduction (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:40    },
-    { name:'Seated Leg Curl (Machine) — Volumen',      sets:3, reps:10,repsRange:'8–12',kg:30    },
+    { name:'Lateral Raise (Machine) — Let',  sets:2, reps:10,repsRange:'8–12',kg:20    },
+    { name:'Triceps Extension (Cable)',      sets:2, reps:10,repsRange:'8–12',kg:10    },
     { name:'Cable Crunch',                   sets:3, reps:12,repsRange:'10–15',kg:20   },
-    { name:'Lateral Raise (Machine) — Let',        sets:2, reps:10,repsRange:'8–12',kg:20    },
   ],
-  bb2: [
-    { name:'Weighted Pull-up',               sets:3, reps:5, repsRange:'4–6', kg:0,    note:'Start med kropsvægt. Tilføj vægt når 6 reps er let.' },
-    { name:'Chest Supported Row (Machine)', sets:3, reps:8, repsRange:'6–10',kg:30    },
+  low2: [   // Lower 2 — baller + hamstring
+    { name:'Romanian Deadlift',              sets:3, reps:8, repsRange:'6–10',kg:40    },
+    { name:'Split Squat (Hantler)',          sets:3, reps:10,repsRange:'8–12',kg:8,  note:'Nyt. Startvægt (pr. hånd) er et forsigtigt gæt — justér efter første pas.' },
+    { name:'Seated Leg Curl (Machine) — Volumen', sets:3, reps:10,repsRange:'8–12',kg:30 },
+    { name:'Hip Adduction (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:40    },
+  ],
+  bb2: [    // Ryg + baller (let)
     { name:'Neutral Grip Pulldown',          sets:3, reps:8, repsRange:'6–10',kg:35    },
-    { name:'Jefferson Curl',                 sets:3, reps:8, repsRange:'6–10',kg:15,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
-    { name:'Preacher Curl (DB)',             sets:3, reps:10,repsRange:'8–12',kg:8     },
-    { name:'Overhead Triceps Ext. (Cable) — Let',  sets:2, reps:10,repsRange:'8–12',kg:8     },
+    { name:'Chest Supported Row (Machine)',  sets:3, reps:8, repsRange:'6–10',kg:30    },
+    { name:'Cable Pull-Through',             sets:3, reps:12,repsRange:'10–15',kg:15,  note:'Nyt. Let baldeøvelse — startvægt er et forsigtigt gæt.' },
+    { name:'Standing Calf Raise',            sets:3, reps:10,repsRange:'8–15', kg:40,  note:'Nyt. Fuld bevægelse med pause i bunden — startvægt er et gæt.' },
   ],
 };
 
@@ -1488,13 +1484,13 @@ function _getExercises(dayId, week) {
       if (!FIXED_RANGE.has(a.name)) {
         const isCompound = COMPOUND_ACC.has(a.name) || a.reps <= 6;
         if (isCompound) {
-          if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
-          else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
-          else              { sets=3; reps=4; repsRange='3–5'; }
+          if (b === 1)      { sets=a.sets; reps=6; repsRange='4–6'; }
+          else if (b === 2) { sets=a.sets; reps=5; repsRange='4–5'; }
+          else              { sets=a.sets; reps=4; repsRange='3–5'; }
         } else {
-          if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
-          else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
-          else              { sets=3; reps=8;  repsRange='6–8';  }
+          if (b === 1)      { sets=a.sets; reps=12; repsRange='10–12'; }
+          else if (b === 2) { sets=a.sets; reps=10; repsRange='8–10'; }
+          else              { sets=a.sets; reps=8;  repsRange='6–8';  }
         }
       }
       // Deload: reduce to ~40% of normal sets
@@ -5602,7 +5598,7 @@ const MUSCLE_MAP = {
   // Calves
   'Cable Crunch': 'Core',
   'Box Jump': 'Core',
-  'Calf Raise (Machine)': 'Lægge', 'Single Leg Calf Raise (BB)': 'Lægge', 'Calf Raise': 'Lægge', 'Standing Calf Raise': 'Lægge',
+  'Calf Raise (Machine)': 'Lægge', 'Single Leg Calf Raise (BB)': 'Lægge', 'Calf Raise': 'Lægge', 'Standing Calf Raise': 'Lægge', 'Split Squat (Hantler)': 'Quad', 'Cable Pull-Through': 'Post. Chain',
   'Lateral Raise (Kabel)': 'Skulder', 'Incline DB Curl': 'Biceps',
 };
 if (window.TP && TP.MUSCLE_EXTRA) Object.keys(TP.MUSCLE_EXTRA).forEach(k => { if (!(k in MUSCLE_MAP)) MUSCLE_MAP[k] = TP.MUSCLE_EXTRA[k]; });

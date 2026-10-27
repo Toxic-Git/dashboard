@@ -95,4 +95,12 @@ T('analyze ændrer aldrig dagene/planen (ren funktion)', () => {
   const d = days({ '2026-10-27': [S('low1'), HARD('r')] }); const before = JSON.stringify(d);
   P.analyze(d, { today: TODAY, weekly: { runKm: {}, sbdSets: {} }, evalPattern: { n: 0 }, dismissed: {}, races: [] }); assert.strictEqual(JSON.stringify(d), before);
 });
+T('Ellens pas: benpas er moderate (aldrig tunge), øvrige lette/ingen; deload → let; egne labels og ingen hovedløft', () => {
+  const f = (id, o) => P.sbdFlags(id, Object.assign({ heavyOk: false }, o || {}));
+  ['low1', 'low2'].forEach(id => { const x = f(id); assert.strictEqual(x.lowerLoad, 'moderate'); assert.strictEqual(x.hard, false); assert.strictEqual(x.moderateLower, true); assert.strictEqual(x.mainLift, null); });
+  assert.strictEqual(f('low1', { deload: true }).lowerLoad, 'light');
+  assert.strictEqual(f('bb1').lowerLoad, 'light'); assert.strictEqual(f('cst1').lowerLoad, 'none');
+  ['cst1', 'low1', 'bb1', 'cst2', 'low2', 'bb2'].forEach(id => assert(f(id).kindLabel && !/Tung|dødløft|bænk|squat/i.test(f(id).kindLabel), id + ': ' + f(id).kindLabel));
+  assert.strictEqual(P.sbdFlags('low1', { heavyOk: true }).lowerLoad, 'heavy'); // Olivers uændret
+});
 console.log(`\n${bad ? bad + ' FEJL, ' : ''}${ok} ok`); process.exit(bad ? 1 : 0);

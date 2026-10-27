@@ -651,6 +651,13 @@
     'Standing Calf Raise': { g: 'Lægge', role: 'acc', alts: [
       A('Seated Calf Raise', 'Lægge', 'lægge', 'maskine', 'Knæ bøjet — rammer soleus mere; gastrocnemius mindre end stående.'),
       A('Single-Leg Calf Raise', 'Lægge', 'lægge', 'trin+hantel', 'Ensidig lægge-hæv med fuld bevægelse; let at dosere.')] },
+    // ── Ellens nye benøvelser ──
+    'Split Squat (Hantler)': { g: 'Quad', role: 'acc', alts: [
+      A('Smith Machine Split Squat', 'Quad', 'split-squat', 'Smith', 'Samme enbenede knæ-/hoftedominante mønster med fast bane — nemmere balance.'),
+      A('Walking Lunge', 'Quad', 'split-squat', 'hantler', 'Enbenet lunge i bevægelse — samme muskler, mere koordination.')] },
+    'Cable Pull-Through': { g: 'Post. Chain', role: 'acc', alts: [
+      A('Back Extension (45°)', 'Post. Chain', 'hinge', 'maskine', 'Hofte-hinge mod baller og baglår med kropsvægt — let at dosere.'),
+      A('Romanian Deadlift (Hantler)', 'Post. Chain', 'hinge', 'hantler', 'Samme hofte-hinge og hamstring-stræk med hantler.')] },
     // ── Ingen jævnbyrdig erstatning: bevidst tom ──
     'Jefferson Curl': { g: 'Post. Chain', role: 'acc', alts: [], noAltWhy: 'Mobilitets-/rygøvelse under let belastning — ingen jævnbyrdig erstatning. Spring over eller behold.' }
   };

@@ -13,17 +13,19 @@ let ok=0,bad=0;const T=(n,f)=>{try{f();ok++;console.log('  ok   '+n)}catch(e){ba
 const L='Lateral Raise (Machine)',LL=L+' — Let',TR='Overhead Triceps Ext. (Cable)',TRL=TR+' — Let',LC='Seated Leg Curl (Machine)',LCV=LC+' — Volumen';
 const get=(day,wk,prof)=>{state.profile=prof;_exercisesCache&&Object.keys(_exercisesCache).forEach(k=>delete _exercisesCache[k]);return getExercises(day,wk).filter(e=>e.type==='acc');};
 for(const prof of ['main','partner']){
+  const LLD=prof==='main'?'low2':'cst2'; // dagen hvor den lette sidehævs-variant ligger (Ellens program: cst2)
   T(`[${prof}] navne pr. dag`,()=>{
     const names=d=>get(d,2,prof).map(e=>e.name);
     assert(names('cst1').includes(L)&&!names('cst1').includes(LL));
-    assert(names('low2').includes(LL)&&!names('low2').includes(L));
+    assert(names(LLD).includes(LL)&&!names(LLD).includes(L));
     assert(names('low1').includes(LC)&&names('low2').includes(LCV)&&!names('low2').includes(LC));
-    assert(names('cst1').includes(TR)&&names('bb2').includes(TRL)&&!names('bb2').includes(TR));
+    if(prof==='main') assert(names('cst1').includes(TR)&&names('bb2').includes(TRL)&&!names('bb2').includes(TR));
+    else assert(names('cst1').includes(TR)&&!names('bb2').includes(TRL)); // Ellen har ingen let triceps-variant
   });
   T(`[${prof}] let-varianter periodiseres ikke (2 sæt × 8–12 alle blokke, også deload-skalering)`,()=>{
     for(const wk of [1,2,3,5,6,9,10]){
-      const l=get('low2',wk,prof).find(e=>e.name===LL).scheme;
-      const t=get('bb2',wk,prof).find(e=>e.name===TRL).scheme;
+      const l=get(LLD,wk,prof).find(e=>e.name===LL).scheme;
+      const tr=get('bb2',wk,prof).find(e=>e.name===TRL); const t=tr?tr.scheme:l;
       if(!isDeload(wk)){assert.equal(l.sets,2,'lat uge '+wk);assert.equal(l.repsRange,'8–12');assert.equal(t.sets,2,'tri uge '+wk);assert.equal(t.repsRange,'8–12');}
       else{assert(l.sets<=2&&t.sets<=2);}
     }
@@ -36,9 +38,9 @@ for(const prof of ['main','partner']){
   T(`[${prof}] vægte uændrede (kg fra skabelon)`,()=>{
     const m=prof==='main'?{l:135,ll:50,t:29.65,tl:20,c:87.5,cv:82.5}:{l:50,ll:20,t:12,tl:8,c:35,cv:30};
     assert.equal(get('cst1',2,prof).find(e=>e.name===L).scheme.kg,m.l);
-    assert.equal(get('low2',2,prof).find(e=>e.name===LL).scheme.kg,m.ll);
+    assert.equal(get(LLD,2,prof).find(e=>e.name===LL).scheme.kg,m.ll);
     assert.equal(get('cst1',2,prof).find(e=>e.name===TR).scheme.kg,m.t);
-    assert.equal(get('bb2',2,prof).find(e=>e.name===TRL).scheme.kg,m.tl);
+    if(prof==='main') assert.equal(get('bb2',2,prof).find(e=>e.name===TRL).scheme.kg,m.tl);
     assert.equal(get('low1',2,prof).find(e=>e.name===LC).scheme.kg,m.c);
     assert.equal(get('low2',2,prof).find(e=>e.name===LCV).scheme.kg,m.cv);
   });
@@ -87,5 +89,16 @@ T('MUSCLE_MAP kender de nye navne (SBD + dashboard)',()=>{
   assert.equal(MUSCLE_MAP[LL],'Skulder');assert.equal(MUSCLE_MAP[TRL],'Triceps');assert.equal(MUSCLE_MAP[LCV],'Post. Chain');
   const d=fs.readFileSync(R('index.html'),'utf8');
   [LL,TRL,LCV].forEach(n=>assert(d.includes("'"+n+"'"),n));
+});
+T('[partner] Ellens nye program: sæt/øvelser pr. dag, ca. 50–55 % underkrop, nye øvelser findes',()=>{
+  const days=['cst1','low1','bb1','cst2','low2','bb2'], sets={};
+  days.forEach(d=>{ sets[d]=get(d,2,'partner').reduce((a,e)=>a+e.scheme.sets,0); });
+  days.forEach(d=>assert(sets[d]>=11&&sets[d]<=14,'pas '+d+' har '+sets[d]+' sæt (45 min ≈ 11–14)'));
+  assert.equal(get('low1',2,'partner').find(e=>e.name==='Hack Squat (Machine)').scheme.sets,4,'skabelonens 4 sæt skal bevares');
+  assert.equal(get('bb1',2,'partner').find(e=>e.name==='Hip Thrust (Barbell)').scheme.sets,4);
+  assert(get('low2',2,'partner').some(e=>e.name==='Split Squat (Hantler)')&&get('bb2',2,'partner').some(e=>e.name==='Cable Pull-Through'));
+  let lower=0,upper=0; days.forEach(d=>get(d,2,'partner').forEach(e=>{ const g=MUSCLE_MAP[e.name]||''; if(['Quad','Post. Chain','Lægge','Adduktor'].includes(g)) lower+=e.scheme.sets; else if(['Bryst','Ryg','Skulder','Triceps','Biceps'].includes(g)) upper+=e.scheme.sets; }));
+  const share=lower/(lower+upper); assert(share>=0.45&&share<=0.6,'underkrop-andel '+share.toFixed(2));
+  assert.equal(get('bb2',2,'partner').find(e=>e.name==='Standing Calf Raise').scheme.sets,3);
 });
 console.log(bad?`\n${bad} FEJL`:`\nAlle ${ok} tests bestået`);process.exit(bad?1:0);

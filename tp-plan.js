@@ -121,13 +121,19 @@
     low2: { mainLift: 'squat', role: 'technique', lowerLoad: 'moderate', hinge: false, legHyp: true, label: 'Box squat (teknik) + baglår/baller-volumen' },
     bb2:  { mainLift: 'deadlift', role: 'technique', lowerLoad: 'moderate', hinge: true, legHyp: false, label: 'Deficit-dødløft (teknik) + ryg' }
   };
+  // Ellens pas (kun tilbehør, maskiner/hantler) — bruges i stedet for programmets hovedløft-labels
+  P.PARTNER_KIND_LABELS = { cst1: 'Overkrop kort (tilbehør)', low1: 'Benpas: quad + hamstring (maskiner)', bb1: 'Baller + ryg', cst2: 'Overkrop kort (tilbehør)', low2: 'Benpas: baller + hamstring', bb2: 'Ryg + baller (let)' };
   // deload/Ellen (kun tilbehør) → aldrig "tung". Returnerer felter der lægges på kalender-posten.
   P.sbdFlags = function (cycleId, opts) {
     opts = opts || {}; var k = P.SBD_KINDS[cycleId] || { mainLift: null, role: null, lowerLoad: 'none', hinge: false, legHyp: false, label: '' };
     var deload = !!opts.deload, heavyOk = opts.heavyOk !== false;
     var lowerLoad = (!heavyOk || deload) ? (k.lowerLoad === 'none' ? 'none' : 'light') : k.lowerLoad;
-    return { mainLift: k.mainLift, role: k.role, lowerLoad: lowerLoad, lower: lowerLoad !== 'none', hinge: !!k.hinge && lowerLoad !== 'none', legHyp: !!k.legHyp && lowerLoad !== 'none',
-      hard: lowerLoad === 'heavy', moderateLower: lowerLoad === 'moderate', kindLabel: k.label };
+    // Ellens benpas (low1/low2: maskiner og hantler, 3-4 sæt) er aldrig "tunge", men ikke ubetydelige oven i ca. 30 km løb om ugen → moderat (ikke i deload).
+    if (!heavyOk && !deload && (cycleId === 'low1' || cycleId === 'low2')) lowerLoad = 'moderate';
+    var label = k.label;
+    if (!heavyOk) label = P.PARTNER_KIND_LABELS[cycleId] || label;
+    return { mainLift: heavyOk ? k.mainLift : null, role: heavyOk ? k.role : null, lowerLoad: lowerLoad, lower: lowerLoad !== 'none', hinge: !!k.hinge && lowerLoad !== 'none', legHyp: !!k.legHyp && lowerLoad !== 'none',
+      hard: lowerLoad === 'heavy', moderateLower: lowerLoad === 'moderate', kindLabel: label };
   };
 
   // ── Opbyg dage ─────────────────────────────────────────────────────────────

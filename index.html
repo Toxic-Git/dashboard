@@ -699,7 +699,7 @@ const MUSCLE_MAP = {
   'Preacher Curl (DB)':'Biceps', 'DB Curl':'Biceps', 'Hammer Curl':'Biceps', 'Hammer Curl (DB)':'Biceps',
   'Reverse Curl (Cable)':'Biceps', 'Hip Adduction (Machine)':'Adduktor',
   'Cable Crunch':'Core', 'Box Jump':'Core',
-  'Calf Raise (Machine)':'Lægge', 'Single Leg Calf Raise (BB)':'Lægge', 'Calf Raise':'Lægge', 'Standing Calf Raise':'Lægge',
+  'Calf Raise (Machine)':'Lægge', 'Single Leg Calf Raise (BB)':'Lægge', 'Calf Raise':'Lægge', 'Standing Calf Raise':'Lægge', 'Split Squat (Hantler)':'Quad', 'Cable Pull-Through':'Post. Chain',
   'Lateral Raise (Kabel)':'Skulder', 'Incline DB Curl':'Biceps',
 };
 if (window.TP && TP.MUSCLE_EXTRA) Object.keys(TP.MUSCLE_EXTRA).forEach(k => { if (!(k in MUSCLE_MAP)) MUSCLE_MAP[k] = TP.MUSCLE_EXTRA[k]; });
@@ -1729,6 +1729,8 @@ function renderWeeklyVerdictSection(sRaw){
 // ═══════════════ V3 FASE 3: SAMLET KALENDER + HYBRID BELASTNING ═══════════════
 // Bygger oven på slotForDate-logikken (samme data, samme blokerede dage). Ændringer ligger som overlay i tp_meta.planChanges.
 const HYB = { weekOffset: 0, sel: null, showDismissed: false, opts: {}, msg: '' };
+// Ellens pas er tilbehør — ikke Olivers hovedløft (SBD_CYCLE.desc beskriver dem)
+const PARTNER_DESC = { cst1:'Incline, sidehæv, bagskulder, triceps', low1:'Hack squat, leg extension, leg curl, læg', bb1:'Hip thrust, pulldown, row, curl', cst2:'Incline, face pull, sidehæv, triceps, mave', low2:'RDL, split squat, leg curl, adduktion', bb2:'Pulldown, row, pull-through, læg' };
 const HYB_SBD_FLAGS = { cst1:{lower:false}, low1:{lower:true}, bb1:{lower:true,hinge:true}, cst2:{lower:false}, low2:{lower:true}, bb2:{lower:true,hinge:true} };
 function hybProfileKey(personKey){ return personKey==='ellen' ? 'partner' : 'main'; }
 function hybMeta(personKey){ return TP.loadMeta(hybProfileKey(personKey)); }
@@ -1762,7 +1764,7 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
   const mkSbd=(c,status,deload,optional)=>{
     // Type + belastning kommer fra programmets egen cyklus (TPPLAN.SBD_KINDS): tung hovedløft vs. teknik (3×3 ~60–65 % uden backdown). Ellen/deload → aldrig tung.
     const fl=TPPLAN.sbdFlags(c.id,{deload,heavyOk});
-    return { id:'sbd-'+c.id+'-'+status, kind:'sbd', status, label:c.short+(deload?' (deload)':''), cycleId:c.id, lower:fl.lower, hinge:fl.hinge, hard:fl.hard, mainLift:fl.mainLift, role:fl.role, lowerLoad:fl.lowerLoad, legHyp:fl.legHyp, moderateLower:fl.moderateLower, kindLabel:fl.kindLabel, optional:!!optional, desc:c.desc||'' };
+    return { id:'sbd-'+c.id+'-'+status, kind:'sbd', status, label:c.short+(deload?' (deload)':''), cycleId:c.id, lower:fl.lower, hinge:fl.hinge, hard:fl.hard, mainLift:fl.mainLift, role:fl.role, lowerLoad:fl.lowerLoad, legHyp:fl.legHyp, moderateLower:fl.moderateLower, kindLabel:fl.kindLabel, optional:!!optional, desc:heavyOk?(c.desc||''):(PARTNER_DESC[c.id]||'') };
   };
   const slotMap=slotMapForRange(from,TP.addDays(from,n),anchor,personKey,blocked,catchup);
   // Planlagte styrkedage: samme cursor-logik som tidligere ugeskema
