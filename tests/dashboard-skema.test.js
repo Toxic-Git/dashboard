@@ -5,7 +5,7 @@ const mem={};global.localStorage={getItem:k=>k in mem?mem[k]:null,setItem:(k,v)=
 const cut=(a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a)));
 let code=cut('const OLIVER_PATTERN','// Morgen-påmindelse')
  +'\n'+cut('function blockedDatesKey','function toggleBlockedDate')+'\n'+cut('function catchupDatesKey','function toggleCatchupDate')
- +'\n'+cut('function slotForDate','let scheduleWeekOffset')+'\n'+s.match(/function localISO[^\n]*\n/)[0];
+ +'\n'+cut('function slotForDate','function sbdCompletedByDate')+'\n'+s.match(/function localISO[^\n]*\n/)[0];
 require('vm').runInThisContext(code+';globalThis.__t={slotForDate,OLIVER_PATTERN}');
 const {slotForDate,OLIVER_PATTERN}=globalThis.__t;
 const len=OLIVER_PATTERN.length, anchor='2026-10-01';

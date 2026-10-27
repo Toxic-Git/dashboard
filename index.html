@@ -256,9 +256,6 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
 .today-rest{ padding:18px; color:var(--text-2); font-size:var(--fs-md); background:var(--surface); border-top:1px solid var(--border); }
 @media (max-width:520px){ .today-btn{ width:100%; } }
 
-/* ── UGESKEMA ── */
-.week-grid{ display:flex; flex-direction:column; gap:6px; }
-
 /* ── KALENDER ── */
 .cal-nav{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .cal-nav-btn{
@@ -266,33 +263,6 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   color:var(--text); font-size:16px; cursor:pointer; font-family:'Barlow Condensed',sans-serif;
 }
 .cal-title{ font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; text-transform:uppercase; }
-/* Planlagte (fremtidige) dage: hul prik i stedet for udfyldt */
-.week-day-row{
-  display:grid; grid-template-columns:38px minmax(0,1fr) minmax(0,1fr); gap:10px 12px; align-items:start;
-  background:var(--surface2); border-radius:var(--r-md); padding:10px 12px; border:1px solid transparent;
-}
-@media (max-width:520px){
-  .week-day-row{ grid-template-columns:38px minmax(0,1fr); }
-  .week-day-row .week-day-content{ grid-column:2; }
-  .week-day-row .week-day-content:empty,
-  .week-day-row .week-day-content.is-none{ display:none; }
-}
-.week-day-content.is-none{ display:none; }
-.week-day-row.is-past .week-day-content{ opacity:.8; }
-.skip-menu{ margin-top:8px; }
-.skip-menu > summary{
-  list-style:none; cursor:pointer; font-size:var(--fs-xs); color:var(--muted); padding:6px 0; min-height:32px;
-  display:inline-flex; align-items:center; gap:4px; text-decoration:underline; text-underline-offset:3px;
-}
-.skip-menu > summary::-webkit-details-marker{ display:none; }
-.skip-menu[open] > summary{ color:var(--text); }
-.skip-menu .day-picker-btn{ display:block; width:100%; margin-top:6px; text-align:left; padding:9px 10px; }
-.week-day-row.today{ border-color:var(--gold-dim); background:rgba(212,168,67,0.08); }
-.week-day-name{ width:38px; flex-shrink:0; font-family:'Barlow Condensed',sans-serif; font-size:var(--fs-md); font-weight:700; text-transform:uppercase; color:var(--muted); }
-.week-day-row.today .week-day-name{ color:var(--gold); }
-.week-day-content{ min-width:0; }
-.week-day-badge{ font-size:var(--fs-md); font-weight:600; }
-.week-day-sub{ font-size:var(--fs-xs); color:var(--muted); margin-top:2px; line-height:1.4; }
 .week-day-tag{
   font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
   padding:2px 8px; border-radius:var(--r-pill); flex-shrink:0; display:inline-block;
@@ -413,9 +383,6 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   <div class="section-label" id="label-secondary">Sekundær</div>
   <div id="slot-secondary"></div>
 
-  <div class="section-label">Denne uge</div>
-  <div id="slot-schedule"></div>
-
   <div class="section-label">Samlet kalender</div>
   <div id="slot-hybrid-cal"></div>
 
@@ -469,7 +436,7 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   const main = document.querySelector('main');
   const kids = Array.from(main.children);
   // Sektioner der er brede / smalle på desktop, og hvilke der kan foldes sammen.
-  const WIDE = ['I dag', 'Oversigt', 'Denne uge', 'Samlet kalender'];
+  const WIDE = ['I dag', 'Oversigt', 'Samlet kalender'];
   const S8 = []; const S4 = [];
   const FOLD = ['Samlet kalender','Månedsrapport','Oversigt','Powerbuilding','Løb','Recovery','Kropsudvikling','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
   const OPEN_MOBILE = ['Oversigt','Mål'];
@@ -1581,19 +1548,6 @@ function slotMapForRange(fromDate, toDate, anchor, personKey, blockedList, catch
   return out;
 }
 
-let scheduleWeekOffset = 0;
-function scheduleShiftWeek(delta){
-  scheduleWeekOffset += delta;
-  render();
-}
-function computeWeekDates(offset){
-  const off = offset||0;
-  const base=new Date(weekStartOf(localISO(new Date()))+'T00:00:00');
-  base.setDate(base.getDate() + off*7);
-  const dates=[];
-  for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(base.getDate()+i); dates.push(localISO(d)); }
-  return dates; // Man..Søn
-}
 function sbdCompletedByDate(sRaw){
   const map={};
   if(!sRaw) return map;
@@ -1624,18 +1578,6 @@ function lobExtrasFor(personKey){
   }catch(e2){}
   return out;
 }
-function lobDetailHtml(lobPlan, isToday, extras){
-  if(isToday && extras.plan){
-    const p = extras.plan;
-    return (p.distance ? `<div class="week-day-sub">📏 ${shortPlanText(p.distance)}</div>` : '')
-         + (p.pace ? `<div class="week-day-sub">🎯 ${shortPlanText(p.pace)}</div>` : '');
-  }
-  if(lobPlan && lobPlan.easy && extras.easy){
-    const e = extras.easy;
-    return `<div class="week-day-sub">Typisk: ${e.easyKm ? '~'+e.easyKm+' km' : ''}${e.easyKm && e.easyPace ? ' · ' : ''}${e.easyPace || ''}</div>`;
-  }
-  return '';
-}
 // "I dag": ét tydeligt svar på hvad der skal trænes. Bygger på de samme data og
 // regler som ugeplanen (slotForDate, gennemførte sessioner, rykkede dage).
 function renderToday(sRaw, lRaw, personKey, sbdStatus){
@@ -1665,7 +1607,7 @@ function renderToday(sRaw, lRaw, personKey, sbdStatus){
     items.push(`<div class="today-item"><div class="today-kind">🏋️ Styrke <span class="week-day-tag tag-rest">Ikke muligt</span></div>
       <div class="today-name">Rykket</div>
       <div class="today-meta">${blocked ? 'Styrke er rykket én dag frem — løb er uændret.' : 'Styrke indhentes: næste ikke-styrkedag droppes. Løb er uændret.'}</div>
-      <div class="today-actions"><a class="today-btn ghost" href="#slot-schedule" onclick="document.getElementById('slot-schedule').scrollIntoView({behavior:'smooth'});return false;">Se ugeplanen</a></div></div>`);
+      <div class="today-actions"><a class="today-btn ghost" href="#slot-hybrid-cal" onclick="document.getElementById('slot-hybrid-cal').scrollIntoView({behavior:'smooth'});return false;">Se ugeplanen</a></div></div>`);
   } else if(slot.sbd && sbdStatus){
     const d = sbdStatus.day;
     const isRestDay = d.type==='rest';
@@ -1721,111 +1663,6 @@ function renderToday(sRaw, lRaw, personKey, sbdStatus){
   el.innerHTML = `<div class="today-hero">
     <div class="today-head"><h2>${allDone ? 'Klaret i dag ✓' : 'I dag'}</h2><div class="today-date">${dateLabel}</div></div>
     ${gapHtml}${body}</div>`;
-}
-
-function renderSchedule(sRaw, lRaw, personKey){
-  const anchor=getScheduleAnchor();
-  const dates=computeWeekDates(scheduleWeekOffset);
-  const jsWeekdayForIndex=i=>[1,2,3,4,5,6,0][i];
-  const todayStr=localISO(new Date());
-  const sbdDone=sbdCompletedByDate(sRaw);
-  const lobDone=lobCompletedByDate(lRaw);
-  const pattern=patternForPerson(personKey);
-  const lobExtras=lobExtrasFor(personKey);
-  const isTestWeek = sRaw ? (Math.min(12,Math.floor((sRaw.totalDays||0)/7)+1)===12) : false;
-  let sbdCursor = sRaw ? (sRaw.totalDays||0) : 0; // bruges kun for slots uden fast cycleId
-
-  let rows='';
-  dates.forEach((dateStr,i)=>{
-    const weekdayIdx=jsWeekdayForIndex(i);
-    const isToday=dateStr===todayStr;
-    const isFuture=dateStr>todayStr;
-    const dayLabel=DAY_NAMES[weekdayIdx];
-    const slot=slotForDate(dateStr,anchor,personKey) || { sbd:null, lob:null };
-    const isBlocked=getBlockedDates(personKey).includes(dateStr);
-    const isCatchup=getCatchupDates(personKey).includes(dateStr);
-    // Ellen: løb er faste ugedage (hendes krav), uafhængigt af den rullende
-    // cyklus. Let løb hvis det falder sammen med en SBD-dag (kombi), ellers
-    // kvalitet/tempo.
-    const lobPlan = personKey==='ellen'
-      ? (ELLEN_LOB_WEEKDAYS.has(weekdayIdx) ? { easy: !!slot.sbd } : null)
-      : slot.lob;
-
-    let sbdCell;
-    if(sbdDone[dateStr]){
-      const c=sbdDone[dateStr];
-      sbdCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏋️ ${c.short}</div><div class="week-day-sub">${c.type==='rest'?'Hviledag':(c.desc||'')}</div>`;
-    } else if((isFuture||isToday) && isBlocked){
-      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Styrke rykket én dag frem — løb uændret</div><button class="day-picker-btn" style="margin-top:8px;width:100%;" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Fortryd</button>`;
-    } else if((isFuture||isToday) && isCatchup){
-      sbdCell=`<span class="week-day-tag tag-rest">🚫 Ikke muligt</span><div class="week-day-sub">Styrke indhentes — næste ikke-styrkedag droppes, så du løfter 2 dage i træk. Løb er uændret</div><button class="day-picker-btn" style="margin-top:6px;width:100%;" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Fortryd</button>`;
-    } else if((isFuture||isToday) && slot.sbd && !isTestWeek && sRaw){
-      let proj;
-      if(slot.sbd.cycleId){
-        proj = SBD_CYCLE.find(c=>c.id===slot.sbd.cycleId) || SBD_CYCLE[0];
-      } else {
-        // Ingen fast cycleId — følg det faktiske fremskridt i den ægte cyklus,
-        // og spring pause-slots over (de er løb i dette mønster).
-        do { proj = SBD_CYCLE[sbdCursor % 8]; sbdCursor++; } while(proj.type==='rest');
-      }
-      const tag = slot.sbd.optional ? 'Valgfri' : (isToday?'I dag':'Planlagt');
-      const optNote = slot.sbd.optional ? '<div class="week-day-sub">Spring over hvis du er for træt</div>' : (proj.desc?`<div class="week-day-sub">${proj.desc}</div>`:'');
-      sbdCell=`<span class="week-day-tag tag-planned">${tag}</span> <div class="week-day-badge">🏋️ ${proj.short}</div>${optNote}<details class="skip-menu"><summary>Kan ikke i dag?</summary><button class="day-picker-btn" onclick="toggleCatchupDate('${personKey}','${dateStr}')">Styrke ikke mulig — indhent (drop næste pause)</button><button class="day-picker-btn" onclick="toggleBlockedDate('${personKey}','${dateStr}')">Styrke ikke mulig — ryk styrke én dag</button></details>`;
-    } else if((isFuture||isToday) && !slot.sbd && !lobPlan){
-      sbdCell=`<span class="week-day-tag tag-rest">😴 Hviledag</span>`;
-    } else {
-      sbdCell=`<span class="week-day-tag tag-rest">—</span>`;
-    }
-
-    let lobCell;
-    const lobRuns=lobDone[dateStr];
-    if(lobRuns && lobRuns.length){
-      const totalKm=lobRuns.reduce((a,r)=>a+r.distanceKm,0);
-      lobCell=`<span class="week-day-tag tag-done">Gennemført</span> <div class="week-day-badge">🏃 ${totalKm.toFixed(1)} km</div>`;
-    } else if((isFuture||isToday) && lobPlan && !(lRaw && lRaw.profile && lRaw.profile.onboarded)){
-      // Løbe-trackeren er ikke onboardet endnu — vis dagen alligevel, så
-      // rytmens løbedage er synlige fra start.
-      lobCell=`<span class="week-day-tag tag-planned">${isToday?'I dag':'Planlagt'}</span> <div class="week-day-badge">🏃 ${lobPlan.easy?'Let løb':'Løb'}</div><div class="week-day-sub">Gennemfør opsætningen i løbe-trackeren for fase og intensitet</div>`;
-    } else if((isFuture||isToday) && lobPlan && lRaw && lRaw.profile && lRaw.profile.onboarded){
-      const info=lobPhaseInfo(lRaw.profile.seasonStart);
-      const badge=lobPlan.easy ? 'Let' : (info.isDeload?'Deload':info.phase);
-      const sub=lobPlan.easy ? '<div class="week-day-sub">Zone 1-2 — ligger tæt på en bendag</div>' : '';
-      lobCell=`<span class="week-day-tag tag-planned">${isToday?'I dag':'Planlagt'}</span> <div class="week-day-badge">🏃 ${badge}</div>${sub}${lobDetailHtml(lobPlan,isToday,lobExtras)}`;
-    } else {
-      lobCell=`<span class="week-day-tag tag-rest">—</span>`;
-    }
-
-    const noSbd = /^<span class="week-day-tag tag-rest">—<\/span>$/.test(sbdCell);
-    const noLob = /^<span class="week-day-tag tag-rest">—<\/span>$/.test(lobCell);
-    rows+=`<div class="week-day-row ${isToday?'today':''} ${(!isToday && !isFuture)?'is-past':''}"${isToday?' aria-current="date"':''}>
-      <div class="week-day-name">${dayLabel}</div>
-      <div class="week-day-content${noSbd?' is-none':''}">${sbdCell}</div>
-      <div class="week-day-content${noLob?' is-none':''}">${lobCell}</div>
-    </div>`;
-  });
-
-  const gapNote = '';
-
-  const rangeFmt = d => new Date(d+'T00:00:00').toLocaleDateString('da-DK',{day:'numeric',month:'short'});
-  const weekLabel = scheduleWeekOffset===0 ? 'Denne uge' : (scheduleWeekOffset===1 ? 'Næste uge' : (scheduleWeekOffset===-1 ? 'Sidste uge' : `${rangeFmt(dates[0])} – ${rangeFmt(dates[6])}`));
-
-  document.getElementById('slot-schedule').innerHTML=`
-    <div class="section-card">
-      <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="scheduleShiftWeek(-1)" aria-label="Forrige uge">‹</button>
-        <div class="cal-title">${weekLabel}<div style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;">${rangeFmt(dates[0])} – ${rangeFmt(dates[6])}</div></div>
-        <button class="cal-nav-btn" onclick="scheduleShiftWeek(1)" aria-label="Næste uge">›</button>
-      </div>
-      ${gapNote}
-      <div class="week-grid">${rows}</div>
-      <details class="schedule-settings">
-        <summary class="settings-summary">Rytme &amp; indstillinger</summary>
-        <div class="schedule-settings-label">Rytme: 9-dages mønster (2 SBD-dage i træk, 1 løbedag, gentaget 3×). ${personKey==='ellen'?'Løb er faste dage for hende: tirsdag, torsdag, fredag, søndag — SBD er valgfri på de dage der falder sammen med Olivers SBD-dage.':'6 SBD-dage, 3 løbeture — de to der ligger op til en bendag er lette.'}</div>
-        <button class="day-picker-btn" style="width:100%;margin-top:4px;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
-        ${notificationButtonHtml()}
-        <div class="deferred-note">"Planlagt" er en projektion ud fra jeres delte rytme — det faktiske indhold afhænger af den rækkefølge I reelt træner i, ikke datoen. Nulstil cyklussen hvis I holder en uplanlagt pause og vil starte forfra fra i dag.</div>
-      </details>
-    </div>`;
 }
 
 // ── Render: Åbningsforsøg (kun i test/peak-uge) ────────────────────────────
@@ -1890,7 +1727,7 @@ function renderWeeklyVerdictSection(sRaw){
 }
 
 // ═══════════════ V3 FASE 3: SAMLET KALENDER + HYBRID BELASTNING ═══════════════
-// Bygger oven på slotForDate/renderSchedule-logikken (samme data, samme blokerede dage). Ændringer ligger som overlay i tp_meta.planChanges.
+// Bygger oven på slotForDate-logikken (samme data, samme blokerede dage). Ændringer ligger som overlay i tp_meta.planChanges.
 const HYB = { weekOffset: 0, sel: null, showDismissed: false, opts: {}, msg: '' };
 const HYB_SBD_FLAGS = { cst1:{lower:false}, low1:{lower:true}, bb1:{lower:true,hinge:true}, cst2:{lower:false}, low2:{lower:true}, bb2:{lower:true,hinge:true} };
 function hybProfileKey(personKey){ return personKey==='ellen' ? 'partner' : 'main'; }
@@ -1901,11 +1738,18 @@ function hybMedianKm(lRaw){
   return km.length ? km[Math.floor(km.length/2)] : 0;
 }
 // Bygger dagene (gennemført + planlagt + overlay). extraChanges/extraBlocked bruges til "hvad nu hvis"-forhåndsvisning.
-function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeId){
+function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeId, extraCatchup){
   const today=localISO(new Date()), anchor=getScheduleAnchor();
   const from=TP.addDays(TP.weekStart(today),-28), n=63;
-  const blocked=getBlockedDates(personKey).concat(extraBlocked||[]), catchup=getCatchupDates(personKey);
+  const blocked=getBlockedDates(personKey).concat(extraBlocked||[]), catchup=getCatchupDates(personKey).concat(extraCatchup||[]);
   const meta=hybMeta(personKey);
+  const lobEx=lobExtrasFor(personKey);
+  // Dagens løbeforslag / typisk rolig tur (samme tal som løbeappen viser) — vises i dagens detaljer
+  const runHint=(date,easy)=>{
+    if(date===today && lobEx.plan){ const q=lobEx.plan, h=[]; if(q.distance) h.push('📏 '+shortPlanText(q.distance)); if(q.pace) h.push('🎯 '+shortPlanText(q.pace)); return h.join(' · '); }
+    if(easy && lobEx.easy){ const e=lobEx.easy; return 'Typisk: '+(e.easyKm?'~'+e.easyKm+' km':'')+(e.easyKm&&e.easyPace?' · ':'')+(e.easyPace||''); }
+    return '';
+  };
   const changes=(meta.planChanges||[]).filter(c=>c.id!==dropChangeId).concat((extraChanges||[]).map((c,i)=>Object.assign({id:'x'+i},c)));
   const sbdDone=sbdCompletedByDate(sRaw), lobDone=lobCompletedByDate(lRaw);
   const maxHR=lRaw&&lRaw.profile?lRaw.profile.maxHR:0, med=hybMedianKm(lRaw);
@@ -1921,7 +1765,7 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
     return { id:'sbd-'+c.id+'-'+status, kind:'sbd', status, label:c.short+(deload?' (deload)':''), cycleId:c.id, lower:fl.lower, hinge:fl.hinge, hard:fl.hard, mainLift:fl.mainLift, role:fl.role, lowerLoad:fl.lowerLoad, legHyp:fl.legHyp, moderateLower:fl.moderateLower, kindLabel:fl.kindLabel, optional:!!optional, desc:c.desc||'' };
   };
   const slotMap=slotMapForRange(from,TP.addDays(from,n),anchor,personKey,blocked,catchup);
-  // Planlagte styrkedage: samme cursor-logik som renderSchedule
+  // Planlagte styrkedage: samme cursor-logik som tidligere ugeskema
   const plannedSbd={}, skipped={}; let cursor=sRaw?(sRaw.totalDays||0):0;
   for(let i=0;i<n;i++){
     const date=TP.addDays(from,i); if(date<today) continue;
@@ -1957,6 +1801,7 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
           out.push({ id:'run-plan-'+date, kind:'run', status:'planned', label:dl?'Løb (deload)':'Kvalitetsløb', hard:!!pk.hard&&!dl, long:!!pk.long&&!dl, load:(dl?'easy':pk.load), runKind:dl?'easy':pk.kind, kindLabel:dl?'Roligt løb (deload-uge)':pk.kindLabel, basis:dl?'Deload-uge i løbeplanen':pk.basis, confidence:pk.confidence, limits:pk.limits });
         }
       }
+      if(lobPlan){ const last=out[out.length-1]; if(last&&last.id==='run-plan-'+date){ const hint=runHint(date,!!lobPlan.easy); if(hint) last.desc=hint; } }
     }
     return out;
   };
@@ -2055,6 +1900,13 @@ function renderHybridCalendar(sRaw,lRaw,personKey){
       ${HYB.msg?`<div class="hy-msg" role="status">${esc2(HYB.msg)}</div>`:''}
       ${HYB.sel?hybDetail(HYB.sel,cx,personKey,sRaw,lRaw):'<div class="deferred-note">Tryk på en dag for detaljer. Intet ændres uden din bekræftelse.</div>'}
       ${clist}
+      <details class="schedule-settings">
+        <summary class="settings-summary">Rytme &amp; indstillinger</summary>
+        <div class="schedule-settings-label">Rytme: 9-dages mønster (2 SBD-dage i træk, 1 løbedag, gentaget 3×). ${personKey==='ellen'?'Løb er faste dage for hende: tirsdag, torsdag, fredag, søndag — SBD er valgfri på de dage der falder sammen med Olivers SBD-dage.':'6 SBD-dage, 3 løbeture — de to der ligger op til en bendag er lette.'}</div>
+        <button class="day-picker-btn" style="width:100%;margin-top:4px;" onclick="resetScheduleAnchor()">Nulstil cyklus fra i dag</button>
+        ${notificationButtonHtml()}
+        <div class="deferred-note">"Planlagt" er en projektion ud fra jeres delte rytme — det faktiske indhold afhænger af den rækkefølge I reelt træner i, ikke datoen. Nulstil cyklussen hvis I holder en uplanlagt pause og vil starte forfra fra i dag.</div>
+      </details>
     </div>`;
     // En baggrunds-gentegning (fx løbe-prognosen) må ikke slette brugerens valgte flyttedag
     if(keepTo&&keepFor&&keepFor===HYB.sel){ const sel=document.getElementById('hy-to'); if(sel&&[...sel.options].some(o=>o.value===keepTo)){ sel.value=keepTo; hybPreview(HYB.sel); } }
@@ -2082,7 +1934,9 @@ function hybDetail(date,cx,personKey,sRaw,lRaw){
       h+=`<a class="hy-btn small" href="${it.kind==='sbd'?'sbd/index.html':'lob/index.html'}">Åbn ${it.kind==='sbd'?'SBD':'Løb'}-appen og registrér</a>
         <div class="hy-note">Gennemførelse registreres i appen (ét sted), så historik og progression aldrig dobbeltregistreres.</div>`;
     } else if(it.status==='skipped'){
-      h+=`<div class="hy-note">Styrke rykket én dag frem via "Kan ikke i dag". Fortryd under "Dine ændringer", hvis det blev gjort her.</div>`;
+      h+=getCatchupDates(personKey).includes(date)
+        ? `<div class="hy-note">Styrke indhentes — næste ikke-styrkedag droppes, så du løfter to dage i træk. Løb er uændret. Fortryd under "Dine ændringer", hvis det blev gjort her.</div>`
+        : `<div class="hy-note">Styrke rykket én dag frem via "Kan ikke i dag". Fortryd under "Dine ændringer", hvis det blev gjort her.</div>`;
     }
     h+='</div>';
   });
@@ -2104,19 +1958,21 @@ function hybRunActions(date,it,cx,personKey){
 }
 function hybSbdActions(date,it,cx,personKey){
   return `<div class="hy-actions"><div id="hy-prev" class="hy-prev" aria-live="polite"></div>
-    <div class="hy-row"><button type="button" class="hy-btn" onclick="hybPreview('${date}','skipsbd')">Kan ikke i dag…</button></div></div>`;
+    <div class="hy-row"><button type="button" class="hy-btn" onclick="hybPreview('${date}','skipsbd')">Kan ikke i dag…</button>
+    <button type="button" class="hy-btn" onclick="hybPreview('${date}','catchupsbd')">Kan ikke — indhent…</button></div></div>`;
 }
 // Forhåndsvisning af konsekvens: sammenlign advarsler før/efter
 function hybPreview(date,mode){
   const {sRaw,lRaw,personKey}=hybCurrent(); const cx=hybCtx(personKey,sRaw,lRaw);
   const prev=document.getElementById('hy-prev'); if(!prev) return;
-  const sel=document.getElementById('hy-to'); let change=null, blocked=[], text='', apply=null;
+  const sel=document.getElementById('hy-to'); let change=null, blocked=[], catchup=[], text='', apply=null;
   if(mode==='easy'){ change={type:'easyRun',date}; text='Dagens hårde løb bliver et roligt løb (zone 1–2). Ugens kvalitetsløb udgår — det kan påvirke løbemål lidt.'; apply='hybApplyChange(\''+date+'\',\'easy\')'; }
   else if(mode==='skiprun'){ change={type:'skipRun',date}; text='Løbet springes over denne dag. Det flyttes ikke automatisk.'; apply='hybApplyChange(\''+date+'\',\'skiprun\')'; }
+  else if(mode==='catchupsbd'){ catchup=[date]; change={type:'catchupSbd',date}; text='Styrken indhentes: dagens styrke skubbes til i morgen, og den næste ikke-styrkedag (pause eller løb) droppes, så du løfter to dage i træk og cyklussen falder på plads af sig selv. Løb er uændret.'; apply='hybApplyChange(\''+date+'\',\'catchupsbd\')'; }
   else if(mode==='skipsbd'){ blocked=[date]; change={type:'skipSbd',date}; text='Bruger den eksisterende "Kan ikke i dag": styrkedagene rykkes én dag frem. Rækkefølgen — og dermed programmet og progressionen — er uændret.'; apply='hybApplyChange(\''+date+'\',\'skipsbd\')'; }
   else { const to=sel&&sel.value; const btn=document.getElementById('hy-apply-move'); if(btn) btn.disabled=!to; if(!to){ prev.innerHTML=''; return; } change={type:'moveRun',from:date,to}; text='Kun løbet flyttes til '+TPPLAN.fmtDate(to)+'. Styrkeprogrammet, cyklus og progression påvirkes ikke.'; }
   const before=TPPLAN.analyze(cx.days,cx.analyzeCtx).filter(f=>!f.dismissed&&f.level==='warn');
-  const afterDays=hybBuild(personKey,sRaw,lRaw,change.type==='skipSbd'?[]:[change],blocked);
+  const afterDays=hybBuild(personKey,sRaw,lRaw,(change.type==='skipSbd'||change.type==='catchupSbd')?[]:[change],blocked,undefined,catchup);
   const after=TPPLAN.analyze(afterDays,cx.analyzeCtx).filter(f=>!f.dismissed&&f.level==='warn');
   const bk=before.map(f=>f.key), ak=after.map(f=>f.key);
   const gone=before.filter(f=>!ak.includes(f.key)), added=after.filter(f=>!bk.includes(f.key));
@@ -2151,6 +2007,12 @@ function hybApplyChange(date,mode){
     if(!getBlockedDates(personKey).includes(date)) toggleBlockedDate(personKey,date); else render();
     return;
   }
+  if(mode==='catchupsbd'){
+    TPPLAN.addChange(meta,TPPLAN.newChange({type:'catchupSbd',date}));
+    if(!hybCommit(personKey,meta,'Styrke indhentes. Brug "Fortryd" for at rulle tilbage.')){ render(); return; }
+    if(!getCatchupDates(personKey).includes(date)) toggleCatchupDate(personKey,date); else render();
+    return;
+  }
   TPPLAN.addChange(meta,TPPLAN.newChange(mode==='easy'?{type:'easyRun',date}:{type:'skipRun',date}));
   hybCommit(personKey,meta,mode==='easy'?'Løbet er gjort til et roligt løb.':'Løbet er sprunget over.'); render();
 }
@@ -2159,6 +2021,7 @@ function hybUndo(id){
   TPPLAN.removeChange(meta,id);
   if(!hybCommit(personKey,meta,'Ændringen er fortrudt: '+TPPLAN.describe(c))){ render(); return; }
   if(c.type==='skipSbd'&&getBlockedDates(personKey).includes(c.date)){ toggleBlockedDate(personKey,c.date); return; }
+  if(c.type==='catchupSbd'&&getCatchupDates(personKey).includes(c.date)){ toggleCatchupDate(personKey,c.date); return; }
   render();
 }
 
@@ -2383,7 +2246,6 @@ function render(){
 
   renderToday(sRaw, lRaw, active, readSbd(sbdWho));
   renderOversigt(sRaw, lRaw);
-  renderSchedule(sRaw, lRaw, active);
   renderHybridCalendar(sRaw, lRaw, active);
   renderAttempts(sRaw);
   renderStyrke(sRaw);

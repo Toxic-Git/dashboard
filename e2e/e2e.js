@@ -58,20 +58,12 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
   const startSession = async p => { await p.click('text=START TRÆNING'); await p.waitForSelector('#kg_0_0'); await p.waitForTimeout(200); };
   const open = async (p, rel) => { await p.goto(url + rel); await p.waitForTimeout(700); };
 
-  await check('Layout', 'Ugeskema @360/390: række med både styrke- og løbecelle — begge i indholdskolonnen (ikke 38 px-dagsnavnet), ingen vandret scroll', async () => {
+  await check('Layout', 'Én kalender: "Denne uge" er væk, Samlet kalender har rytme/indstillinger og begge styrke-valg, ingen vandret scroll @360/390', async () => {
     for (const w of [360, 390]) {
       const p = await newPage(w); await open(p, 'index.html'); await p.waitForTimeout(1500);
-      const r = await p.evaluate(() => {
-        const host = document.querySelector('.week-day-row').parentNode;
-        const row = document.createElement('div'); row.className = 'week-day-row today';
-        row.innerHTML = '<div class="week-day-name">Man</div><div class="week-day-content">Styrke: Tung bænk</div><div class="week-day-content">Løb: roligt 40 min Zone 2</div>';
-        host.appendChild(row);
-        const n = row.children[0].getBoundingClientRect(), a = row.children[1].getBoundingClientRect(), c = row.children[2].getBoundingClientRect();
-        return { aLeft: a.left - n.right, cLeft: c.left - n.right, cW: c.width, stacked: c.top >= a.bottom - 1, sw: document.documentElement.scrollWidth <= window.innerWidth + 1 };
-      });
-      ok(r.aLeft >= 0 && r.cLeft >= 0, 'celler under dagsnavnet @' + w + ' ' + JSON.stringify(r));
-      ok(r.cW > 150, 'løb-cellen er for smal @' + w + ': ' + r.cW);
-      ok(r.stacked && r.sw, 'stabling/scroll @' + w + ' ' + JSON.stringify(r)); eq(p.errors, []); await p.ctx.close();
+      eq(await p.locator('#slot-schedule, .week-day-row').count(), 0, 'gammel ugevisning findes stadig');
+      ok(await p.locator('.schedule-settings').count() === 1, 'rytme & indstillinger mangler i Samlet kalender');
+      ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'vandret scroll @' + w); eq(p.errors, []); await p.ctx.close();
     }
   });
   /* ───────── PROFILSKIFT & DATAISOLERING ───────── */
@@ -606,6 +598,20 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     eq(JSON.parse(await p.evaluate(() => localStorage.getItem('tp_meta_main'))).planChanges[0].type, 'skipSbd');
     await p.evaluate(() => hybUndo(JSON.parse(localStorage.getItem('tp_meta_main')).planChanges[0].id)); await p.waitForTimeout(400);
     eq(await p.evaluate(() => JSON.parse(localStorage.getItem('dash_blocked_dates_oliver') || '[]').length), 0, 'fortryd skal fjerne blokering'); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Samlet kalender (V3)', 'Styrke "Kan ikke — indhent…": indhentningsmekanismen bruges, ændring logges og kan fortrydes; tegnes ikke som "rykket"', async () => {
+    const p = await newPage(1366, 900); await hybOpen(p); await hybUnfold(p);
+    const date = await p.evaluate(() => { const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw); const d = cx.days.find(x => x.date > cx.today && x.items.some(i => i.kind === 'sbd' && i.status === 'planned')); return d && d.date; });
+    ok(date, 'ingen planlagt styrkedag'); await p.evaluate(d => { HYB.weekOffset = Math.floor(TP.diffDays(TP.weekStart(localISO(new Date())), TP.weekStart(d)) / 7); HYB.sel = d; render(); }, date);
+    await p.click('button:has-text("Kan ikke — indhent…")'); await p.waitForSelector('#hy-prev button.primary'); ok(/indhentes/.test(await p.innerText('#hy-prev')));
+    eq(await p.evaluate(() => JSON.parse(localStorage.getItem('dash_catchup_dates_oliver') || '[]').length), 0, 'forhåndsvisning må ikke gemme noget');
+    await p.click('#hy-prev button.primary'); await p.waitForTimeout(500);
+    ok((await p.evaluate(() => JSON.parse(localStorage.getItem('dash_catchup_dates_oliver') || '[]'))).includes(date), 'indhentningsdato skal være sat');
+    eq(await p.evaluate(() => JSON.parse(localStorage.getItem('dash_blocked_dates_oliver') || '[]').length), 0, 'må ikke sætte blokeret dato');
+    eq(JSON.parse(await p.evaluate(() => localStorage.getItem('tp_meta_main'))).planChanges[0].type, 'catchupSbd');
+    ok(/indhentes/.test(await p.innerText('#hy-detail')), 'detaljen skal sige indhentes');
+    await p.evaluate(() => hybUndo(JSON.parse(localStorage.getItem('tp_meta_main')).planChanges[0].id)); await p.waitForTimeout(400);
+    eq(await p.evaluate(() => JSON.parse(localStorage.getItem('dash_catchup_dates_oliver') || '[]').length), 0, 'fortryd skal fjerne indhentning'); eq(p.errors, []); await p.ctx.close();
   });
   await check('Samlet kalender (V3)', 'Ellen: løbedage er faste — ingen flytte-valg; Oliver↔Ellen deler ikke ændringer', async () => {
     const p = await newPage(1366, 900); await hybOpen(p);

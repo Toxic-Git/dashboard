@@ -163,7 +163,7 @@
         if (!a || !b || !by[c.a] || !by[c.b]) { stale.push(c.id); return; }
         by[c.a].items.splice(by[c.a].items.indexOf(a), 1); by[c.b].items.splice(by[c.b].items.indexOf(b), 1);
         a.movedFrom = c.a; b.movedFrom = c.b; a.changeId = b.changeId = c.id; by[c.b].items.push(a); by[c.a].items.push(b);
-      } // 'skipSbd' er en log-post: selve skiftet sker i det eksisterende blokerede-dage-sæt (se plannedFn)
+      } // 'skipSbd'/'catchupSbd' er log-poster: selve skiftet sker i det eksisterende blokerede-dage-sæt (se plannedFn)
     });
     days.stale = stale; return days;
   };
@@ -432,6 +432,7 @@
     if (c.type === 'skipRun') return 'Løb ' + fmt(c.date) + ' sprunget over';
     if (c.type === 'swapRun') return 'Løb byttet mellem ' + fmt(c.a) + ' og ' + fmt(c.b);
     if (c.type === 'skipSbd') return 'Styrke ' + fmt(c.date) + ' rykket én dag frem';
+    if (c.type === 'catchupSbd') return 'Styrke ' + fmt(c.date) + ' indhentes (næste ikke-styrkedag droppes)';
     return c.type;
   };
   // Fjern forældede ændringer (løb der ikke længere findes / datoer i fortiden) — returnerer nye meta
