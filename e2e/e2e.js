@@ -447,6 +447,24 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     ok(reloaded, 'SBD-fanen genindlæste ikke'); await a.ctx.close();
   });
 
+  await check('Vægtlog', 'Arbejdsvægt: planlagt vægt låses, ændring i opvarmning og efter sæt logges med fase og vises, og overlever reload', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html'); await startSession(p);
+    const getLog = () => p.evaluate(() => JSON.parse(JSON.stringify(aState().logs[logKey()].exercises[0])));
+    ok(await p.locator('#warmup-kg-0').count() === 1, 'arbejdsvægt-felt mangler på første øvelse');
+    const b = await getLog(); ok(b.plannedKg > 0, 'plannedKg skal være gemt ved sessionsstart');
+    const base = parseFloat(b.suggestedKg) || b.plannedKg;
+    eq((await p.innerText('#weight-note-0')).trim(), '', 'ingen note uden ændring');
+    await p.fill('#warmup-kg-0', String(base + 5)); await p.dispatchEvent('#warmup-kg-0', 'change'); await p.waitForTimeout(200);
+    const a = await getLog(); eq(a.plannedKg, b.plannedKg, 'planlagt vægt må ikke ændres');
+    eq(a.weightChanges.map(c => [c.from, c.to, c.phase]), [[base, base + 5, 'opvarmning']]);
+    ok(/Planlagt/.test(await p.innerText('#weight-note-0')) && /opvarmning/.test(await p.innerText('#weight-note-0')), 'note under feltet mangler');
+    await p.fill('#reps_0_0', '5'); await p.dispatchEvent('#reps_0_0', 'change'); await p.click('#chk_0_0'); await p.waitForTimeout(300);
+    await p.fill('#warmup-kg-0', String(base + 2.5)); await p.dispatchEvent('#warmup-kg-0', 'change'); await p.waitForTimeout(200);
+    const c = await getLog(); eq(c.weightChanges.map(x => x.phase), ['opvarmning', 'efter sæt 1']); eq(c.plannedKg, b.plannedKg);
+    await p.reload(); await p.waitForTimeout(800);
+    const d = await getLog(); eq(d.weightChanges.length, 2, 'ændringer skal overleve reload'); ok(/efter sæt 1/.test(await p.innerText('#weight-note-0')), 'note efter reload');
+    eq(p.errors, []); await p.ctx.close();
+  });
   /* ───────── FASE 2: ØVELSESSKIFT + EVALUERING ───────── */
   const curLog = p => p.evaluate(() => { const as = aState(); return JSON.parse(JSON.stringify({ log: as.logs[logKey()], subs: as.exerciseSubs || {}, ev: as.sessionEval || {}, oneRM: as.oneRM, pr: as.pr })); });
   await check('Øvelsesskift (V3)', 'Arket viser primær + 2 alternativer med begrundelse; skift "kun i dag" gemmer plannedName og rører ikke 1RM/PR', async () => {

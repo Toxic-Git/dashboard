@@ -2148,6 +2148,7 @@ function renderToday() {
       sid: window.TP ? TP.uid('sbd') : undefined,
       exercises: exercises.map(ex => ({
         name: ex.name,
+        plannedKg: ex.scheme.kg || null, // låses ved sessionsstart — ændres aldrig (se recordWeightChange)
         ...(ex.plannedName ? { plannedName: ex.plannedName, sub: { scope: 'future', at: Date.now() } } : {}),
         sets: Array.from({ length: ex.scheme.sets }, () => ({
           kg: ex.scheme.kg || '',
@@ -2305,8 +2306,10 @@ function renderToday() {
       // Use rpeHintKg as default if no manual input stored yet
       const storedWarmupKg = log.exercises[ei]?.warmupKg || rpeHintKg || ex.scheme.kg || '';
       // Also pre-fill sets if not already done
+      ensurePlannedKg(log.exercises[ei], ex);
       if (!log.exercises[ei].warmupKg && rpeHintKg) {
         log.exercises[ei].warmupKg = rpeHintKg;
+        log.exercises[ei].suggestedKg = rpeHintKg; // appens eget forslag — ikke en brugerændring
         if (log.exercises[ei].sets) {
           log.exercises[ei].sets.forEach(s => { if (!s.done && !s.kg) s.kg = rpeHintKg; });
         }
@@ -2318,9 +2321,10 @@ function renderToday() {
           <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);flex-shrink:0;">Arbejdsvægt</div>
           <input aria-label="Arbejdsvægt i kg" class="set-input" type="number" inputmode="decimal" style="max-width:90px;font-size:16px;"
             value="${storedWarmupKg}" placeholder="${ex.scheme.kg || '—'}"
-            oninput="updateWarmupKg(${ei}, this.value)" id="warmup-kg-${ei}">
+            oninput="updateWarmupKg(${ei}, this.value)" onchange="commitWorkingKg(${ei}, this.value)" id="warmup-kg-${ei}">
           <div style="font-size:12px;color:var(--muted);font-weight:300;">kg</div>
         </div>
+        <div id="weight-note-${ei}" style="font-size:12px;color:var(--gold);margin-bottom:6px;">${weightChangeNote(log.exercises[ei])}</div>
         ${workingPlates ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
           Per side: <span style="color:var(--text);font-weight:600;" id="working-plates-${ei}">${workingPlates}</span>
         </div>` : `<div id="working-plates-${ei}" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>`}
@@ -2629,6 +2633,54 @@ function renderWarmupBadges(warmups) {
   }).join('');
 }
 
+// ── VÆGTÆNDRINGER (planlagt vs. faktisk arbejdsvægt) ─────────────────────
+// plannedKg er programmets vægt og låses ved sessionsstart. Hver ændring af
+// "Arbejdsvægt" logges med fase: 'opvarmning' (før første gennemførte sæt —
+// subjektiv fornemmelse, intet RPE-bevis) eller 'efter sæt N' (har et
+// arbejdssæt som evidens). Ændringer i samme fase slås sammen, så at taste
+// 8 → 80 giver én post, og at gå tilbage til udgangspunktet fjerner posten.
+function ensurePlannedKg(logEx, ex) {
+  if (!logEx) return null;
+  if (logEx.plannedKg === undefined) logEx.plannedKg = (ex && ex.scheme && ex.scheme.kg) || null;
+  return logEx.plannedKg;
+}
+function recordWeightChange(logEx, newKg, now) {
+  if (!logEx) return false;
+  const to = parseFloat(newKg);
+  if (!(to > 0)) return false;
+  const changes = logEx.weightChanges || [];
+  const last = changes.length ? changes[changes.length - 1] : null;
+  const base = last ? last.to : (parseFloat(logEx.suggestedKg) || logEx.plannedKg);
+  if (!(base > 0)) return false; // intet udgangspunkt at sammenligne med
+  const nDone = (logEx.sets || []).filter(x => x.done).length;
+  const phase = nDone === 0 ? 'opvarmning' : 'efter sæt ' + nDone;
+  if (last && last.phase === phase) {
+    last.to = to; last.at = now;
+    if (last.to === last.from) changes.pop();
+    logEx.weightChanges = changes;
+    return true;
+  }
+  if (to === base) return false;
+  changes.push({ at: now, from: base, to: to, phase: phase });
+  logEx.weightChanges = changes;
+  return true;
+}
+function weightChangeNote(logEx) {
+  const ch = logEx && logEx.weightChanges;
+  if (!ch || !ch.length || !(logEx.plannedKg > 0)) return '';
+  return 'Planlagt ' + logEx.plannedKg + ' kg · ' + ch.map(c => c.from + ' → ' + c.to + ' kg (' + c.phase + ')').join(', ');
+}
+function commitWorkingKg(ei, val) {
+  const key = logKey();
+  const as = aState();
+  const logEx = as.logs[key]?.exercises[ei];
+  if (!logEx) return;
+  ensurePlannedKg(logEx, null);
+  if (recordWeightChange(logEx, val, Date.now())) saveState();
+  const noteEl = document.getElementById('weight-note-' + ei);
+  if (noteEl) noteEl.textContent = weightChangeNote(logEx);
+}
+
 function updateWarmupKg(ei, val) {
   const key = logKey();
   const as = aState();
@@ -2730,6 +2782,10 @@ function toggleSet(ei, si) {
   if (!ex) return;
   if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
   if (!s.reps) s.reps = ex.scheme.reps;
+  if (!s.done) { // luk en ikke-bekræftet vægtændring (feltet mistede aldrig fokus) før fasen skifter
+    const lx = as.logs[key].exercises[ei];
+    if (lx.warmupKg) { ensurePlannedKg(lx, ex); recordWeightChange(lx, lx.warmupKg, Date.now()); }
+  }
   s.done = !s.done;
   if (s.done) { const sb = document.getElementById('tp-switch-' + ei); if (sb) sb.remove(); } // skift kun før første sæt
 
@@ -5192,6 +5248,11 @@ function exportProgramData() {
         const lastRPE = doneSets.length ? parseFloat(doneSets[doneSets.length-1].rpe) || null : null;
         return {
           name: ex.name,
+          plannedKg: ex.plannedKg ?? null,
+          suggestedKg: ex.suggestedKg ?? null,
+          weightChanges: ex.weightChanges || [],
+          topSetDeltaKg: (ex.plannedKg > 0 && doneSets.length)
+            ? Math.round((Math.max(...doneSets.map(s => parseFloat(s.kg))) - ex.plannedKg) * 10) / 10 : null,
           sets: doneSets.map(s => ({ kg: parseFloat(s.kg), reps: parseInt(s.reps), rpe: s.rpe ? parseFloat(s.rpe) : null })),
           bestE1RM: Math.round(bestE1RM * 10) / 10,
           totalVolume: Math.round(doneSets.reduce((sum, s) => sum + parseFloat(s.kg) * parseInt(s.reps), 0)),

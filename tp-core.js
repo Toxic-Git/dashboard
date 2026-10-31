@@ -745,7 +745,7 @@
       logEx.plannedName = plannedName; logEx.name = toName; logEx.sub = { scope: scope || 'session', at: now || Date.now() };
     }
     (logEx.sets || []).forEach(function (s) { s.kg = ''; }); // aldrig overfør vægt til/fra en anden øvelse
-    delete logEx.warmupKg;
+    delete logEx.warmupKg; delete logEx.suggestedKg; delete logEx.weightChanges; logEx.plannedKg = null; // anden øvelse → ingen sammenligning med den planlagte vægt
     if (scope === 'future') {
       if (!state.exerciseSubs) state.exerciseSubs = {};
       if (toName === plannedName) delete state.exerciseSubs[plannedName];
