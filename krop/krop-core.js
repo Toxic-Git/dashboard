@@ -8,10 +8,10 @@
 
   // Fasedefinitioner. pct = kcal-justering ift. vedligehold. rate = ønsket vægtændring i % af kropsvægt pr. uge (absolut). cap = øvre grænse (% pr. uge).
   var PHASES = {
-    cut:  { key: 'cut',  label: 'Cut',       sign: -1, pct: [-25, -15], pctDefault: -20, rate: [0.5, 0.75], cap: 0.75, weeks: [8, 12],  meals: 3, protPerKgLean: 2.3 },
-    lean: { key: 'lean', label: 'Lean Gain', sign: 1,  pct: [5, 10],    pctDefault: 7.5, rate: [0.1, 0.25], cap: 0.25, weeks: [12, 24], meals: 4, protPerKgLean: 2.0 },
-    bulk: { key: 'bulk', label: 'Bulk',      sign: 1,  pct: [10, 20],   pctDefault: 15,  rate: [0.25, 0.5], cap: 0.5,  weeks: [12, 20], meals: 4, protPerKgLean: 2.0 },
-    maint:{ key: 'maint',label: 'Vedligehold', sign: 0, pct: [0, 0],    pctDefault: 0,   rate: [0, 0.1],    cap: 0.25, weeks: [1, 2],   meals: 4, protPerKgLean: 2.0 }
+    cut:  { key: 'cut',  label: 'Cut',       sign: -1, pct: [-25, -15], pctSoft: [-25, -8], pctDefault: -20, rate: [0.5, 0.75], cap: 0.75, weeks: [8, 12],  meals: 3, protPerKgLean: 2.3 },
+    lean: { key: 'lean', label: 'Lean Gain', sign: 1,  pct: [5, 10],    pctSoft: [3, 10], pctDefault: 7.5, rate: [0.1, 0.25], cap: 0.25, weeks: [12, 24], meals: 4, protPerKgLean: 2.0 },
+    bulk: { key: 'bulk', label: 'Bulk',      sign: 1,  pct: [10, 20],   pctSoft: [5, 20], pctDefault: 15,  rate: [0.25, 0.5], cap: 0.5,  weeks: [12, 20], meals: 4, protPerKgLean: 2.0 },
+    maint:{ key: 'maint',label: 'Vedligehold', sign: 0, pct: [0, 0], pctSoft: [0, 0], pctDefault: 0,   rate: [0, 0.1],    cap: 0.25, weeks: [1, 2],   meals: 4, protPerKgLean: 2.0 }
   };
 
   /* ── dato-hjælpere ── */
@@ -176,14 +176,17 @@
     if (!o.calibrationDone) return { change: 0, reason: 'Kalibreringen er ikke færdig endnu.' };
     if (o.adherence !== 'ja') return { change: 0, reason: o.adherence === 'delvist' ? 'Kosten er kun delvist fulgt — samler mere data før justering.' : 'Kosten er ikke fulgt — ingen justering, tallet siger ikke noget om målet.' };
     var t = o.trend; if (!t || !t.enough) return { change: 0, reason: 'For få vejninger (mindst 3) til en trend.' };
-    var kg = t.fitted, mid = (ph.rate[0] + ph.rate[1]) / 2 / 100 * kg * ph.sign;     // ønsket kg/uge (fortegn)
+    var desired = isFinite(o.desiredRate) && o.desiredRate > 0 ? o.desiredRate : (ph.rate[0] + ph.rate[1]) / 2;   // ønsket %/uge
+    var kg = t.fitted, mid = desired / 100 * kg * ph.sign;                              // ønsket kg/uge (fortegn)
     var raw = (mid - t.kgPerWeek) * KCAL_PER_KG / 7;                                  // kcal/dag der mangler
-    var inRange = Math.abs(t.pctPerWeek) >= ph.rate[0] && Math.abs(t.pctPerWeek) <= ph.rate[1] && Math.sign(t.kgPerWeek) === ph.sign;
+    var inRange = isFinite(o.desiredRate) && o.desiredRate > 0
+      ? (Math.sign(t.kgPerWeek) === ph.sign && Math.abs(Math.abs(t.pctPerWeek) - desired) <= Math.max(0.2 * desired, 0.05))
+      : (Math.abs(t.pctPerWeek) >= ph.rate[0] && Math.abs(t.pctPerWeek) <= ph.rate[1] && Math.sign(t.kgPerWeek) === ph.sign);
     if (inRange || Math.abs(raw) < 75) return { change: 0, reason: 'Tempoet ligger i målområdet — ingen ændring.' };
     var ch = Math.max(-150, Math.min(150, round(raw, 50)));
     var next = o.kcal + ch;
     if (isFinite(o.bmr) && next < o.bmr) { ch = Math.max(0, Math.ceil(o.bmr / 50) * 50 - o.kcal); next = o.kcal + ch; if (!ch) return { change: 0, reason: 'Må ikke gå under BMR.' }; }
-    return { change: ch, next: next, reason: 'Trend ' + t.kgPerWeek + ' kg/uge (' + t.pctPerWeek + ' %/uge) mod mål ' + ph.rate[0] + '–' + ph.rate[1] + ' %/uge.' };
+    return { change: ch, next: next, reason: 'Trend ' + t.kgPerWeek + ' kg/uge (' + t.pctPerWeek + ' %/uge) mod ønsket ca. ' + r2(desired) + ' %/uge.' };
   }
 
   /* ── fasestatus: advarsler og forslag ── */
@@ -245,19 +248,62 @@
       checkins: [], adjustments: [], snapshots: [], history: []
     };
   }
-  // Opret fase med startmål ud fra vedligehold og valgt pct.
+  // Ønsket tempo (% af kropsvægt pr. uge). Med deadline + målvægt: det tempo der rammer målet, begrænset til fasens grænse (og mindst halvdelen af det typiske minimum).
+  function desiredRate(P, kg, today) {
+    var ph = P && PHASES[P.type]; if (!ph || ph.sign === 0) return null;
+    var mid = (ph.rate[0] + ph.rate[1]) / 2;
+    if (P.targetKg && isISO(P.deadline) && isISO(today) && P.deadline > today && kg) {
+      var weeks = diffDays(today, P.deadline) / 7, gap = (P.targetKg - kg) * ph.sign;
+      if (gap <= 0) return ph.rate[0] * 0.5;
+      return Math.min(ph.cap, Math.max(ph.rate[0] * 0.5, gap / weeks / kg * 100));
+    }
+    return mid;
+  }
+  // Automatisk plan ud fra kun: type, vægt, evt. deadline og evt. målvægt. Vælger kalorie-procent og måltider.
+  function autoPlan(o) {
+    var ph = PHASES[o && o.type]; if (!ph) return { ok: false, error: 'Ukendt fase.' };
+    var kg = num(o.kg), tgt = num(o.targetKg), notes = [];
+    if (kg === null || kg <= 0) return { ok: false, error: 'Mangler vægt.' };
+    if (tgt !== null && ph.sign < 0 && tgt >= kg) return { ok: false, error: 'Målvægten skal være under din nuværende vægt i en cut.' };
+    if (tgt !== null && ph.sign > 0 && tgt <= kg) return { ok: false, error: 'Målvægten skal være over din nuværende vægt i ' + ph.label + '.' };
+    var pct = ph.pctDefault;
+    if (ph.sign !== 0 && tgt !== null && isISO(o.deadline) && isISO(o.start) && o.deadline > o.start && isFinite(o.maintenance)) {
+      var weeks = diffDays(o.start, o.deadline) / 7, req = Math.abs(tgt - kg) / weeks / kg * 100;
+      var rate = Math.min(ph.cap, Math.max(ph.rate[0] * 0.5, req));
+      var deltaKcal = rate / 100 * kg * KCAL_PER_KG / 7;
+      pct = ph.sign * deltaKcal / o.maintenance * 100;
+      pct = Math.max(ph.pctSoft[0], Math.min(ph.pctSoft[1], pct));
+      pct = Math.round(pct * 2) / 2;
+      if (req > ph.cap) {
+        var reach = kg + ph.sign * ph.cap / 100 * kg * weeks;
+        notes.push('Målet kræver ' + r2(req) + ' %/uge, over grænsen på ' + ph.cap + ' %. Jeg bruger grænsen — realistisk vægt ved deadline er ca. ' + r1(reach) + ' kg. Overvej at flytte målet eller datoen.');
+      } else if (req < ph.rate[0] * 0.5) notes.push('Målet er nemt at nå inden deadline, så tempoet bliver roligt (ca. ' + r2(rate) + ' %/uge).');
+      else notes.push('Tempo valgt ud fra mål og deadline: ca. ' + r2(rate) + ' %/uge.');
+    } else if (ph.sign !== 0) notes.push('Standardtempo for ' + ph.label + ' (' + ph.rate[0] + '–' + ph.rate[1] + ' %/uge).');
+    return { ok: true, pct: pct, notes: notes };
+  }
+  // Antal måltider: fasens forslag, men flere hvis protein pr. måltid ellers bliver over ca. 60 g.
+  function autoMeals(type, proteinG) {
+    var n = suggestedMeals(type);
+    while (isFinite(proteinG) && proteinG / n > 60 && n < 5) n++;
+    return n;
+  }
+  // Opret fase med startmål ud fra vedligehold og (automatisk valgt) pct.
   function startPhase(st, o) {
     var type = o.type, ph = PHASES[type]; if (!ph) return null;
     var w = trend(st.weighins, o.start), kg = w ? (w.enough ? w.fitted : w.latest.kg) : null;
     var lastFat = null; cleanFatLast(st.weighins, function (f) { lastFat = f; });
+    if (num(o.kg) !== null && num(o.kg) > 30 && num(o.kg) < 300) kg = num(o.kg); // brugerens opgivne nuværende vægt går forud for trend
     if (kg === null) return null;
     var age = ageAt(st.profile.birth, o.start);
     var mt = maintenance({ kg: kg, heightCm: st.profile.heightCm, age: age, steps: st.profile.steps, trainingKcalWeek: st.profile.trainingKcalWeek });
-    var pct = num(o.pct); if (pct === null) pct = ph.pctDefault;
-    pct = Math.max(ph.pct[0], Math.min(ph.pct[1], pct));
+    var plan = autoPlan({ type: type, kg: kg, start: o.start, deadline: o.deadline, targetKg: o.targetKg, maintenance: mt.total });
+    if (!plan.ok) return { error: plan.error };
+    var pct = plan.pct, kcal = targetKcal(mt.total, pct, mt.bmr);
+    var m = macros({ kcal: kcal, kg: kg, fatPct: latestFat(st.weighins), phase: type });
     return {
-      type: type, start: o.start, deadline: isISO(o.deadline) ? o.deadline : null, targetKg: num(o.targetKg), pct: pct,
-      meals: clampMeals(o.meals || ph.meals), maintenance: mt.total, startKg: r1(kg), kcal: targetKcal(mt.total, pct, mt.bmr), lastBreak: null
+      type: type, start: o.start, deadline: isISO(o.deadline) ? o.deadline : null, targetKg: num(o.targetKg), pct: pct, auto: true, notes: plan.notes,
+      meals: clampMeals(autoMeals(type, m ? m.protein : null)), maintenance: mt.total, startKg: r1(kg), kcal: kcal, kcalStart: kcal, lastBreak: null
     };
   }
   function cleanFatLast(list, cb) {
@@ -272,7 +318,7 @@
     bmr: bmr, maintenance: maintenance, calibratedMaintenance: calibratedMaintenance, targetKcal: targetKcal, pctOf: pctOf,
     macros: macros, mealSplit: mealSplit, suggestedMeals: suggestedMeals, clampMeals: clampMeals,
     cleanWeighins: cleanWeighins, trend: trend, inPause: inPause, calibration: calibration,
-    weeklyProposal: weeklyProposal, phaseStatus: phaseStatus, emptyState: emptyState, startPhase: startPhase, latestFat: latestFat
+    weeklyProposal: weeklyProposal, desiredRate: desiredRate, autoPlan: autoPlan, autoMeals: autoMeals, phaseStatus: phaseStatus, emptyState: emptyState, startPhase: startPhase, latestFat: latestFat
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.KropCore = API;
 })(typeof window !== 'undefined' ? window : this);

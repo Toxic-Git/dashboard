@@ -79,7 +79,7 @@ var KEY = 'krop_state';
 var SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
 var TPS = null; try { TPS = TPSYNC.boot(SYNC_BASE_URL); } catch (e) { TPS = null; }
 function nowT() { return Date.now(); }
-var S = null, tab = 'today', confirmKey = null, draft = { type: 'cut', pct: null, meals: null, adherence: null, energy: null, symptoms: false };
+var S = null, tab = 'today', confirmKey = null, draft = { type: 'cut', weight: '', adherence: null, energy: null, symptoms: false };
 
 /* ── hjælpere ── */
 function $(id) { return document.getElementById(id); }
@@ -130,6 +130,7 @@ function derive() {
 
 /* ── visninger ── */
 function render() {
+  try { runAuto(); } catch (e) { /* auto-justering må aldrig blokere visningen */ }
   var D = derive();
   ['today', 'weight', 'phase', 'more'].forEach(function (k) { var b = $('tab-' + k); if (b) { b.classList.toggle('on', k === tab); b.setAttribute('aria-selected', k === tab ? 'true' : 'false'); } });
   var sub = S.phase ? K.PHASES[S.phase.type].label + ' · siden ' + fmt(S.phase.start) + (S.phase.deadline ? ' · deadline ' + fmt(S.phase.deadline) : '') : 'Ingen fase valgt';
@@ -147,13 +148,13 @@ function viewToday(D) {
     + '<div class="dim" style="margin-top:6px">' + (D.pctVsMaint > 0 ? '+' : '') + num1(D.pctVsMaint) + ' % ift. estimeret vedligehold (' + P.maintenance + ' kcal) · estimat, justeres efter dine vejninger</div>'
     + '<div class="macros"><div class="macro"><b>' + m.protein + ' g</b><span>Protein</span></div><div class="macro"><b>' + m.carbs + ' g</b><span>Kulhydrat</span></div><div class="macro"><b>' + m.fat + ' g</b><span>Fedt</span></div></div>'
     + '<div class="dim" style="margin-top:8px">Protein ' + m.proteinPerKg + ' g/kg kropsvægt (ud fra ca. ' + num1(m.leanKg) + ' kg fedtfri masse). Fedt ca. 0,7 g/kg. Kulhydrat = resten.' + (m.lowCarb ? ' Målet er så lavt, at kulhydrat er presset — overvej at hæve kcal.' : '') + '</div></div>';
+  if (P.notes && P.notes.length) h += '<div class="card"><h2>Plan</h2>' + P.notes.map(function (n) { return '<div class="note info">' + esc(n) + '</div>'; }).join('') + '<div class="dim" style="margin-top:8px">Appen vælger selv kalorie-niveau og måltider og justerer højst 150 kcal pr. uge, når trenden viser behov.</div></div>'; 
   // måltider
-  h += '<div class="card"><h2>Måltider</h2><label for="meals-n">Antal måltider (forslag til ' + K.PHASES[P.type].label + ': ' + K.suggestedMeals(P.type) + ')</label>'
-    + '<select id="meals-n" onchange="setMeals(this.value)">' + [2, 3, 4, 5, 6].map(function (n) { return '<option value="' + n + '"' + (n === P.meals ? ' selected' : '') + '>' + n + ' måltider</option>'; }).join('') + '</select>'
-    + '<table style="margin-top:10px"><tr><th>Måltid</th><th>kcal</th><th>P</th><th>K</th><th>F</th></tr>'
+  h += '<div class="card"><h2>Måltider (' + P.meals + ' pr. dag, valgt automatisk)</h2>'
+    + '<table style="margin-top:4px"><tr><th>Måltid</th><th>kcal</th><th>P</th><th>K</th><th>F</th></tr>'
     + D.meals.map(function (x) { return '<tr' + (x.proteinHigh ? ' class="hi"' : '') + '><td>' + esc(x.name) + '</td><td>' + x.kcal + '</td><td>' + x.protein + '</td><td>' + x.carbs + '</td><td>' + x.fat + '</td></tr>'; }).join('') + '</table>'
     + (D.meals.some(function (x) { return x.proteinHigh; }) ? '<div class="note info">Over ca. 60 g protein pr. måltid — flere måltider kan fordeles bedre, men totalen betyder mest.</div>' : '')
-    + '<div class="dim" style="margin-top:8px">Tid er fleksibel. Læg gerne mest kulhydrat omkring træning (ca. 17–19). Få store måltider fungerer fint i cut, hvis du bliver mæt; flere mindre er lettere i bulk.</div></div>';
+    + '<div class="dim" style="margin-top:8px">Tid er fleksibel. Læg gerne mest kulhydrat omkring træning (ca. 17–19). Antal måltider vælges ud fra fasen og proteinmængden pr. måltid.</div></div>';
   // status
   if (D.status && D.status.items.length) h += '<div class="card"><h2>Status</h2>' + D.status.items.map(function (i) { return '<div class="note ' + i.level + '">' + esc(i.text) + '</div>'; }).join('') + '</div>';
   // kalibrering
@@ -178,13 +179,9 @@ function checkinCard(D) {
   var last = S.checkins.length ? S.checkins[S.checkins.length - 1] : null;
   var due = !last || K.diffDays(last.date, D.today) >= 7;
   var h = '';
-  if (last && last.proposal && last.proposal.change && last.proposal.state === 'open') {
-    var pr = last.proposal;
-    h += '<div class="card"><h2>Forslag til justering</h2><div class="big" style="font-size:34px">' + (pr.change > 0 ? '+' : '') + pr.change + '<small>kcal/dag → ' + pr.next + '</small></div><div class="dim" style="margin-top:6px">' + esc(pr.reason) + '</div>'
-      + '<button class="btn" onclick="answerProposal(true)">Godkend</button> <button class="btn ghost" onclick="answerProposal(false)">Behold nuværende</button></div>';
-  }
+  h += autoCard(D);
   if (!due) return h + '<div class="card"><h2>Ugecheck</h2><div class="dim">Sidste check ' + fmt(last.date) + '. Næste om ' + (7 - K.diffDays(last.date, D.today)) + ' dag(e).</div></div>';
-  h += '<div class="card"><h2>Ugecheck</h2><div class="dim">Ingen madlog — jeg spørger kun, om du har holdt dig til målet, så et tal ikke bliver misforstået.</div>'
+  h += '<div class="card"><h2>Ugecheck (valgfri)</h2><div class="dim">Ingen madlog. Svarer du "nej" eller "delvist", springer appen den automatiske justering over, så et tal ikke bliver misforstået. Uden svar antager den, at du har fulgt målet.</div>'
     + '<label>Har du holdt kalorie-/makromålet?</label><div class="seg" role="group" aria-label="Kost fulgt">' + ['ja', 'delvist', 'nej'].map(function (a) { return '<button class="' + (draft.adherence === a ? 'on' : '') + '" onclick="pick(\'adherence\',\'' + a + '\')">' + a + '</button>'; }).join('') + '</div>'
     + '<label>Energi/restitution (1 = elendig, 5 = fremragende)</label><div class="seg" role="group" aria-label="Energi">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="' + (draft.energy === n ? 'on' : '') + '" onclick="pick(\'energy\',' + n + ')">' + n + '</button>'; }).join('') + '</div>'
     + '<label><input type="checkbox" id="ci-sym"' + (draft.symptoms ? ' checked' : '') + ' onchange="draft.symptoms=this.checked"> Symptomer (svimmelhed, dårlig søvn, uvilje mod mad, ekstrem træthed)</label>'
@@ -192,6 +189,40 @@ function checkinCard(D) {
   return h;
 }
 function pick(k, v) { draft[k] = v; render(); }
+function autoCard(D) {
+  var P = S.phase; if (!P || P.type === 'maint') return '';
+  var last = S.adjustments.length ? S.adjustments[S.adjustments.length - 1] : null, h = '<div class="card"><h2>Automatisk justering</h2>';
+  if (D.cal && !D.cal.done) h += '<div class="dim">Starter efter kalibreringen (ca. ' + fmt(D.cal.endDate) + ').</div>';
+  else if (!D.trend || !D.trend.enough) h += '<div class="dim">Venter på mindst 3 vejninger i trenden.</div>';
+  else {
+    var base = D.cal && D.cal.endDate ? D.cal.endDate : P.start; if (last && last.date > base) base = last.date; if (P.noAutoUntil && P.noAutoUntil > base) base = P.noAutoUntil;
+    var next = K.addDays(base, 7); h += '<div class="dim">Appen tjekker trenden ugentligt og justerer højst 150 kcal ad gangen (aldrig under BMR). Næste tjek tidligst ' + fmt(next < D.today ? D.today : next) + '.</div>';
+  }
+  if (last) h += '<div class="note ' + (last.auto ? 'info' : '') + '">Seneste justering ' + fmt(last.date) + ': ' + last.from + ' → ' + last.to + ' kcal' + (last.auto ? ' (automatisk)' : '') + '. ' + esc(last.reason || '') + '</div><button class="btn ghost small" style="margin-top:8px" onclick="undoAdjust()">Fortryd seneste justering</button>';
+  return h + '</div>';
+}
+// Ugentlig automatisk justering: kører når kalibreringen er færdig, ≥ 7 dage siden sidste ændring og trenden afviger fra det ønskede tempo.
+function runAuto() {
+  var P = S.phase; if (!P || P.type === 'maint') return false;
+  var D = derive(); if (!D.cal || !D.cal.done || !D.trend || !D.trend.enough || !D.kg) return false;
+  var lastAdj = S.adjustments.length ? S.adjustments[S.adjustments.length - 1].date : null;
+  var base = D.cal.endDate; if (lastAdj && lastAdj > base) base = lastAdj; if (P.noAutoUntil && P.noAutoUntil > base) base = P.noAutoUntil;
+  if (K.diffDays(base, D.today) < 7) return false;
+  var ci = S.checkins.length ? S.checkins[S.checkins.length - 1] : null;
+  var adherence = (ci && K.diffDays(ci.date, D.today) <= 10) ? ci.adherence : 'ja';
+  var prop = K.weeklyProposal({ phase: P.type, calibrationDone: true, adherence: adherence, trend: D.trend, kcal: P.kcal, bmr: D.bmr, desiredRate: K.desiredRate(P, D.kg, D.today) });
+  if (!prop.change) return false;
+  var start = P.kcalStart || P.kcal, next = prop.next;
+  if (Math.abs(next - start) > 400) { next = start + (next > start ? 400 : -400); if (next === P.kcal) return false; } // aldrig mere end ±400 kcal væk fra startmålet uden dit input
+  S.adjustments.push({ date: D.today, from: P.kcal, to: next, reason: prop.reason, auto: true, t: nowT() });
+  P.kcal = next; S.phaseAt = nowT(); save(); toast('Kalorie-mål justeret automatisk til ' + next + ' kcal');
+  return true;
+}
+function undoAdjust() {
+  var a = S.adjustments[S.adjustments.length - 1]; if (!a || !S.phase) return;
+  S.tombs['a:' + a.date + '|' + a.from + '|' + a.to] = nowT(); S.adjustments.pop();
+  S.phase.kcal = a.from; S.phase.noAutoUntil = K.addDays(today(), 7); S.phaseAt = nowT(); save(); toast('Justering fortrudt — næste automatiske tjek om 7 dage'); render();
+}
 
 function viewWeight(D) {
   var h = '<div class="card"><h2>Ny vejning</h2><label for="w-date">Dato</label><input id="w-date" type="date" value="' + today() + '">'
@@ -230,27 +261,32 @@ function viewPhase(D) {
     var hist = S.adjustments.slice(-5).reverse();
     if (hist.length) h += '<div class="card"><h2>Justeringer</h2>' + hist.map(function (a) { return '<div class="dim">' + fmt(a.date) + ': ' + a.from + ' → ' + a.to + ' kcal</div>'; }).join('') + '</div>';
   }
-  // opsætning af ny fase
+  // opsætning af ny fase: kun type, nuværende vægt, evt. deadline og evt. målvægt — resten vælger appen
   var type = draft.type, ph2 = K.PHASES[type];
-  var pct = draft.pct == null ? ph2.pctDefault : Math.max(ph2.pct[0], Math.min(ph2.pct[1], draft.pct));
-  var kgNow = D.kg, preview = '';
-  if (kgNow) {
-    var mt = K.maintenance({ kg: kgNow, heightCm: S.profile.heightCm, age: K.ageAt(S.profile.birth, today()), steps: S.profile.steps, trainingKcalWeek: S.profile.trainingKcalWeek });
-    var k = K.targetKcal(mt.total, pct, mt.bmr);
-    preview = '<div class="note info">Estimeret vedligehold ' + mt.total + ' kcal (interval ' + mt.low + '–' + mt.high + '; BMR ' + mt.bmr + '). Startmål med ' + (pct > 0 ? '+' : '') + pct + ' %: <b>' + k + ' kcal</b>. Kalorierne kan aldrig gå under BMR.</div>';
-  } else preview = '<div class="note warn">Tilføj mindst én vejning først.</div>';
+  var preview = '<div id="np-preview">' + setupPreview(D) + '</div>';
   h += '<div class="card"><h2>' + (S.phase ? 'Skift til ny fase' : 'Start fase') + '</h2><div class="seg" role="group" aria-label="Fasetype">'
     + ['cut', 'lean', 'bulk', 'maint'].map(function (t) { return '<button class="' + (type === t ? 'on' : '') + '" onclick="pickPhase(\'' + t + '\')">' + K.PHASES[t].label + '</button>'; }).join('') + '</div>'
     + '<div class="dim" style="margin-top:8px">' + phaseInfo(ph2) + '</div>'
-    + (ph2.sign !== 0 ? '<label for="np-pct">Kalorie-justering: <b>' + (pct > 0 ? '+' : '') + pct + ' %</b> (' + ph2.pct[0] + ' til ' + ph2.pct[1] + ')</label><input id="np-pct" type="range" min="' + ph2.pct[0] + '" max="' + ph2.pct[1] + '" step="0.5" value="' + pct + '" onchange="draft.pct=parseFloat(this.value);render()">' : '')
+    + '<label for="np-weight">Nuværende vægt (kg)</label><input id="np-weight" type="text" inputmode="decimal" placeholder="' + (D.kg ? num1(D.kg) : 'fx 117,8') + '" value="' + esc(draft.weight || '') + '" onchange="draft.weight=this.value;refreshPreview()">'
+    + '<label for="np-deadline">Deadline (valgfri)</label><input id="np-deadline" type="date" value="' + esc(draft.deadline || '') + '" onchange="draft.deadline=this.value;refreshPreview()">'
+    + '<label for="np-target">Målvægt kg (valgfri)</label><input id="np-target" type="text" inputmode="decimal" value="' + esc(draft.targetKg || '') + '" onchange="draft.targetKg=this.value;refreshPreview()">'
     + preview
-    + '<label for="np-start">Startdato</label><input id="np-start" type="date" value="' + (draft.start || today()) + '" onchange="draft.start=this.value">'
-    + '<label for="np-deadline">Deadline (valgfri, fx 2027-04-10)</label><input id="np-deadline" type="date" value="' + esc(draft.deadline || '') + '" onchange="draft.deadline=this.value">'
-    + '<label for="np-target">Målvægt kg (valgfri)</label><input id="np-target" type="text" inputmode="decimal" value="' + esc(draft.targetKg || '') + '" onchange="draft.targetKg=this.value">'
-    + '<label for="np-meals">Måltider pr. dag</label><select id="np-meals" onchange="draft.meals=parseInt(this.value,10)">' + [2, 3, 4, 5, 6].map(function (n) { return '<option value="' + n + '"' + (n === (draft.meals || ph2.meals) ? ' selected' : '') + '>' + n + (n === ph2.meals ? ' (forslag)' : '') + '</option>'; }).join('') + '</select>'
+    + '<label for="np-start">Startdato</label><input id="np-start" type="date" value="' + (draft.start || today()) + '" onchange="draft.start=this.value;refreshPreview()">'
     + '<button class="btn" onclick="startNewPhase()">' + (S.phase ? 'Afslut nuværende og start ny' : 'Start fase') + '</button></div>';
   return h;
 }
+function setupPreview(D) {
+  var type = draft.type, kgIn = K.num(draft.weight), kgNow = kgIn !== null ? kgIn : D.kg;
+  if (!kgNow) return '<div class="note warn">Skriv din nuværende vægt for at få en plan.</div>';
+  var startD = draft.start || today(), out = '';
+  var mt = K.maintenance({ kg: kgNow, heightCm: S.profile.heightCm, age: K.ageAt(S.profile.birth, startD), steps: S.profile.steps, trainingKcalWeek: S.profile.trainingKcalWeek });
+  var ap = K.autoPlan({ type: type, kg: kgNow, start: startD, deadline: draft.deadline, targetKg: draft.targetKg, maintenance: mt.total });
+  if (!ap.ok) return '<div class="note warn">' + esc(ap.error) + '</div>';
+  var kk = K.targetKcal(mt.total, ap.pct, mt.bmr), mm = K.macros({ kcal: kk, kg: kgNow, fatPct: D.fat, phase: type }), nm = K.autoMeals(type, mm ? mm.protein : null);
+  return '<div class="note info">Appen vælger: <b>' + kk + ' kcal</b> (' + (ap.pct > 0 ? '+' : '') + ap.pct + ' % ift. estimeret vedligehold ' + mt.total + ' kcal), ' + nm + ' måltider' + (mm ? ', ca. ' + mm.protein + ' g protein' : '') + '. ' + esc(ap.notes.join(' ')) + ' Kalorierne kan aldrig gå under BMR (' + mt.bmr + ').</div>';
+}
+// Opdater kun forhåndsvisningen (ikke hele siden), så et klik på en knap ikke går tabt, når et felt mister fokus.
+function refreshPreview() { setHTML('np-preview', setupPreview(derive())); }
 function phaseInfo(ph) {
   if (ph.sign === 0) return 'Vedligehold: kalorier = estimeret vedligehold. Bruges som pause mellem faser (1–2 uger) eller når målvægten er nået.';
   return ph.label + ': ' + ph.pct[0] + ' til ' + ph.pct[1] + ' % kcal ift. vedligehold, tempo ' + ph.rate[0] + '–' + ph.rate[1] + ' % af kropsvægt pr. uge (grænse ' + ph.cap + ' %), typisk ' + ph.weeks[0] + '–' + ph.weeks[1] + ' uger.';
@@ -284,8 +320,7 @@ function syncNoteHtml() {
 function syncNow() { if (!TPS) return; toast('Synkroniserer …'); TPS.syncKey(KEY).then(function () { load(); render(); }, function () { toast('Synkronisering fejlede'); }); }
 
 /* ── handlinger ── */
-function setMeals(n) { if (!S.phase) return; S.phase.meals = K.clampMeals(n); S.phaseAt = nowT(); save(); render(); }
-function pickPhase(t) { draft.type = t; draft.pct = null; draft.meals = null; render(); }
+function pickPhase(t) { draft.type = t; render(); }
 function addWeighin() {
   var d = val('w-date'), kg = K.num(val('w-kg')), fat = K.num(val('w-fat'));
   if (!K.isISO(d)) { toast('Vælg en dato'); return; }
@@ -302,10 +337,13 @@ function startNewPhase() {
   if (!K.isISO(start)) { toast('Vælg en startdato'); return; }
   var dl = draft.deadline || ''; if (dl && (!K.isISO(dl) || dl <= start)) { toast('Deadline skal ligge efter start'); return; }
   var tgt = draft.targetKg ? K.num(draft.targetKg) : null; if (draft.targetKg && (tgt === null || tgt < 40 || tgt > 250)) { toast('Ugyldig målvægt'); return; }
-  var np = K.startPhase(S, { type: type, start: start, deadline: dl, targetKg: tgt, pct: draft.pct, meals: draft.meals });
-  if (!np) { toast('Tilføj mindst én vejning først'); return; }
+  var kgIn = draft.weight ? K.num(draft.weight) : null; if (draft.weight && (kgIn === null || kgIn < 30 || kgIn > 300)) { toast('Ugyldig vægt'); return; }
+  var np = K.startPhase(S, { type: type, start: start, deadline: dl, targetKg: tgt, kg: kgIn });
+  if (!np) { toast('Skriv din nuværende vægt (eller tilføj en vejning) først'); return; }
+  if (np.error) { toast(np.error); return; }
+  if (kgIn !== null) { var td = today(); S.weighins = S.weighins.filter(function (w) { return w.date !== td; }); var wr = { date: td, kg: kgIn, t: nowT() }; S.weighins.push(wr); S.weighins.sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
   if (S.phase) S.history.push({ phase: S.phase, ended: today(), t: nowT() });
-  S.phase = np; S.phaseAt = nowT(); draft.pct = null; draft.meals = null; draft.deadline = ''; draft.targetKg = ''; draft.start = null;
+  S.phase = np; S.phaseAt = nowT(); draft.weight = ''; draft.deadline = ''; draft.targetKg = ''; draft.start = null;
   save(); toast('Fase startet'); tab = 'today'; render();
 }
 function savePhaseEdit() {
@@ -324,20 +362,11 @@ function saveCheckin() {
   var D = derive(), P = S.phase; if (!P) return;
   if (!draft.adherence) { toast('Vælg om kosten er fulgt'); return; }
   if (!draft.energy) { toast('Vælg energi (1–5)'); return; }
-  var prop = K.weeklyProposal({ phase: P.type, calibrationDone: !!(D.cal && D.cal.done), adherence: draft.adherence, trend: D.trend, kcal: P.kcal, bmr: D.bmr });
   var rec = { date: today(), adherence: draft.adherence, energy: draft.energy, symptoms: !!draft.symptoms, t: nowT() };
-  rec.proposal = { change: prop.change, next: prop.next || P.kcal, reason: prop.reason, state: prop.change ? 'open' : 'none' };
   S.checkins.push(rec);
   S.snapshots.push({ t: nowT(), date: today(), weightFitted: D.trend && D.trend.enough ? D.trend.fitted : null, kgPerWeek: D.trend && D.trend.enough ? D.trend.kgPerWeek : null, pctPerWeek: D.trend && D.trend.enough ? D.trend.pctPerWeek : null, kcal: P.kcal, adherence: draft.adherence, energy: draft.energy, symptoms: !!draft.symptoms, weighins: D.trend ? D.trend.n : 0 });
   draft.adherence = null; draft.energy = null; draft.symptoms = false;
-  save(); toast(prop.change ? 'Gemt — se forslaget' : 'Ugecheck gemt'); render();
-}
-function answerProposal(ok) {
-  var last = S.checkins[S.checkins.length - 1]; if (!last || !last.proposal || last.proposal.state !== 'open' || !S.phase) return;
-  if (ok) { S.adjustments.push({ date: today(), from: S.phase.kcal, to: last.proposal.next, reason: last.proposal.reason, t: nowT() }); S.phase.kcal = last.proposal.next; S.phaseAt = nowT(); last.proposal.state = 'accepted'; }
-  else last.proposal.state = 'declined';
-  last.t = nowT();
-  save(); render();
+  save(); toast('Ugecheck gemt'); render();
 }
 function saveProfile() {
   var h = K.num(val('pf-h')), b = val('pf-b'), s = K.num(val('pf-s')), t = K.num(val('pf-t'));

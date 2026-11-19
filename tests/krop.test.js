@@ -66,9 +66,31 @@ eq(K.inPause([{ from: '2026-11-23', to: '2026-11-29' }], '2026-11-29'), true, 'p
 // startPhase
 const sp = K.startPhase(st, { type: 'cut', start: '2026-11-30', pct: -20, meals: 3 });
 eq(sp.type, 'cut', 'fase type'); eq(sp.kcal, 2850, 'start-kcal cut'); eq(sp.meals, 3, 'måltider'); ok(sp.startKg > 117 && sp.startKg < 118.5, 'startvægt: ' + sp.startKg);
-eq(K.startPhase(st, { type: 'cut', start: '2026-11-30', pct: -80 }).pct, -25, 'pct klemmes til −25'); eq(K.startPhase(st, { type: 'nope', start: '2026-11-30' }), null, 'ukendt fase');
+eq(K.startPhase(st, { type: 'cut', start: '2026-11-30', pct: -80, meals: 6 }).pct, -20, 'pct og måltider vælges automatisk (input ignoreres)'); eq(sp.meals, 3, 'cut: 3 måltider'); eq(sp.kcalStart, sp.kcal, 'kcalStart gemmes'); eq(K.startPhase(st, { type: 'nope', start: '2026-11-30' }), null, 'ukendt fase');
 eq(K.startPhase({ profile: st.profile, weighins: [] }, { type: 'cut', start: '2026-11-30' }), null, 'ingen vejninger → ingen fase');
 eq(K.startPhase(st, { type: 'bulk', start: '2026-11-30' }).pct, 15, 'bulk standard +15 %'); eq(K.startPhase(st, { type: 'maint', start: '2026-11-30' }).kcal, sp.maintenance, 'vedligehold = estimat');
+
+
+// automatisk plan (kun type, vægt, evt. deadline, evt. målvægt)
+const mtA = 3550;
+let ap = K.autoPlan({ type: 'cut', kg: 117.7, maintenance: mtA, start: '2026-11-30' }); eq(ap.ok, true, 'autoPlan uden mål'); eq(ap.pct, -20, 'standard cut −20 %');
+ap = K.autoPlan({ type: 'cut', kg: 117.7, maintenance: mtA, start: '2026-11-30', targetKg: 105, deadline: '2027-04-10' }); eq(ap.ok, true, 'autoPlan med mål+deadline');
+ok(ap.pct <= -8 && ap.pct >= -25, 'pct inden for blød cut-grænse: ' + ap.pct); ok(ap.notes.length === 1, 'forklaring medfølger');
+// realistisk: 12,7 kg på ~19 uger = ca. 0,57 %/uge → ca. 0,67 kg/uge ≈ 740 kcal/dag ≈ −21 %
+near(ap.pct, -21, 3, 'mål/deadline giver passende pct');
+ap = K.autoPlan({ type: 'cut', kg: 117.7, maintenance: mtA, start: '2026-11-30', targetKg: 100, deadline: '2026-12-31' }); eq(ap.pct, -25, 'urealistisk mål → pct begrænses til grænsen'); ok(/over grænsen/.test(ap.notes[0]), 'advarsel om urealistisk mål');
+ap = K.autoPlan({ type: 'cut', kg: 117.7, maintenance: mtA, start: '2026-11-30', targetKg: 116, deadline: '2027-06-01' }); ok(ap.pct >= -15 && ap.pct <= -8, 'nemt mål → roligere tempo (blødt interval): ' + ap.pct); ok(/roligt/.test(ap.notes[0]), 'note om roligt tempo');
+eq(K.autoPlan({ type: 'cut', kg: 117.7, maintenance: mtA, targetKg: 120 }).ok, false, 'cut-mål over nuværende vægt afvises'); eq(K.autoPlan({ type: 'bulk', kg: 117.7, maintenance: mtA, targetKg: 110 }).ok, false, 'bulk-mål under nuværende vægt afvises');
+eq(K.autoPlan({ type: 'nope', kg: 100 }).ok, false, 'ukendt fase'); eq(K.autoPlan({ type: 'cut', kg: 0 }).ok, false, 'mangler vægt');
+eq(K.autoPlan({ type: 'lean', kg: 117.7, maintenance: mtA }).pct, 7.5, 'lean standard'); eq(K.autoPlan({ type: 'maint', kg: 117.7, maintenance: mtA }).pct, 0, 'vedligehold 0 %');
+const badPhase = K.startPhase(st, { type: 'cut', start: '2026-11-30', targetKg: 130 }); ok(badPhase && badPhase.error, 'startPhase returnerer fejl ved forkert målvægt');
+eq(K.autoMeals('cut', 180), 3, '180 g → 3 måltider'); eq(K.autoMeals('cut', 200), 4, '200 g → 4 måltider'); eq(K.autoMeals('bulk', 150), 4, 'bulk 4 måltider'); eq(K.autoMeals('cut', 400), 5, 'højst 5 automatisk');
+// ønsket tempo
+near(K.desiredRate({ type: 'cut' }, 117, '2026-12-01'), 0.625, 0.001, 'standard ønsket tempo = midt i intervallet'); eq(K.desiredRate({ type: 'maint' }, 117, '2026-12-01'), null, 'ingen tempo i vedligehold');
+near(K.desiredRate({ type: 'cut', targetKg: 105, deadline: '2027-04-10' }, 117, '2026-12-01'), 0.5, 0.15, 'tempo ud fra mål og deadline');
+eq(K.desiredRate({ type: 'cut', targetKg: 105, deadline: '2026-12-08' }, 117, '2026-12-01'), 0.75, 'urealistisk deadline begrænses til cap'); ok(K.desiredRate({ type: 'cut', targetKg: 120, deadline: '2027-04-10' }, 117, '2026-12-01') <= 0.3, 'mål nået → roligt tempo');
+const pd1 = K.weeklyProposal({ phase: 'cut', calibrationDone: true, adherence: 'ja', trend: { enough: true, fitted: 117, kgPerWeek: -0.35, pctPerWeek: -0.3 }, kcal: 2850, bmr: 2234, desiredRate: 0.3 }); eq(pd1.change, 0, 'tempo ≈ ønsket (deadline-tilstand) → ingen ændring');
+const pd2 = K.weeklyProposal({ phase: 'cut', calibrationDone: true, adherence: 'ja', trend: { enough: true, fitted: 117, kgPerWeek: -0.35, pctPerWeek: -0.3 }, kcal: 2850, bmr: 2234, desiredRate: 0.75 }); eq(pd2.change, -150, 'for langsomt ift. ønsket tempo → −150');
 
 // ugentligt forslag
 const tr = { enough: true, fitted: 117, kgPerWeek: -0.2, pctPerWeek: -0.17 };
