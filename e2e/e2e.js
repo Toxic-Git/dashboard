@@ -535,6 +535,19 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     await p.click('#end-btn'); await p.waitForTimeout(200); st = await ls(p, 'krop_state'); eq(st.phase, null); eq(st.history.length, 1);
     eq(p.errors, []); await p.ctx.close();
   });
+  await check('Dashboard-visninger', 'Dashboard viser kun dagligt overblik + links; Rapporter-visning har rekorder, månedsrapport og indsigter; Krop-link skjules for Ellen', async () => {
+    const p = await newPage(1366, 900); await open(p, 'index.html');
+    const vis = async sel => p.evaluate(s => { const e = document.querySelector(s); return !!e && e.getClientRects().length > 0; }, sel);
+    ok(await vis('#slot-today') && await vis('#slot-hybrid-cal') && await vis('#slot-links'), 'dagligt overblik + links vist');
+    for (const id of ['slot-pr', 'slot-report', 'slot-insights']) ok(!(await vis('#' + id)), id + ' skal være skjult på dashboardet');
+    eq(await p.locator('summary.section-label', { hasText: 'Kropsudvikling' }).count(), 0, 'gammel Kropsudvikling-sektion fjernet'); ok(await vis('#link-krop') && await vis('#link-rapporter'), 'links til Krop og Rapporter');
+    await p.click('#btn-ellen'); await p.waitForTimeout(400); ok(!(await vis('#link-krop')), 'Krop-link skjult for Ellen'); await p.click('#btn-oliver'); await p.waitForTimeout(300);
+    await p.goto(url + 'index.html?side=rapporter'); await p.waitForTimeout(800);
+    ok(await vis('#slot-pr') && await vis('#slot-report') && await vis('#slot-insights'), 'rapporter-visning viser rekorder, rapport, indsigter');
+    for (const id of ['slot-today', 'slot-hybrid-cal', 'slot-links', 'slot-settings']) ok(!(await vis('#' + id)), id + ' skjult i rapporter-visning');
+    ok(/Rapporter/i.test(await p.innerText('.topbar-title')) && /Dashboard/i.test(await p.innerText('#topbar-sub')), 'titel + tilbage-link');
+    eq(p.errors, []); await p.ctx.close();
+  });
   /* ───────── FASE 2: ØVELSESSKIFT + EVALUERING ───────── */
   const curLog = p => p.evaluate(() => { const as = aState(); return JSON.parse(JSON.stringify({ log: as.logs[logKey()], subs: as.exerciseSubs || {}, ev: as.sessionEval || {}, oneRM: as.oneRM, pr: as.pr })); });
   await check('Øvelsesskift (V3)', 'Arket viser primær + 2 alternativer med begrundelse; skift "kun i dag" gemmer plannedName og rører ikke 1RM/PR', async () => {
@@ -781,7 +794,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     eq(p.errors, []); await p.ctx.close();
   });
   await check('Månedsrapport (V3)', 'Rapport vises med "ingen AI"-mærke og grundlag; tal matcher uafhængig optælling fra rådata', async () => {
-    const p = await newPage(1366, 900); await open(p, 'index.html'); await unfold(p, ['Månedsrapport']);
+    const p = await newPage(1366, 900); await open(p, 'index.html?side=rapporter'); await unfold(p, ['Månedsrapport']);
     ok(/ingen AI/i.test(await p.innerText('#slot-report .rp-badge')), 'AI-mærke'); ok(await p.locator('#slot-report .rp-block').count() === 4);
     // find en måned med data og tæl uafhængigt
     const cmp = await p.evaluate(() => {
@@ -794,7 +807,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     eq(cmp.got, cmp.exp, 'løbetal i rapport ≠ rådata'); eq(p.errors, []); await p.ctx.close();
   });
   await check('Månedsrapport (V3)', 'Månedsnavigation, snapshot gemmes og kan åbnes igen, eksport (HTML/tekst) uden backend', async () => {
-    const p = await newPage(1366, 900); await open(p, 'index.html'); await unfold(p, ['Månedsrapport']);
+    const p = await newPage(1366, 900); await open(p, 'index.html?side=rapporter'); await unfold(p, ['Månedsrapport']);
     await p.click('#slot-report button[aria-label="Forrige måned"]'); await p.waitForTimeout(300); const lbl = await p.innerText('#slot-report .cal-title'); ok(/Afsluttet måned/.test(lbl), 'forrige måned er afsluttet');
     await p.click('#slot-report button:has-text("Gem som snapshot")'); await p.waitForTimeout(400);
     const keys = await p.evaluate(() => Object.keys(TP.loadMeta('main').reports)); eq(keys.length, 1);
@@ -806,7 +819,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     eq(p.errors, []); await p.ctx.close();
   });
   await check('Månedsrapport (V3)', 'Profil-isolation: Ellens rapport bygger på hendes data og deler ikke snapshots med Oliver', async () => {
-    const p = await newPage(1366, 900); await open(p, 'index.html'); await unfold(p, ['Månedsrapport']);
+    const p = await newPage(1366, 900); await open(p, 'index.html?side=rapporter'); await unfold(p, ['Månedsrapport']);
     await p.click('#slot-report button[aria-label="Forrige måned"]'); await p.click('#slot-report button:has-text("Gem som snapshot")'); await p.waitForTimeout(300);
     await p.click('#btn-ellen'); await p.waitForTimeout(500); await unfold(p, ['Månedsrapport']);
     eq(await p.evaluate(() => Object.keys(TP.loadMeta('partner').reports).length), 0); ok(!/Tidligere gemte rapporter/.test(await p.innerText('#slot-report'))); eq(p.errors, []); await p.ctx.close();
@@ -835,7 +848,7 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
       ['Dashboard samlet kalender (dag valgt)', 'index.html', async p => { await hybUnfold(p); await p.evaluate(() => { const { sRaw, lRaw, personKey } = hybCurrent(); const cx = hybCtx(personKey, sRaw, lRaw); const d = cx.days.find(x => x.date >= cx.today && x.items.some(i => i.kind === 'run' && i.status === 'planned')); HYB.sel = d.date; HYB.weekOffset = Math.floor(TP.diffDays(TP.weekStart(cx.today), TP.weekStart(d.date)) / 7); render(); }); await p.waitForSelector('#hy-to'); await p.selectOption('#hy-to', { index: 1 }); }],
       ['Dashboard hybrid belastning (konflikter)', 'index.html', async p => { await findConflict(p); await p.evaluate(() => render()); await hybUnfold(p); await p.waitForSelector('#slot-hybrid-load .hy-find'); await p.click('#slot-hybrid-load .hy-rules summary'); }],
       ['Dashboard fokus og prioritering', 'index.html', async p => { await unfold(p, ['Mål']); await p.check('input[name=fc-focus][value=run]'); await p.waitForTimeout(300); }],
-      ['Dashboard månedsrapport', 'index.html', async p => { await unfold(p, ['Månedsrapport']); await p.click('#slot-report button[aria-label="Forrige måned"]'); await p.waitForTimeout(300); await p.click('#slot-report .hy-rules summary'); }],
+      ['Dashboard månedsrapport', 'index.html?side=rapporter', async p => { await unfold(p, ['Månedsrapport']); await p.click('#slot-report button[aria-label="Forrige måned"]'); await p.waitForTimeout(300); await p.click('#slot-report .hy-rules summary'); }],
       ['Dashboard backup-plan', 'index.html', async p => { await p.waitForSelector('#tp-backup-mount .tp-panel', { state: 'attached' }); if (!(await p.isVisible('#tp-backup-mount [data-act=check]'))) await p.locator('.section-label', { hasText: 'Indstillinger' }).click(); const b = JSON.stringify(await p.evaluate(() => TP.buildBackup('all'))); await p.setInputFiles('#tp-backup-mount input[type=file]', { name: 'a.json', mimeType: 'application/json', buffer: Buffer.from(b) }); await p.click('#tp-backup-mount [data-act=check]'); await p.waitForSelector('#tp-backup-mount [data-role=confirm]'); }],
     ];
     for (const w of [390, 1366]) for (const [name, rel, prep] of states) {

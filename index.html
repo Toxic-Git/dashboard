@@ -78,6 +78,7 @@ main{
   letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin:0 2px 10px;
   display:flex; align-items:center; justify-content:space-between; gap:8px;
 }
+[hidden].dash-sec{ display:none !important; }
 details.dash-sec > summary.section-label{
   list-style:none; cursor:pointer; margin:0; padding:14px 4px; min-height:48px;
   border-bottom:1px solid var(--border); user-select:none;
@@ -406,9 +407,6 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   <div class="section-label">Recovery</div>
   <div id="slot-recovery"></div>
 
-  <div class="section-label">Kropsudvikling</div>
-  <div id="slot-krop"></div>
-
   <div class="section-label">Belastning</div>
   <div id="slot-belastning"></div>
   <div id="slot-hybrid-load"></div>
@@ -426,6 +424,13 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   <div class="section-label">AI-analyse</div>
   <div id="slot-insights"></div>
 
+  <div class="section-label">Flere sider</div>
+  <div id="slot-links">
+    <div class="section-card"><div class="hy-row" style="gap:8px;flex-wrap:wrap;">
+      <a class="hy-btn" href="./sbd/index.html">🏋️ SBD</a><a class="hy-btn" href="./lob/index.html">🏃 Løb</a><a class="hy-btn" href="./krop/index.html" id="link-krop">🥗 Krop</a><a class="hy-btn" href="./index.html?side=rapporter" id="link-rapporter">📊 Rapporter</a>
+    </div><div class="deferred-note">Rapporter: personlige rekorder, månedsrapport og indsigter.</div></div>
+  </div>
+
   <div class="section-label">Indstillinger</div>
   <div id="slot-settings"></div>
 </main>
@@ -438,8 +443,12 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
   const kids = Array.from(main.children);
   // Sektioner der er brede / smalle på desktop, og hvilke der kan foldes sammen.
   const WIDE = ['I dag', 'Oversigt', 'Samlet kalender'];
+  // Visning: standard = dagligt overblik; ?side=rapporter = rekorder, månedsrapport og indsigter (samme side, så al data og alle regler deles).
+  const REPORT = ['Personlige rekorder','Månedsrapport','AI-analyse'];
+  const VIEW = new URLSearchParams(location.search).get('side')==='rapporter' ? 'rapporter' : 'dash';
+  window.DASH_VIEW = VIEW;
   const S8 = []; const S4 = [];
-  const FOLD = ['Samlet kalender','Månedsrapport','Oversigt','Powerbuilding','Løb','Recovery','Kropsudvikling','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
+  const FOLD = ['Samlet kalender','Månedsrapport','Oversigt','Powerbuilding','Løb','Recovery','Belastning','Mål','Personlige rekorder','AI-analyse','Indstillinger'];
   const OPEN_MOBILE = ['Oversigt','Mål'];
   const isDesktop = window.matchMedia('(min-width:760px)').matches;
   function saved(key){ try { return localStorage.getItem('dash_sec_'+key); } catch(e){ return null; } }
@@ -458,11 +467,12 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
         el.replaceWith(sum);
         el = sum;
         const st = saved(title);
-        wrap.open = st !== null ? st === '1' : (isDesktop || OPEN_MOBILE.includes(title));
+        wrap.open = VIEW==='rapporter' ? (st !== '0') : (st !== null ? st === '1' : (isDesktop || OPEN_MOBILE.includes(title)));
         wrap.addEventListener('toggle', () => save(title, wrap.open ? '1' : '0'));
       } else {
         wrap = document.createElement('section');
       }
+      wrap.hidden = VIEW==='rapporter' ? !REPORT.includes(title) : REPORT.includes(title);
       wrap.className = 'dash-sec' + (WIDE.includes(title) ? ' wide' : '') + (S8.includes(title) ? ' s8' : '') + (S4.includes(title) ? ' s4' : '');
       main.insertBefore(wrap, el);
       if (el.tagName === 'SUMMARY') { wrap.appendChild(el); return; }
@@ -1115,20 +1125,6 @@ function renderRecovery(sRaw){
         </div>
       </div>
       <div class="deferred-note">HRV, hvilepuls, stress og muskelømhed er ikke sporet endnu.</div>
-    </div>`;
-}
-function renderKrop(sRaw){
-  const real = sRaw && sbdBodyweightStats(sRaw);
-  const isDummy = !real;
-  const bw = isDummy ? DUMMY.bodyweight : real;
-  document.getElementById('slot-krop').innerHTML = `
-    <div class="section-card ${isDummy?'example':''}">
-      <h3>Vægt ${isDummy?'<span class="example-badge">Eksempel</span>':''}</h3>
-      <div class="stat-grid">
-        <div class="stat-box"><div class="v">${bw.today.toFixed(1)} kg</div><div class="l">I dag</div></div>
-        <div class="stat-box"><div class="v">${bw.avg7.toFixed(1)} kg</div><div class="l">7-dages snit</div></div>
-      </div>
-      <div class="deferred-note">Taljemål, fedtprocent, muskelmasse og månedlige billeder er ikke sporet endnu.</div>
     </div>`;
 }
 function renderBelastning(sRaw, lRaw){
@@ -2259,8 +2255,10 @@ function render(){
   document.getElementById('btn-ellen').classList.toggle('active', active==='ellen');
   document.getElementById('btn-oliver').setAttribute('aria-pressed', active==='oliver');
   document.getElementById('btn-ellen').setAttribute('aria-pressed', active==='ellen');
-  document.getElementById('topbar-sub').textContent = 'Dit program';
+  if(window.DASH_VIEW==='rapporter'){ document.title='Træning — Rapporter'; const h1=document.querySelector('.topbar-title'); if(h1) h1.textContent='Rapporter'; document.getElementById('topbar-sub').innerHTML='<a href="./index.html" style="color:inherit">← Dashboard</a> · Rekorder, månedsrapport og indsigter'; }
+  else document.getElementById('topbar-sub').textContent = 'Dit program';
 
+  const lk=document.getElementById('link-krop'); if(lk) lk.hidden = active==='ellen'; // Krop er kun for Oliver
   const p = PROFILES[active];
   const primaryStatus = readStatus(p.primary[0], p.primary[1]);
   const secondaryStatus = readStatus(p.secondary[0], p.secondary[1]);
@@ -2290,7 +2288,6 @@ function render(){
   renderLobKondition(lRaw);
   renderLobRekorder(lRaw);
   renderRecovery(sRaw);
-  renderKrop(sRaw);
   renderBelastning(sRaw, lRaw);
   renderHybridLoad(sRaw, lRaw, active);
   renderMal(sRaw, lRaw);
