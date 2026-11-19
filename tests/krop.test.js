@@ -127,3 +127,11 @@ ok(codes(Object.assign({}, base, { phase: { type: 'maint', start: '2026-11-30' }
 // sikkerhed: ingen fund må foreslå automatisk skift
 K.phaseStatus(base).items.forEach(i => ok(['info', 'warn', 'suggest'].indexOf(i.level) >= 0, 'gyldigt niveau'));
 console.log(bad ? bad + ' fejl' : 'Alle Krop-tests bestået'); process.exit(bad ? 1 : 0);
+
+// startvægt = seneste registrerede vejning (ikke trend-estimat)
+(function () {
+  var K2 = require('../krop/krop-core.js'), st = K2.emptyState();
+  var last = K2.cleanWeighins(st.weighins).slice(-1)[0];
+  var np = K2.startPhase(st, { type: 'cut', start: '2026-11-20' });
+  if (!np || np.startKg !== Math.round(last.kg * 10) / 10) { console.error('FAIL startvægt skal være seneste vejning', np && np.startKg, last.kg); process.exit(1); }
+})();

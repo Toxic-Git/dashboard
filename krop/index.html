@@ -267,7 +267,8 @@ function viewPhase(D) {
   h += '<div class="card"><h2>' + (S.phase ? 'Skift til ny fase' : 'Start fase') + '</h2><div class="seg" role="group" aria-label="Fasetype">'
     + ['cut', 'lean', 'bulk', 'maint'].map(function (t) { return '<button class="' + (type === t ? 'on' : '') + '" onclick="pickPhase(\'' + t + '\')">' + K.PHASES[t].label + '</button>'; }).join('') + '</div>'
     + '<div class="dim" style="margin-top:8px">' + phaseInfo(ph2) + '</div>'
-    + '<label for="np-weight">Nuværende vægt (kg)</label><input id="np-weight" type="text" inputmode="decimal" placeholder="' + (D.kg ? num1(D.kg) : 'fx 117,8') + '" value="' + esc(draft.weight || '') + '" onchange="draft.weight=this.value;refreshPreview()">'
+    + (lastW(D) ? '<div class="note info" id="np-last">Startvægt: <b>' + num1(lastW(D).kg) + ' kg</b> fra din seneste vejning (' + fmt(lastW(D).date) + ').</div>' : '<div class="note warn">Ingen vejninger endnu — skriv din vægt nedenfor eller tilføj en vejning under Vægt.</div>')
+    + '<label for="np-weight">' + (lastW(D) ? 'Anden vægt (kun hvis den ikke passer)' : 'Nuværende vægt (kg)') + '</label><input id="np-weight" type="text" inputmode="decimal" placeholder="' + (lastW(D) ? num1(lastW(D).kg) : 'fx 117,8') + '" value="' + esc(draft.weight || '') + '" onchange="draft.weight=this.value;refreshPreview()">'
     + '<label for="np-deadline">Deadline (valgfri)</label><input id="np-deadline" type="date" value="' + esc(draft.deadline || '') + '" onchange="draft.deadline=this.value;refreshPreview()">'
     + '<label for="np-target">Målvægt kg (valgfri)</label><input id="np-target" type="text" inputmode="decimal" value="' + esc(draft.targetKg || '') + '" onchange="draft.targetKg=this.value;refreshPreview()">'
     + preview
@@ -275,8 +276,9 @@ function viewPhase(D) {
     + '<button class="btn" onclick="startNewPhase()">' + (S.phase ? 'Afslut nuværende og start ny' : 'Start fase') + '</button></div>';
   return h;
 }
+function lastW(D) { var tr = D.trend; return tr && tr.latest ? tr.latest : null; }
 function setupPreview(D) {
-  var type = draft.type, kgIn = K.num(draft.weight), kgNow = kgIn !== null ? kgIn : D.kg;
+  var type = draft.type, kgIn = K.num(draft.weight), kgNow = kgIn !== null ? kgIn : (lastW(D) ? lastW(D).kg : null);
   if (!kgNow) return '<div class="note warn">Skriv din nuværende vægt for at få en plan.</div>';
   var startD = draft.start || today(), out = '';
   var mt = K.maintenance({ kg: kgNow, heightCm: S.profile.heightCm, age: K.ageAt(S.profile.birth, startD), steps: S.profile.steps, trainingKcalWeek: S.profile.trainingKcalWeek });

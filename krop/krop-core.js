@@ -291,7 +291,7 @@
   // Opret fase med startmål ud fra vedligehold og (automatisk valgt) pct.
   function startPhase(st, o) {
     var type = o.type, ph = PHASES[type]; if (!ph) return null;
-    var w = trend(st.weighins, o.start), kg = w ? (w.enough ? w.fitted : w.latest.kg) : null;
+    var w = trend(st.weighins, o.start), kg = w && w.latest ? w.latest.kg : null; // seneste registrerede vejning (ikke trend)
     var lastFat = null; cleanFatLast(st.weighins, function (f) { lastFat = f; });
     if (num(o.kg) !== null && num(o.kg) > 30 && num(o.kg) < 300) kg = num(o.kg); // brugerens opgivne nuværende vægt går forud for trend
     if (kg === null) return null;
