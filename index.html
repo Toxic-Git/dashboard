@@ -328,6 +328,7 @@ details.dash-sec[open] > summary.section-label{ margin-bottom:12px; }
 .hy-chip.plan.sbd{ border-color:var(--sq); } .hy-chip.plan.run{ border-color:#5ea472; } .hy-chip.hard{ font-weight:700; }
 .hy-chip.done{ background:rgba(61,184,122,0.15); border-color:rgba(61,184,122,.5); color:var(--green); }
 .hy-chip.skip{ text-decoration:line-through; color:var(--muted); }
+.hy-chip.pause{ border-style:dashed; border-color:var(--sq); }
 .hy-mark{ font-size:12px; color:var(--gold); } .hy-rest{ font-size:12.5px; color:var(--muted); }
 .hy-legend{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; font-size:12px; color:var(--muted); }
 .hy-btn{ min-height:44px; padding:8px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font:inherit; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
@@ -1548,6 +1549,13 @@ function slotMapForRange(fromDate, toDate, anchor, personKey, blockedList, catch
   return out;
 }
 
+// Planlagt pause (kun accessories) fra SBD-appens state — datoperiode, begge ender inklusive.
+function sbdPauseFor(sRaw, dateStr){
+  if(!sRaw||!Array.isArray(sRaw.pauses)) return null;
+  if(sRaw.pauseSkip&&sRaw.pauseSkip[dateStr]) return null; // brugeren trænede SBD alligevel den dag
+  return sRaw.pauses.find(p=>p&&p.from<=dateStr&&dateStr<=p.to)||null;
+}
+function sbdPauseLabel(p){ return 'Kun accessories'+(p&&p.name?' · '+p.name:''); }
 function sbdCompletedByDate(sRaw){
   const map={};
   if(!sRaw) return map;
@@ -1603,6 +1611,12 @@ function renderToday(sRaw, lRaw, personKey, sbdStatus){
     items.push(`<div class="today-item"><div class="today-kind">🏋️ Styrke <span class="week-day-tag tag-done">Gennemført</span></div>
       <div class="today-name">${sbdDone.short}</div>
       <div class="today-meta today-done">✓ Dagens styrketræning er klaret.</div></div>`);
+  } else if(slot.sbd && sbdPauseFor(sRaw,todayStr)){
+    const pz=sbdPauseFor(sRaw,todayStr);
+    items.push(`<div class="today-item"><div class="today-kind">🏋️ Styrke <span class="week-day-tag tag-rest">Pause</span></div>
+      <div class="today-name">${esc2(sbdPauseLabel(pz))}</div>
+      <div class="today-meta">Planlagt pause: ingen SBD-løft i dag, kun accessories. Programmet står stille og fortsætter, hvor du slap.</div>
+      <div class="today-actions"><a class="today-btn" href="./sbd/index.html">Åbn SBD-tracker</a></div></div>`);
   } else if(blocked || catchup){
     items.push(`<div class="today-item"><div class="today-kind">🏋️ Styrke <span class="week-day-tag tag-rest">Ikke muligt</span></div>
       <div class="today-name">Rykket</div>
@@ -1768,10 +1782,12 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
   };
   const slotMap=slotMapForRange(from,TP.addDays(from,n),anchor,personKey,blocked,catchup);
   // Planlagte styrkedage: samme cursor-logik som tidligere ugeskema
-  const plannedSbd={}, skipped={}; let cursor=sRaw?(sRaw.totalDays||0):0;
+  const plannedSbd={}, skipped={}, paused={}; let cursor=sRaw?(sRaw.totalDays||0):0;
   for(let i=0;i<n;i++){
     const date=TP.addDays(from,i); if(date<today) continue;
     if(sbdDone[date]) continue;
+    const pz=sbdPauseFor(sRaw,date);
+    if(pz&&slotMap[date]&&slotMap[date].sbd){ paused[date]=pz; continue; } // pause: programmets cursor rykker ikke
     if(blocked.includes(date)||catchup.includes(date)){ skipped[date]=true; continue; }
     const slot=slotMap[date]||{sbd:null,lob:null};
     if(slot.sbd && !isTest && sRaw){
@@ -1783,13 +1799,17 @@ function hybBuild(personKey, sRaw, lRaw, extraChanges, extraBlocked, dropChangeI
   const doneFn=date=>{
     const out=[];
     const c=sbdDone[date]; if(c && c.type!=='rest') out.push(mkSbd(c,'done',false,false));
+    const pl=sRaw&&sRaw.pauseLogs&&sRaw.pauseLogs[date];
+    if(pl&&pl.done&&sbdPauseFor(sRaw,date)) out.push({ id:'sbd-pause-done-'+date, kind:'sbd', status:'skipped', pause:true, pauseDone:true, label:'Accessories (pause)', lower:false, hinge:false, hard:false });
     (lobDone[date]||[]).forEach(r=>{ const k=P_classify(r,maxHR,med,raceDateISO); out.push({ id:'run-'+r.id, kind:'run', status:'done', label:(+r.distanceKm).toFixed(1)+' km', km:+r.distanceKm, hard:k.hard, long:k.long, load:k.load, runKind:k.kind, kindLabel:k.kindLabel, basis:k.basis, confidence:k.confidence, limits:k.limits, runId:r.id }); });
     return out;
   };
   const plannedFn=date=>{
     if(date<today) return [];
     const out=[]; const wdIdx=new Date(date+'T12:00:00').getDay();
-    if(skipped[date]) out.push({ id:'sbd-skip', kind:'sbd', status:'skipped', label:'Styrke (ikke muligt)', lower:false, hard:false });
+    const plog=sRaw&&sRaw.pauseLogs&&sRaw.pauseLogs[date];
+    if(paused[date]){ if(!(plog&&plog.done)) out.push({ id:'sbd-pause', kind:'sbd', status:'skipped', pause:true, label:sbdPauseLabel(paused[date]), lower:false, hinge:false, hard:false }); }
+    else if(skipped[date]) out.push({ id:'sbd-skip', kind:'sbd', status:'skipped', label:'Styrke (ikke muligt)', lower:false, hard:false });
     else if(plannedSbd[date]) out.push(mkSbd(plannedSbd[date].proj,'planned',plannedSbd[date].deload,plannedSbd[date].optional));
     if(!(lobDone[date]&&lobDone[date].length)){
       const slot=slotMap[date]||{sbd:null,lob:null};
@@ -1863,9 +1883,9 @@ function hybToday(){ HYB.weekOffset=0; HYB.sel=localISO(new Date()); render(); }
 function hybSelect(date){ HYB.sel=HYB.sel===date?null:date; HYB.msg=''; render(); }
 function hybItemChip(it){
   const icon=it.kind==='sbd'?'🏋️':'🏃';
-  const st=it.status==='done'?'done':(it.status==='skipped'?'skip':'plan');
+  const st=it.pause?'pause':(it.status==='done'?'done':(it.status==='skipped'?'skip':'plan'));
   const extra=(it.movedFrom?' ↪':'')+(it.easied?' ↓':'')+(it.optional?' (valgfri)':'');
-  const tag=it.status==='done'?'✓ ':(it.status==='skipped'?'⤫ ':'');
+  const tag=it.pause?(it.pauseDone?'⏸ ✓ ':'⏸ '):(it.status==='done'?'✓ ':(it.status==='skipped'?'⤫ ':''));
   return `<span class="hy-chip ${st} ${it.kind}${it.hard&&it.status!=='done'?' hard':''}">${icon} ${tag}${esc2(it.label)}${extra}</span>`;
 }
 function esc2(t){ return String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1885,7 +1905,7 @@ function renderHybridCalendar(sRaw,lRaw,personKey){
       const chips=d.items.map(hybItemChip).join('');
       const marks=d.markers.map(m=>`<span class="hy-mark ${m.type}">${m.type==='race'?'🏁':(m.type==='goal'?'🎯':'↓')} ${esc2(m.label)}</span>`).join('');
       const rest=!d.items.length&&date>=today?'<span class="hy-rest">Hviledag</span>':(!d.items.length?'<span class="hy-rest">—</span>':'');
-      const summary=TPPLAN.dayName(date)+' '+date.slice(8,10)+'. '+(d.items.map(i=>(i.kind==='sbd'?'styrke ':'løb ')+i.label+(i.status==='done'?' gennemført':(i.status==='skipped'?' sprunget over':' planlagt'))).join(', ')||'hviledag')+(conflictDates[date]?'. Mulig konflikt':'');
+      const summary=TPPLAN.dayName(date)+' '+date.slice(8,10)+'. '+(d.items.map(i=>(i.kind==='sbd'?'styrke ':'løb ')+i.label+(i.pause?(i.pauseDone?' pause, accessories gennemført':' pause, kun accessories'):(i.status==='done'?' gennemført':(i.status==='skipped'?' sprunget over':' planlagt')))).join(', ')||'hviledag')+(conflictDates[date]?'. Mulig konflikt':'');
       cells+=`<button type="button" class="hy-day${isToday?' today':''}${HYB.sel===date?' sel':''}${conflictDates[date]?' warn':''}${date<today?' past':''}" aria-pressed="${HYB.sel===date}" aria-label="${esc2(summary)}" onclick="hybSelect('${date}')">
         <span class="hy-dn">${TPPLAN.dayName(date)} <b>${date.slice(8,10)}</b>${conflictDates[date]?' <span class="hy-warn" title="Mulig konflikt">⚠</span>':''}</span>${marks}${chips}${rest}</button>`;
     });
@@ -1897,7 +1917,7 @@ function renderHybridCalendar(sRaw,lRaw,personKey){
         <div class="cal-title">${label}<div style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;">${TPPLAN.fmtDate(dates[0])} – ${TPPLAN.fmtDate(dates[6])}</div></div>
         <button class="cal-nav-btn" onclick="hybShiftWeek(1)" aria-label="Næste uge">›</button></div>
       <div class="hy-week" role="group" aria-label="Ugens træning">${cells}</div>
-      <div class="hy-legend"><span class="hy-chip plan sbd">🏋️ Styrke</span><span class="hy-chip plan run">🏃 Løb</span><span class="hy-chip done run">✓ Gennemført</span><span class="hy-chip skip run">⤫ Sprunget over</span><span>↪ flyttet · ↓ gjort let · ⚠ mulig konflikt</span>
+      <div class="hy-legend"><span class="hy-chip plan sbd">🏋️ Styrke</span><span class="hy-chip plan run">🏃 Løb</span><span class="hy-chip done run">✓ Gennemført</span><span class="hy-chip skip run">⤫ Sprunget over</span><span class="hy-chip pause sbd">⏸ Pause</span><span>↪ flyttet · ↓ gjort let · ⚠ mulig konflikt</span>
         <button type="button" class="hy-btn small" onclick="hybToday()">I dag</button></div>
       ${HYB.msg?`<div class="hy-msg" role="status">${esc2(HYB.msg)}</div>`:''}
       ${HYB.sel?hybDetail(HYB.sel,cx,personKey,sRaw,lRaw):'<div class="deferred-note">Tryk på en dag for detaljer. Intet ændres uden din bekræftelse.</div>'}
@@ -1935,6 +1955,9 @@ function hybDetail(date,cx,personKey,sRaw,lRaw){
       if(it.kind==='sbd') h+=hybSbdActions(date,it,cx,personKey);
       h+=`<a class="hy-btn small" href="${it.kind==='sbd'?'sbd/index.html':'lob/index.html'}">Åbn ${it.kind==='sbd'?'SBD':'Løb'}-appen og registrér</a>
         <div class="hy-note">Gennemførelse registreres i appen (ét sted), så historik og progression aldrig dobbeltregistreres.</div>`;
+    } else if(it.pause){
+      h+=it.pauseDone?`<div class="hy-note">Pausedag: accessories gennemført og registreret i SBD-appen. Programmet står stille.</div>`
+        :`<div class="hy-note">Planlagt pause: kun accessories — ingen SBD-løft. Programmet står stille og fortsætter, hvor du slap. Pauser oprettes og slettes under Indstillinger i SBD-appen.</div><a class="hy-btn small" href="sbd/index.html">Åbn SBD-appen</a>`;
     } else if(it.status==='skipped'){
       h+=getCatchupDates(personKey).includes(date)
         ? `<div class="hy-note">Styrke indhentes — næste ikke-styrkedag droppes, så du løfter to dage i træk. Løb er uændret. Fortryd under "Dine ændringer", hvis det blev gjort her.</div>`

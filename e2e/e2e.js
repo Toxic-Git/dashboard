@@ -465,6 +465,43 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     const d = await getLog(); eq(d.weightChanges.length, 2, 'ændringer skal overleve reload'); ok(/efter sæt 1/.test(await p.innerText('#weight-note-0')), 'note efter reload');
     eq(p.errors, []); await p.ctx.close();
   });
+  await check('Pause', 'SBD: pause oprettes, i dag bliver kun accessories (egen log), programdagen røres ikke, og "træn SBD alligevel" virker', async () => {
+    const p = await newPage(); await open(p, 'sbd/index.html');
+    const iso = await p.evaluate(() => pauseISO()), iso2 = await p.evaluate(() => pauseISO(Date.now() + 2 * 864e5));
+    const before = await p.evaluate(() => { const a = aState(); return JSON.stringify([a.totalDays, a.completedDays, a.sessionTimes, a.logs]); });
+    await p.click('.nav-btn:nth-child(4)'); await p.waitForSelector('#pause-from');
+    await p.fill('#pause-from', iso2); await p.fill('#pause-to', iso); await p.click('text=Tilføj pause'); await p.waitForTimeout(300);
+    eq((await ls(p, 'sbd_state')).pauses.length, 0, 'omvendt periode må ikke gemmes');
+    await p.fill('#pause-from', iso); await p.fill('#pause-to', iso2); await p.fill('#pause-name', 'Skole'); await p.click('text=Tilføj pause'); await p.waitForTimeout(300);
+    eq((await ls(p, 'sbd_state')).pauses.map(x => [x.from, x.to, x.name, x.mode]), [[iso, iso2, 'Skole', 'acc']]);
+    ok(/Skole/.test(await p.innerText('#setting-pause-section')) && /Aktiv nu/.test(await p.innerText('#setting-pause-section')), 'pausen vises i indstillinger');
+    await p.fill('#pause-from', iso2); await p.fill('#pause-to', iso2); await p.click('text=Tilføj pause'); await p.waitForTimeout(300);
+    eq((await ls(p, 'sbd_state')).pauses.length, 1, 'overlappende periode må ikke gemmes');
+    await p.click('.nav-btn:nth-child(1)'); await p.waitForSelector('#pkg_0_0');
+    const txt = await p.innerText('#today-content'); ok(/kun accessories/i.test(txt) && /DAG 1\/3/.test(txt), 'pausevisning mangler: ' + txt.slice(0, 160));
+    eq(await p.locator('#kg_0_0').count() + await p.locator('text=START TRÆNING').count(), 0, 'normal programdag må ikke vises i en pause');
+    await p.fill('#pkg_0_0', '20'); await p.dispatchEvent('#pkg_0_0', 'change'); await p.fill('#preps_0_0', '10'); await p.dispatchEvent('#preps_0_0', 'change');
+    await p.click('#pchk_0_0'); await p.waitForTimeout(300);
+    await p.evaluate(() => { const o = document.getElementById('timer-overlay'); if (o) o.classList.remove('open'); });
+    await p.click('text=Afslut pausedag'); await p.waitForTimeout(300);
+    let st = await ls(p, 'sbd_state'); const log = st.pauseLogs[iso];
+    ok(log && log.done && log.exercises[0].sets[0].done && log.exercises[0].sets[0].kg === '20', 'pauselog gemt');
+    ok(log.exercises.every(e => e.name && !/Backdown/.test(e.name)), 'kun accessories');
+    eq(JSON.stringify([st.totalDays, st.completedDays, st.sessionTimes, st.logs]), before, 'programdag/completedDays/sessionTimes/logs må ikke ændres af en pausedag');
+    await p.reload(); await p.waitForTimeout(800); { const t2 = await p.innerText('#today-content'); ok(/Pausedag gemt/i.test(t2), 'pausedagen overlever reload ST=' + JSON.stringify(await p.evaluate(() => { const a = aState(); return [a.pauses, Object.keys(a.pauseLogs || {}), Object.values(a.pauseLogs || {}).map(l => l.done)]; }))); }
+    await p.evaluate(() => { const o = document.getElementById('timer-overlay'); if (o) o.classList.remove('open'); }); await p.waitForTimeout(300); eq(await p.locator('button', { hasText: /alligevel/i }).count(), 1, 'alligevel-knap: ' + (await p.innerText('#today-content')).slice(-200)); await p.locator('button', { hasText: /alligevel/i }).click({ timeout: 3000, trial: true }).catch(e => { throw new Error('klik: ' + String(e.message).slice(-600)); }); await p.locator('button', { hasText: /alligevel/i }).click(); await p.waitForSelector('#modal.open'); await p.click('#modal-confirm-btn'); await p.waitForTimeout(500);
+    ok(await p.locator('text=START TRÆNING').count() === 1, 'normal programdag skal vises efter "træn SBD alligevel"');
+    eq((await ls(p, 'sbd_state')).pauseSkip[iso], true); eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Pause', 'Dashboard: pause vises som afmærket interval i Samlet kalender, uden fejl', async () => {
+    const p = await newPage(); await open(p, 'index.html');
+    await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('sbd_state') || '{}'); const t = n => { const d = new Date(Date.now() + n * 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+      s.pauses = [{ id: 'e2e', from: t(0), to: t(8), name: 'Skole', mode: 'acc' }]; localStorage.setItem('sbd_state', JSON.stringify(s)); });
+    await p.reload(); await p.waitForSelector('#slot-hybrid-cal .hy-week', { state: 'attached' }); await p.waitForTimeout(1200);
+    const n = await p.locator('#slot-hybrid-cal .hy-chip.pause.sbd').count(); ok(n >= 1, 'pausechip mangler i ugen');
+    const ptxt = await p.evaluate(() => document.getElementById('slot-hybrid-cal').textContent + ' ' + [...document.querySelectorAll('#slot-hybrid-cal [aria-label]')].map(e => e.getAttribute('aria-label')).join(' ')); ok(/accessories/i.test(ptxt), 'pausetekst mangler: ' + ptxt.slice(0, 200));
+    eq(p.errors, []); await p.ctx.close();
+  });
   /* ───────── FASE 2: ØVELSESSKIFT + EVALUERING ───────── */
   const curLog = p => p.evaluate(() => { const as = aState(); return JSON.parse(JSON.stringify({ log: as.logs[logKey()], subs: as.exerciseSubs || {}, ev: as.sessionEval || {}, oneRM: as.oneRM, pr: as.pr })); });
   await check('Øvelsesskift (V3)', 'Arket viser primær + 2 alternativer med begrundelse; skift "kun i dag" gemmer plannedName og rører ikke 1RM/PR', async () => {

@@ -864,6 +864,7 @@ html, body {
       <div class="settings-row"><span class="settings-row-label">Deadlift</span><span class="settings-row-val" id="setting-dl-target" style="color:var(--dl)"></span></div>
     </div>
 
+    <div id="setting-pause-section"></div>
     <div id="setting-history-section"></div>
   </div>
   <div class="settings-label" style="padding:0 18px;">Backup &amp; genstart</div>
@@ -1603,6 +1604,7 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   programHistory: [], exerciseNotes: {}, profile: 'main',
   pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, bodyweight: {},
   peakAttempts: {}, peakResults: {}, dayOverrides: {},
+  pauses: [], pauseLogs: {}, pauseSkip: {}, // pauseperioder (kun accessories), se PAUSEPERIODER
 };
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
@@ -1636,6 +1638,11 @@ if (!state.sleepLog) state.sleepLog = {};
 if (!partnerState.sleepLog) partnerState.sleepLog = {};
 if (!state.bodyweight) state.bodyweight = {};
 if (!partnerState.bodyweight) partnerState.bodyweight = {};
+[state, partnerState].forEach(st => {
+  if (!Array.isArray(st.pauses)) st.pauses = [];
+  if (!st.pauseLogs || typeof st.pauseLogs !== 'object') st.pauseLogs = {};
+  if (!st.pauseSkip || typeof st.pauseSkip !== 'object') st.pauseSkip = {};
+});
 if (!state.peakAttempts) state.peakAttempts = {};
 if (!state.peakResults) state.peakResults = {};
 if (!state.dayOverrides) state.dayOverrides = {};
@@ -1849,6 +1856,298 @@ function navigate(id, btn) {
 }
 
 // ─── TODAY ───────────────────────────────────────────────────────────────────
+// ─── PAUSEPERIODER (kun accessories) ────────────────────────────────────────
+// En pause er en datoperiode (fra/til, begge inklusive) hvor SBD-løftene ikke trænes — kun
+// accessories. Programmet er træningsdrevet (totalDays rykker kun ved gennemførte sessioner),
+// så det står stille og fortsætter, hvor du slap. Pausedage logges i as.pauseLogs[dato] og rører
+// hverken completedDays, sessionTimes eller logKey(). Dermed vokser gappet til sidste SBD-session
+// som ved enhver anden pause, og ramp-tilbage udløses efter pausen (se getSBDScheme).
+function pauseISO(d) {
+  const x = d ? new Date(d) : new Date();
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+}
+function isISODate(s) {
+  return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T12:00:00').getTime());
+}
+function pauseDayDiff(a, b) { // hele dage fra a til b (ISO-datoer), uafhængigt af sommertid
+  return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+}
+function pauseForDate(as, iso) {
+  if (!as || !Array.isArray(as.pauses) || !isISODate(iso)) return null;
+  if (as.pauseSkip && as.pauseSkip[iso]) return null; // brugeren valgte at træne SBD alligevel i dag
+  return as.pauses.find(p => p && isISODate(p.from) && isISODate(p.to) && p.from <= iso && iso <= p.to) || null;
+}
+function pauseValidate(as, from, to) {
+  if (!isISODate(from) || !isISODate(to)) return 'Vælg både start- og slutdato.';
+  if (to < from) return 'Slutdatoen kan ikke ligge før startdatoen.';
+  if ((as.pauses || []).some(p => p && from <= p.to && to >= p.from)) return 'Perioden overlapper en eksisterende pause.';
+  return null;
+}
+function pauseAdd(as, from, to, name) {
+  const err = pauseValidate(as, from, to);
+  if (err) return { ok: false, reason: err };
+  if (!Array.isArray(as.pauses)) as.pauses = [];
+  const id = (window.TP && TP.uid) ? TP.uid('pause') : 'pause_' + Date.now().toString(36);
+  const p = { id, from, to, name: String(name || '').trim().slice(0, 40), mode: 'acc' };
+  as.pauses.push(p);
+  as.pauses.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+  return { ok: true, pause: p };
+}
+// Træningsdagene (ikke hviledage) i cyklussen, regnet fra programmets nuværende position.
+function pauseWorkoutOrder(as) {
+  const out = [];
+  for (let i = 0; i < 8; i++) {
+    const day = CYCLE[((as.totalDays || 0) + i) % 8];
+    if (day && day.type === 'workout') out.push(day);
+  }
+  return out;
+}
+// Antal færdige pausedage i perioden før `iso` — bestemmer hvilken dags accessories der er næste.
+function pauseDoneBefore(as, pause, iso) {
+  const logs = as.pauseLogs || {};
+  return Object.keys(logs).filter(d => d >= pause.from && d <= pause.to && d < iso && logs[d] && logs[d].done).length;
+}
+function pauseEnsureLog(as, pause, iso, week) {
+  if (!as.pauseLogs) as.pauseLogs = {};
+  if (as.pauseLogs[iso]) return as.pauseLogs[iso];
+  const order = pauseWorkoutOrder(as);
+  if (!order.length) return null;
+  const slot = order[pauseDoneBefore(as, pause, iso) % order.length];
+  let list = getExercisesBase(slot.id, week).filter(e => e.type === 'acc');
+  try {
+    if (window.TP && TP.applySubstitutions) {
+      list = TP.applySubstitutions(list, { subs: as.exerciseSubs, log: null, lastPerf: nm => getLastPerformance(nm) });
+    }
+  } catch (e) { /* planen bruges uden substitutioner */ }
+  as.pauseLogs[iso] = {
+    pid: pause.id, cycleId: slot.id, cycleName: slot.name, week,
+    start: null, end: null, done: false,
+    exercises: list.map(ex => ({
+      name: ex.name,
+      ...(ex.plannedName ? { plannedName: ex.plannedName } : {}),
+      scheme: { sets: ex.scheme.sets, reps: ex.scheme.reps, repsRange: ex.scheme.repsRange || null, kg: ex.scheme.kg || 0 },
+      note: ex.note || null,
+      sets: Array.from({ length: ex.scheme.sets }, () => ({ kg: ex.scheme.kg || '', reps: ex.scheme.reps || '', done: false })),
+    })),
+  };
+  saveState();
+  return as.pauseLogs[iso];
+}
+function pauseDoneSets(logEx) {
+  return ((logEx && logEx.sets) || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+}
+// Seneste pausedags-præstation for en øvelse (bruges af getLastPerformance).
+function lastPauseEntry(as, exName) {
+  const logs = as.pauseLogs || {};
+  const dates = Object.keys(logs).sort().reverse();
+  for (const d of dates) {
+    const ex = (logs[d].exercises || []).find(e => e.name === exName);
+    const done = pauseDoneSets(ex);
+    if (!done.length) continue;
+    const best = done.reduce((b, s) => epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b);
+    return {
+      ts: logs[d].end || logs[d].start || new Date(d + 'T12:00:00').getTime(),
+      kg: parseFloat(best.kg), reps: parseInt(best.reps), setsSummary: done.map(s => `${s.kg}×${s.reps}`).join(', '),
+    };
+  }
+  return null;
+}
+function pauseHistoryEntries(as, exName) {
+  const logs = as.pauseLogs || {};
+  const out = [];
+  Object.keys(logs).forEach(d => {
+    const ex = (logs[d].exercises || []).find(e => e.name === exName);
+    const done = pauseDoneSets(ex);
+    if (!done.length) return;
+    const best = done.reduce((b, s) => epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b);
+    out.push({ day: null, e1rm: epley(parseFloat(best.kg), parseInt(best.reps)), ts: logs[d].end || logs[d].start || new Date(d + 'T12:00:00').getTime() });
+  });
+  return out;
+}
+function pauseFmtDate(iso) {
+  return new Date(iso + 'T12:00:00').toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+}
+function pauseFmtRange(p) {
+  const y = new Date(p.to + 'T12:00:00').getFullYear();
+  return p.from === p.to ? `${pauseFmtDate(p.from)} ${y}` : `${pauseFmtDate(p.from)} – ${pauseFmtDate(p.to)} ${y}`;
+}
+
+function pauseUpdateSet(iso, ei, si, field, val) {
+  const log = (aState().pauseLogs || {})[iso];
+  const s = log && log.exercises[ei] && log.exercises[ei].sets[si];
+  if (!s || !['kg', 'reps'].includes(field)) return;
+  s[field] = val;
+  saveState();
+}
+function pauseToggleSet(iso, ei, si) {
+  const as = aState();
+  const log = (as.pauseLogs || {})[iso];
+  const ex = log && log.exercises[ei];
+  const s = ex && ex.sets[si];
+  if (!s) return;
+  if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
+  if (!s.reps) s.reps = ex.scheme.reps;
+  s.done = !s.done;
+  if (s.done && !log.start) log.start = Date.now();
+  saveState();
+  if (s.done) {
+    let newPRs = [];
+    if (parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) newPRs = checkPRs(ex.name, s.kg, s.reps, ex.sets);
+    startTimer(as.timerAcc || 120, ex.name, null);
+    if (newPRs.length) showToast('🏆 Ny PR på ' + ex.name);
+  }
+  renderToday();
+}
+function pauseFinish(iso) {
+  const log = (aState().pauseLogs || {})[iso];
+  if (!log) return;
+  if (!log.exercises.some(e => pauseDoneSets(e).length)) { showToast('Log mindst ét sæt først'); return; }
+  log.done = true;
+  log.end = Date.now();
+  if (!log.start) log.start = log.end;
+  saveState();
+  showToast('Pausedag gemt ✓');
+  renderToday();
+}
+function pauseReopen(iso) {
+  const log = (aState().pauseLogs || {})[iso];
+  if (!log) return;
+  log.done = false;
+  saveState();
+  renderToday();
+}
+function pauseSkipToday(iso) {
+  showModal('Træn SBD alligevel i dag?',
+    'Pausen ignoreres kun i dag, og du får den normale programdag. Pausedagens accessories-log bevares.',
+    () => {
+      const as = aState();
+      if (!as.pauseSkip) as.pauseSkip = {};
+      as.pauseSkip[iso] = true;
+      saveState();
+      closeModal();
+      renderToday();
+    });
+}
+function pauseUnskip() {
+  const as = aState();
+  if (as.pauseSkip) delete as.pauseSkip[pauseISO()];
+  saveState();
+  renderPauseSettings();
+  renderToday();
+}
+function addPauseFromForm() {
+  const val = id => (document.getElementById(id) || {}).value || '';
+  const as = aState();
+  const r = pauseAdd(as, val('pause-from'), val('pause-to'), val('pause-name'));
+  if (!r.ok) { showToast(r.reason); return; }
+  saveState();
+  renderPauseSettings();
+  renderToday();
+  showToast('Pause oprettet ✓');
+}
+function deletePause(id) {
+  const as = aState();
+  const p = (as.pauses || []).find(x => x.id === id);
+  if (!p) return;
+  showModal('Slet pause?', `Perioden ${esc(pauseFmtRange(p))} slettes. Allerede loggede pausedage bevares.`, () => {
+    as.pauses = as.pauses.filter(x => x.id !== id);
+    saveState();
+    closeModal();
+    renderPauseSettings();
+    renderToday();
+  }, true);
+}
+function renderPauseSettings() {
+  const el = document.getElementById('setting-pause-section');
+  if (!el) return;
+  const as = aState();
+  const today = pauseISO();
+  const list = (as.pauses || []).slice().sort((a, b) => (a.from < b.from ? -1 : 1));
+  let html = `<div class="settings-label" style="margin-top:20px;">Pauseperioder (kun accessories)</div><div class="settings-card">
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+      <div style="font-size:13px;line-height:1.5;color:var(--muted);">I en pause trænes kun accessories. Programmet står stille og fortsætter, hvor du slap, og ramp-tilbage bruges efter pausen. Perioden markeres som planlagt pause i eksporten.</div>
+    </div>`;
+  list.forEach(p => {
+    const status = p.to < today ? 'Afsluttet' : p.from > today ? 'Kommende' : 'Aktiv nu';
+    html += `<div class="settings-row" style="gap:10px;">
+      <span class="settings-row-label" style="flex:1;">${esc(p.name || 'Pause')}<br><span style="font-size:12px;color:var(--muted);">${esc(pauseFmtRange(p))} · ${status}</span></span>
+      <button onclick="deletePause('${esc(p.id)}')" aria-label="Slet pause ${esc(p.name || pauseFmtRange(p))}" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">Slet</button>
+    </div>`;
+  });
+  if (!list.length) html += `<div class="settings-row"><span style="font-size:13px;color:var(--muted);">Ingen pauser planlagt.</span></div>`;
+  const covering = (as.pauses || []).find(p => p.from <= today && today <= p.to);
+  if (covering && as.pauseSkip && as.pauseSkip[today]) {
+    html += `<div class="settings-row" style="gap:10px;"><span style="flex:1;font-size:13px;">Pausen er ignoreret i dag.</span>
+      <button onclick="pauseUnskip()" style="background:none;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">Brug pause i dag</button></div>`;
+  }
+  html += `<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label style="flex:1;min-width:130px;font-size:12px;color:var(--muted);">Fra
+          <input class="set-input" type="date" id="pause-from" aria-label="Pause fra dato" style="width:100%;max-width:none;"></label>
+        <label style="flex:1;min-width:130px;font-size:12px;color:var(--muted);">Til og med
+          <input class="set-input" type="date" id="pause-to" aria-label="Pause til og med dato" style="width:100%;max-width:none;"></label>
+      </div>
+      <input class="set-input" type="text" id="pause-name" maxlength="40" placeholder="Navn (valgfrit), fx Skole" aria-label="Navn på pause" style="width:100%;max-width:none;text-align:left;">
+      <button onclick="addPauseFromForm()" style="background:var(--gold);color:var(--bg);border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">Tilføj pause</button>
+    </div></div>`;
+  el.innerHTML = html;
+}
+
+function renderPauseToday(pause, content, week) {
+  const as = aState();
+  const iso = pauseISO();
+  const log = pauseEnsureLog(as, pause, iso, week);
+  const dayNo = pauseDayDiff(pause.from, iso) + 1;
+  const total = pauseDayDiff(pause.from, pause.to) + 1;
+  let html = `<div class="today-header"><div>
+      <div class="today-day-label">PAUSE${pause.name ? ' · ' + esc(pause.name.toUpperCase()) : ''} · DAG ${dayNo}/${total}</div>
+      <div class="today-day-name">${log ? esc(log.cycleName) + ' — kun accessories' : 'Pause'}</div>
+    </div><div class="week-pill">ACC</div></div>
+    <div class="suggestion-bar"><div class="suggestion-icon">⏸</div>
+      <div class="suggestion-text">Pause ${esc(pauseFmtRange(pause))}: ingen SBD-løft. Programmet står stille og fortsætter, hvor du slap.</div></div>`;
+  if (!log) {
+    html += `<div class="rest-card"><div class="rest-icon">💤</div><div class="rest-title">Ingen accessories i dag</div></div>`;
+    content.innerHTML = html;
+    return;
+  }
+  log.exercises.forEach((ex, ei) => {
+    const lp = getLastPerformance(ex.name, true);
+    const reps = ex.scheme.repsRange || ex.scheme.reps;
+    const kgLabel = ex.scheme.kg > 0 ? ` · ${ex.scheme.kg} kg` : '';
+    html += `<div class="ex-card"><div class="ex-header"><div>
+        <div class="ex-name">${esc(ex.name)}</div>
+        <div class="ex-target">${ex.scheme.sets} sæt × ${esc(reps)} reps${kgLabel}</div>
+        ${ex.plannedName ? `<div class="tp-sub-note">↔ Skiftet fra <b>${esc(ex.plannedName)}</b></div>` : ''}
+        ${lp ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">Sidst: <span style="color:var(--text);font-weight:600;">${lp.kg} kg</span> × <span style="color:var(--text);font-weight:600;">${lp.reps}</span> reps${lp.setsSummary ? ` (${esc(lp.setsSummary)})` : ''}</div>` : ''}
+      </div><div class="ex-badge badge-acc">ACC</div></div>
+      <div class="set-header-row" style="grid-template-columns:36px 1fr 1fr 44px;"><div class="set-col-label">Sæt</div><div class="set-col-label">Vægt (kg)</div><div class="set-col-label">Reps</div><div></div></div>`;
+    ex.sets.forEach((s, si) => {
+      html += `<div class="set-row ${s.done ? 'completed' : ''}" id="psetrow_${ei}_${si}" style="grid-template-columns:36px 1fr 1fr 44px;">
+        <div class="set-num">${si + 1}</div>
+        <input class="set-input ${s.done ? 'completed-input' : ''}" type="number" inputmode="decimal" value="${esc(s.kg)}" placeholder="${ex.scheme.kg > 0 ? ex.scheme.kg : 'BW'}"
+          onchange="pauseUpdateSet('${iso}',${ei},${si},'kg',this.value)" id="pkg_${ei}_${si}" aria-label="${esc(ex.name)}, sæt ${si + 1}: vægt i kg">
+        <input class="set-input ${s.done ? 'completed-input' : ''}" type="number" inputmode="numeric" value="${esc(s.reps)}" placeholder="${esc(ex.scheme.reps)}"
+          onchange="pauseUpdateSet('${iso}',${ei},${si},'reps',this.value)" id="preps_${ei}_${si}" aria-label="${esc(ex.name)}, sæt ${si + 1}: gentagelser">
+        <button class="check-btn ${s.done ? 'done' : ''}" onclick="pauseToggleSet('${iso}',${ei},${si})" id="pchk_${ei}_${si}" aria-pressed="${s.done ? 'true' : 'false'}"
+          aria-label="${esc(ex.name)}, sæt ${si + 1}: ${s.done ? 'gennemført' : 'markér som gennemført'}">${s.done ? '✓' : '○'}</button>
+      </div>`;
+    });
+    if (ex.note) html += `<div style="padding:8px 16px;font-size:12px;color:var(--muted);line-height:1.5;">${esc(ex.note)}</div>`;
+    html += `</div>`;
+  });
+  if (log.done) {
+    html += `<div class="rest-card"><div class="rest-icon">✅</div><div class="rest-title">Pausedag gemt</div></div>
+      <button class="finish-btn" onclick="pauseReopen('${iso}')" style="background:var(--surface2);color:var(--text)">Åbn igen</button>`;
+  } else {
+    html += `<button class="finish-btn" onclick="pauseFinish('${iso}')">Afslut pausedag ✓</button>`;
+  }
+  html += `<div style="text-align:center;padding:10px 18px 24px;"><button onclick="pauseSkipToday('${iso}')" style="background:none;border:none;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer;">Træn SBD alligevel i dag</button></div>`;
+  content.innerHTML = html;
+}
+window.pauseUpdateSet = pauseUpdateSet; window.pauseToggleSet = pauseToggleSet; window.pauseFinish = pauseFinish;
+window.pauseReopen = pauseReopen; window.pauseSkipToday = pauseSkipToday; window.pauseUnskip = pauseUnskip;
+window.addPauseFromForm = addPauseFromForm; window.deletePause = deletePause;
+
 function renderToday() {
   syncProgramDay(); // sync calendar-based day first
   const week = getWeek();
@@ -1879,6 +2178,10 @@ function renderToday() {
   // Progress bar — based on totalDays out of 12 weeks × 7 days
   const titleEl = document.getElementById('topbar-title');
   if (titleEl) titleEl.textContent = 'SBD Tracker';
+
+  // Planlagt pause i dag: kun accessories (egen visning og egen logpost — rører ikke programdagen)
+  const activePause = pauseForDate(as, pauseISO());
+  if (activePause) { renderPauseToday(activePause, content, week); return; }
 
   const totalProgramDays = 12 * 7;
   const pct = Math.min(100, Math.round(aState().totalDays / totalProgramDays * 100));
@@ -3398,6 +3701,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   as.peakResults = {};
   as.dayOverrides = {};
   as.sessionTimes = {};
+  as.pauseLogs = {}; as.pauseSkip = {}; // pauseperioder (planen) bevares
   as.checkpointExported = {};
   as.programStartDate = new Date().toISOString().slice(0,10); // today
 
@@ -4181,6 +4485,7 @@ function renderSettings() {
   } else {
     histSection.innerHTML = '';
   }
+  renderPauseSettings();
 }
 
 function adjustWeek(d) {
@@ -4328,6 +4633,7 @@ function restartToWeek1(sbdPct, accPct, light) {
   as.peakResults = {};
   as.dayOverrides = {};
   as.sessionTimes = {};
+  as.pauseLogs = {}; as.pauseSkip = {}; // pauseperioder (planen) bevares, loggede pausedage hører til det gamle program
   as.checkpointExported = {};
   as.programStartDate = today;
   if (state.profile !== 'partner') state.lightStart = !!light;
@@ -4348,6 +4654,7 @@ function confirmReset() {
         checkpointExported: {}, peakAttempts: {}, peakResults: {}, dayOverrides: {},
         sessionNotes: {}, programHistory: [], programStart1RM: { ...(partnerState.oneRM || {}) },
         oneRM: partnerState.oneRM || {}, profile: 'partner',
+        pauses: partnerState.pauses || [], pauseLogs: {}, pauseSkip: {},
       };
     } else {
       state.totalDays = 0; state.logs = {}; state.completedDays = [];
@@ -4359,6 +4666,7 @@ function confirmReset() {
       state.peakAttempts = {};
       state.peakResults = {};
       state.sessionTimes = {};
+      state.pauseLogs = {}; state.pauseSkip = {};
       state.checkpointExported = {};
     }
     saveState();
@@ -5286,6 +5594,25 @@ function exportProgramData() {
     sessions,
     autoregHistory: as.autoregAdj || {},
     sessionTimes: as.sessionTimes || {},
+    // Planlagte pauser: SBD-dage i disse perioder er bevidst fri (kun accessories), ikke uventede misser.
+    plannedPauses: (as.pauses || []).map(p => ({ id: p.id, name: p.name || null, from: p.from, to: p.to, mode: p.mode || 'acc' })),
+    pauseSessions: Object.keys(as.pauseLogs || {}).sort().filter(date => { const q = as.pauseLogs[date]; return q && (q.done || (q.exercises || []).some(e => pauseDoneSets(e).length)); }).map(date => {
+      const pl = as.pauseLogs[date];
+      const pz = (as.pauses || []).find(q => q.id === pl.pid);
+      return {
+        date, plannedPause: true, pauseName: pz ? (pz.name || null) : null, dayType: pl.cycleId, completed: !!pl.done,
+        durationSec: pl.start && pl.end ? Math.round((pl.end - pl.start) / 1000) : null,
+        exercises: (pl.exercises || []).map(ex => {
+          const done = pauseDoneSets(ex);
+          return {
+            name: ex.name, plannedName: ex.plannedName || null, plannedKg: ex.scheme && ex.scheme.kg ? ex.scheme.kg : null,
+            sets: done.map(x => ({ kg: parseFloat(x.kg), reps: parseInt(x.reps) })),
+            bestE1RM: done.length ? Math.round(Math.max(...done.map(x => epley(parseFloat(x.kg), parseInt(x.reps)))) * 10) / 10 : 0,
+            totalVolume: Math.round(done.reduce((sum, x) => sum + parseFloat(x.kg) * parseInt(x.reps), 0)),
+          };
+        }),
+      };
+    }),
   };
 
   const json = JSON.stringify(data, null, 2);
@@ -5387,6 +5714,7 @@ function roundForExercise(kg, exName) {
 // søger bagud gennem gennemførte dage. Bruges til "Sidst: X kg × Y reps".
 function getLastPerformance(exName, skipBaseline) {
   const as = aState();
+  const pauseHit = lastPauseEntry(as, exName); // seneste pausedag (accessories) — kan være nyere end sidste programdag
   const completed = [...(as.completedDays || [])].sort((a, b) => b - a);
   for (const day of completed) {
     const log = as.logs?.['day' + day];
@@ -5399,8 +5727,12 @@ function getLastPerformance(exName, skipBaseline) {
       epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
     );
     const setsSummary = doneSets.map(s => `${s.kg}×${s.reps}`).join(', ');
-    return { kg: parseFloat(best.kg), reps: parseInt(best.reps), setsSummary };
+    const regular = { kg: parseFloat(best.kg), reps: parseInt(best.reps), setsSummary };
+    const st = as.sessionTimes && as.sessionTimes['day' + day];
+    const regTs = (st && (st.end || st.start)) || 0;
+    return pauseHit && pauseHit.ts > regTs ? { kg: pauseHit.kg, reps: pauseHit.reps, setsSummary: pauseHit.setsSummary } : regular;
   }
+  if (pauseHit) return { kg: pauseHit.kg, reps: pauseHit.reps, setsSummary: pauseHit.setsSummary };
   // Intet logget i dette program endnu: brug gemte tal fra forrige program
   const b = !skipBaseline && as.accBaseline && as.accBaseline[exName];
   if (b && b.kg > 0) return { kg: b.kg, reps: b.reps || 0, setsSummary: (b.setsSummary || (b.kg + '×' + b.reps)) + ' (forrige program)' };
@@ -5424,6 +5756,11 @@ function getExerciseHistory(exName) {
       epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? s : b
     );
     history.push({ day, e1rm: epley(parseFloat(best.kg), parseInt(best.reps)) });
+  }
+  const pauseEntries = pauseHistoryEntries(as, exName);
+  if (pauseEntries.length) {
+    history.forEach(h => { const st = as.sessionTimes && as.sessionTimes['day' + h.day]; h.ts = (st && (st.end || st.start)) || 0; });
+    return history.concat(pauseEntries).sort((a, b) => b.ts - a.ts);
   }
   return history;
 }
