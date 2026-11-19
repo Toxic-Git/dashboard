@@ -20,7 +20,8 @@
 const API_VERSION = 2;
 const BLOB_KEYS = ['sbd_state', 'sbd_partner', 'lob_state', 'lob_partner'];
 const META_KEYS = { tp_meta_main: 'main', tp_meta_partner: 'partner' };
-const ALLOWED_KEYS = new Set(BLOB_KEYS.concat(Object.keys(META_KEYS)));
+const KROP_KEY = 'krop_state'; // Krop (kost/krop, kun Oliver): klienten fletter pr. post, serveren validerer kun formen
+const ALLOWED_KEYS = new Set(BLOB_KEYS.concat(Object.keys(META_KEYS), [KROP_KEY]));
 const MAX_BYTES = 2 * 1024 * 1024; // 2 MB pr. nøgle (KV tillader mere; dette er et fornuftigt loft)
 
 const CORS_HEADERS = {
@@ -65,6 +66,13 @@ function validate(key, value) {
     if (value.completedDays != null && !Array.isArray(value.completedDays)) return 'sbd: completedDays skal være en liste';
   } else if (key === 'lob_state' || key === 'lob_partner') {
     if (!isObj(value.profile) || !Array.isArray(value.runs)) return 'løb: mangler profile/runs';
+  } else if (key === KROP_KEY) {
+    if (value.v !== 1) return 'krop: ukendt format-version';
+    for (const f of ['weighins', 'checkins', 'adjustments', 'snapshots', 'history']) {
+      if (value[f] != null && !Array.isArray(value[f])) return 'krop: ' + f + ' skal være en liste';
+    }
+    if (value.tombs != null && !isObj(value.tombs)) return 'krop: tombs skal være et objekt';
+    if (value.phase != null && !isObj(value.phase)) return 'krop: phase skal være et objekt eller null';
   } else if (META_KEYS[key]) {
     if (value.profile !== META_KEYS[key]) return 'tp_meta: profilen i data matcher ikke nøglen';
     if (value.v !== 1) return 'tp_meta: ukendt format-version';

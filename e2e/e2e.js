@@ -523,6 +523,23 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     ok(/Krop:\s*2850 kcal/.test(await d.innerText('#slot-today')), 'dashboard viser Krop-kcal: ' + (await d.innerText('#slot-today')).slice(-120)); eq(d.errors, []); await d.ctx.close();
     eq(p.errors, []); await p.ctx.close();
   });
+  await check('Krop', 'Synk mellem to enheder: fase og vejninger når den anden enhed, begge vejninger bevares, sletning følger med', async () => {
+    const A = await newPage(390, 844, false), B = await newPage(390, 844, false);
+    await open(A, 'krop/index.html'); await open(B, 'krop/index.html');
+    await A.click('#tab-phase'); await A.waitForSelector('#np-start'); await A.click('button:has-text("Start fase")'); await A.waitForTimeout(300);
+    await A.click('#tab-weight'); await A.fill('#w-kg', '118,0'); await A.click('text=Gem vejning'); await A.waitForTimeout(2600);
+    ok(syncLog.some(c => c.method === 'PUT' && c.key === 'krop_state'), 'A sendte krop_state til Workeren');
+    await B.click('#tab-more'); await B.click('button:has-text("Synkronisér nu")'); await B.waitForTimeout(900);
+    let sb = await ls(B, 'krop_state'); eq(sb.phase && sb.phase.type, 'cut', 'B fik fasen fra A'); ok(sb.weighins.some(w => w.kg === 118), 'B fik A\'s vejning');
+    await B.click('#tab-weight'); await B.fill('#w-date', new Date(Date.now() - 864e5).toISOString().slice(0, 10)); await B.fill('#w-kg', '117,5'); await B.click('text=Gem vejning'); await B.waitForTimeout(2600);
+    await A.click('#tab-more'); await A.click('button:has-text("Synkronisér nu")'); await A.waitForTimeout(900);
+    const sa = await ls(A, 'krop_state'); ok(sa.weighins.some(w => w.kg === 118) && sa.weighins.some(w => w.kg === 117.5), 'begge vejninger bevaret på A'); eq(sa.weighins.length, 7, '5 importerede + 2 nye');
+    ok(!/afviste|kender ikke Krop/.test(await A.innerText('#sync-note')), 'ingen fejl i synkstatus');
+    await A.click('#tab-weight'); await A.click('button[aria-label^="Slet vejning"]:last-of-type'); await A.waitForTimeout(2600);
+    await B.click('#tab-more'); await B.click('button:has-text("Synkronisér nu")'); await B.waitForTimeout(900);
+    ok((await ls(B, 'krop_state')).weighins.length === 6, 'sletning når den anden enhed');
+    eq(A.errors, []); eq(B.errors, []); await A.ctx.close(); await B.ctx.close();
+  });
   await check('Krop', 'Deadline-tilstand og pause-venlig kalibrering: deadline gemmes, SBD-pauser forlænger kalibreringen, ingen automatisk fasekift', async () => {
     const p = await newPage(); await open(p, 'krop/index.html');
     const iso = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);

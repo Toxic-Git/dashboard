@@ -22,7 +22,8 @@
   var S = {};
   S.BLOB_KEYS = ['sbd_state', 'sbd_partner', 'lob_state', 'lob_partner'];
   S.META_KEYS = ['tp_meta_main', 'tp_meta_partner'];
-  S.ALL_KEYS = S.BLOB_KEYS.concat(S.META_KEYS);
+  S.KROP_KEY = 'krop_state'; // Krop (Oliver): tabsfri sammenfletning pr. post, som metadata — ingen konflikt-dialog
+  S.ALL_KEYS = S.BLOB_KEYS.concat(S.META_KEYS, [S.KROP_KEY]);
   var META_PROFILE = { tp_meta_main: 'main', tp_meta_partner: 'partner' };
   var TOMB_DAYS = 120;
   var DAY = 86400000;
@@ -31,7 +32,9 @@
   function clone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
   function isMeta(key) { return !!META_PROFILE[key]; }
   S.isMeta = isMeta;
-  var LABELS = { sbd_state: 'Styrke (Oliver)', sbd_partner: 'Styrke (Ellen)', lob_state: 'Løb (Oliver)', lob_partner: 'Løb (Ellen)', tp_meta_main: 'Planlægning (Oliver)', tp_meta_partner: 'Planlægning (Ellen)' };
+  function isKrop(key) { return key === S.KROP_KEY; }
+  S.isKrop = isKrop;
+  var LABELS = { sbd_state: 'Styrke (Oliver)', sbd_partner: 'Styrke (Ellen)', lob_state: 'Løb (Oliver)', lob_partner: 'Løb (Ellen)', krop_state: 'Krop (Oliver)', tp_meta_main: 'Planlægning (Oliver)', tp_meta_partner: 'Planlægning (Ellen)' };
   S.label = function (k) { return LABELS[k] || k; };
 
   /* ═══════════ Metadata: projektion + tabsfri sammenfletning ═══════════ */
@@ -125,6 +128,52 @@
     };
   };
 
+  /* ═══════════ Krop: normalisering + tabsfri sammenfletning ═══════════
+     Hver post har et tidsstempel t (ms). Pr. post vinder den nyeste; sletninger er tombstones {"w:2026-11-02": t}, der vinder over
+     poster med t ≤ tombstone. Fase og profil er hele objekter med eget tidsstempel (phaseAt / profileAt). Kommutativ + idempotent. */
+  var KROP_LISTS = { weighins: ['w:', function (r) { return typeof r.date === 'string' ? r.date : null; }],
+    checkins: ['c:', function (r) { return typeof r.date === 'string' ? r.date : null; }],
+    snapshots: ['s:', function (r) { return typeof r.date === 'string' ? r.date : null; }],
+    adjustments: ['a:', function (r) { return typeof r.date === 'string' ? r.date + '|' + r.from + '|' + r.to : null; }],
+    history: ['h:', function (r) { return isObj(r.phase) ? r.phase.type + '|' + r.phase.start + '|' + r.ended : null; }] };
+  function tOf(r) { return +(r && r.t) || 0; }
+  function sortById(list, idFn) { return list.slice().sort(function (a, b) { var x = idFn(a), y = idFn(b); return x < y ? -1 : x > y ? 1 : 0; }); }
+  S.normKrop = function (o) {
+    o = isObj(o) ? o : {};
+    var out = { v: 1, profile: isObj(o.profile) ? clone(o.profile) : null, profileAt: +o.profileAt || 0, phase: isObj(o.phase) ? clone(o.phase) : null, phaseAt: +o.phaseAt || 0, tombs: {} };
+    Object.keys(isObj(o.tombs) ? o.tombs : {}).forEach(function (k) { var t = +o.tombs[k]; if (isFinite(t) && t > 0) out.tombs[k] = t; });
+    Object.keys(KROP_LISTS).forEach(function (name) {
+      var idFn = KROP_LISTS[name][1], seen = {};
+      var l = (Array.isArray(o[name]) ? o[name] : []).filter(function (r) { return isObj(r) && idFn(r) != null; }).map(clone);
+      out[name] = sortById(l.filter(function (r) { var id = idFn(r); if (seen[id]) return false; seen[id] = 1; return true; }), idFn);
+    });
+    return out;
+  };
+  function pickNewer(a, b) { var ta = tOf(a), tb = tOf(b); if (ta !== tb) return ta > tb ? a : b; return TP.canon(a) >= TP.canon(b) ? a : b; }
+  S.mergeKrop = function (local, remote, now) {
+    now = now || Date.now();
+    var l = S.normKrop(local), r = S.normKrop(remote), notes = [], out = { v: 1, tombs: {} };
+    [l.tombs, r.tombs].forEach(function (m) { Object.keys(m).forEach(function (k) { if (!(out.tombs[k] >= m[k])) out.tombs[k] = m[k]; }); });
+    Object.keys(out.tombs).forEach(function (k) { if (out.tombs[k] < now - 180 * DAY) delete out.tombs[k]; });
+    // fase og profil: hele objektet med seneste tidsstempel (lighed: deterministisk valg)
+    function pickObj(field, atField) {
+      var a = l[field], b = r[field], ta = l[atField], tb = r[atField];
+      if (ta !== tb) { out[field] = ta > tb ? a : b; out[atField] = Math.max(ta, tb); }
+      else { out[field] = TP.canon(a) >= TP.canon(b) ? a : b; out[atField] = ta; }
+    }
+    pickObj('phase', 'phaseAt'); pickObj('profile', 'profileAt');
+    Object.keys(KROP_LISTS).forEach(function (name) {
+      var kind = KROP_LISTS[name][0], idFn = KROP_LISTS[name][1], map = {}, lIds = {};
+      l[name].forEach(function (x) { lIds[idFn(x)] = 1; });
+      [l[name], r[name]].forEach(function (list) { list.forEach(function (x) { var id = idFn(x); map[id] = map[id] ? pickNewer(map[id], x) : x; }); });
+      var ids = Object.keys(map).filter(function (id) { var tb = out.tombs[kind + id]; return !(tb != null && tb >= tOf(map[id])); });
+      out[name] = sortById(ids.map(function (id) { return map[id]; }), idFn);
+      var added = ids.filter(function (id) { return !lIds[id]; }).length;
+      if (added && name === 'weighins') notes.push(added + ' vejning' + (added > 1 ? 'er' : '') + ' hentet fra en anden enhed');
+    });
+    return { value: S.normKrop(out), notes: notes };
+  };
+
   /* ═══════════ Motor ═══════════ */
   S.create = function (opts) {
     opts = opts || {};
@@ -165,6 +214,7 @@
     }
     function hashOf(key, value) { return TP.hash(TP.canon(comparable(key, value))); }
     function localValue(key) { var raw = sget(key); if (raw == null) return { raw: null, value: null }; try { return { raw: raw, value: JSON.parse(raw) }; } catch (e) { return { raw: raw, value: null, corrupt: true }; } }
+    function kropLocal() { var lv = localValue(S.KROP_KEY); return lv.raw == null || lv.corrupt ? null : S.normKrop(lv.value); }
     function metaProjection(key) { var lv = localValue(key); return S.projectMeta(lv.value, META_PROFILE[key]); }
     function syncedHash(key) { return sget(key + '__sh'); }
     function baseTs(key) { return int(sget(key + '__updatedAt')); }
@@ -176,6 +226,7 @@
     }
     function currentHash(key) {
       if (isMeta(key)) return TP.hash(TP.canon(metaProjection(key)));
+      if (isKrop(key)) { var kl = kropLocal(); return kl ? TP.hash(TP.canon(kl)) : null; }
       var lv = localValue(key); if (lv.raw == null || lv.corrupt) return null;
       return hashOf(key, lv.value);
     }
@@ -184,6 +235,7 @@
       var h = currentHash(key);
       if (isMeta(key)) { var sh = syncedHash(key); return h !== sh; }
       if (h == null) return false;
+      if (isKrop(key)) return h !== syncedHash(key); // sammenfletnings-nøgle: ukendt synk-hash = skal sendes
       var sh2 = syncedHash(key);
       return sh2 != null && h !== sh2; // sh2 == null → ukendt (se pull)
     };
@@ -338,15 +390,31 @@
       return { status: changed ? 'merged' : 'unchanged', changed: changed, needsPush: needsPush, merged: res.value };
     }
 
+    // Kender serveren nøglen? (/version lister nøgler; offline/ukendt liste = vi prøver bare)
+    function serverKnows(c, key) { return !c || !Array.isArray(c.keys) || !c.keys.length || c.keys.indexOf(key) >= 0; }
+    function pullKrop(key, rec) {
+      var before = kropLocal(), lv = localValue(key);
+      if (rec.value == null) return { status: 'empty', needsPush: before != null };
+      if (!isObj(rec.value) || rec.value.v !== 1) { noteErr('invalid', key); return { status: 'invalid' }; }
+      var res = S.mergeKrop(before, rec.value, now());
+      var changed = before == null || TP.canon(res.value) !== TP.canon(before);
+      if (changed && !sset(key, JSON.stringify(res.value))) return { status: 'error' };
+      res.notes.forEach(function (n) { pushNote('Krop: ' + n); });
+      sset(key + '__updatedAt', String(rec.updatedAt));
+      var needsPush = TP.canon(res.value) !== TP.canon(S.normKrop(rec.value));
+      if (!needsPush) sset(key + '__sh', TP.hash(TP.canon(res.value)));
+      return { status: changed ? 'merged' : 'unchanged', changed: changed, needsPush: needsPush, merged: res.value };
+    }
     E.pull = async function (key) {
       if (!E.enabled()) return { status: 'disabled', changed: false };
       if (conflictOf(key)) return { status: 'conflict', changed: false };
       var c = await getCaps();
+      if (isKrop(key) && !serverKnows(c, key)) { var uk = getState().unsupported || {}; uk[key] = true; setState({ unsupported: uk }); return { status: 'unsupported', changed: false }; }
       if (isMeta(key) && c.api && c.api < 2) { var u = getState().unsupported || {}; u[key] = true; setState({ unsupported: u }); return { status: 'unsupported', changed: false }; }
       var r = await fetchRecord(key);
       if (r.status !== 'ok') return { status: r.status, changed: false };
       noteOk();
-      var d = isMeta(key) ? await pullMeta(key, r.rec) : decideBlob(key, r.rec);
+      var d = isMeta(key) ? await pullMeta(key, r.rec) : isKrop(key) ? pullKrop(key, r.rec) : decideBlob(key, r.rec);
       d.changed = !!d.changed; d.rec = r.rec;
       if (d.changed) emit({ type: 'changed', key: key });
       return d;
@@ -358,14 +426,16 @@
       if (!E.enabled()) return { status: 'disabled' };
       if (conflictOf(key)) return { status: 'conflict' };
       var c = await getCaps(); if (c.offline) return { status: 'offline' };
+      if (isKrop(key) && !serverKnows(c, key)) return { status: 'unsupported' };
       if (isMeta(key)) {
         if (c.api < 2) return { status: 'unsupported' };
         reconcileCal(META_PROFILE[key]);
       }
       var value;
       if (isMeta(key)) value = metaProjection(key);
+      else if (isKrop(key)) { value = kropLocal(); if (!value) return { status: 'nothing' }; }
       else { var lv = localValue(key); if (lv.raw == null || lv.corrupt) return { status: 'nothing' }; value = lv.value; }
-      var h = isMeta(key) ? TP.hash(TP.canon(value)) : hashOf(key, value);
+      var h = (isMeta(key) || isKrop(key)) ? TP.hash(TP.canon(value)) : hashOf(key, value);
       if (syncedHash(key) === h) return { status: 'clean' };
       var base = baseTs(key);
       if (!c.conditionalPut) { // gammel Worker: tjek serverens version først (beskytter mod de fleste tavse overskrivninger; ikke race-fri)
@@ -378,6 +448,13 @@
       return { status: res.status, message: res.message };
     };
     async function handleServerNewer(key, rec, depth) {
+      if (isKrop(key)) { // tabsfri sammenfletning, derefter ny betinget skrivning
+        if (depth >= 3) return { status: 'busy' };
+        var kd = pullKrop(key, rec);
+        if (kd.changed) emit({ type: 'changed', key: key });
+        if (kd.status === 'invalid' || kd.status === 'error') return kd;
+        return await E.push(key, depth + 1);
+      }
       if (isMeta(key)) { // tabsfri sammenfletning, derefter ny betinget skrivning
         if (depth >= 3) return { status: 'busy' };
         var d = await pullMeta(key, rec);
@@ -485,6 +562,7 @@
     if (!st.enabled) return '<div class="tp-note">Synkronisering er ikke sat op (ingen Worker-adresse i appen) — data gemmes kun på denne enhed.</div>';
     if (st.auth) h += '<div class="tp-box err" role="alert">Worker\'en afviste adgangskoden (401). Tjek koden under Opsætning i løb-appen — data synkroniseres ikke før den er rigtig.</div>';
     if (st.unsupported.some(function (k) { return isMeta(k); }) && !st.auth) h += '<div class="tp-box warn">Din Worker er endnu ikke opdateret til v2. Styrke- og løbedata synkroniseres som før, men planlægningsdata (kalenderændringer, afviste forslag, fokus, "ikke mulig"-dage) deles <strong>ikke</strong> mellem enheder, før Worker\'en er deployet igen (se sync-worker/DEPLOY.md).</div>';
+    if (st.unsupported.indexOf(S.KROP_KEY) >= 0 && !st.auth) h += '<div class="tp-box warn">Din Worker kender ikke Krop endnu — Krop gemmes kun på denne enhed. Deploy den nye sync-worker/worker.js til Cloudflare for at synkronisere Krop.</div>';
     if (!st.online) h += '<div class="tp-note">Offline — ændringer gemmes her og sendes, når du er online igen.</div>';
     h += '<div class="tp-note">' + (st.lastOk ? 'Sidst synkroniseret: ' + esc(fmtTime(st.lastOk)) + '.' : 'Endnu ikke synkroniseret fra denne enhed.') +
       (st.pending.length ? ' Venter på at blive sendt: ' + st.pending.map(function (k) { return esc(S.label(k)); }).join(', ') + '.' : ' Alt er sendt.') + '</div>';

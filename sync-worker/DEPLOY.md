@@ -58,6 +58,12 @@ og erstat med din rigtige Worker-URL. Upload de tre filer til GitHub igen.
    kører en ældre Worker; deploy `worker.js` igen.
 2. Log noget i SBD-appen på én enhed, åbn appen på en anden — data skal
    dukke op efter få sekunder.
+3. **Krop:** `/version` skal også liste `krop_state` under `keys`. Mangler den,
+   kører Workeren en ældre `worker.js`: Krop virker stadig, men gemmer kun på
+   den enhed, du bruger (Krop → Mere → Synkronisering siger det). Deploy den
+   nye `worker.js` igen (`wrangler deploy`), og tryk "Synkronisér nu" i Krop.
+   Ingen data går tabt: ved første synk fletter Krop hver enheds vejninger,
+   ugechecks og fase sammen pr. post (den nyeste ændring vinder).
 
 ## Sikkerhed
 

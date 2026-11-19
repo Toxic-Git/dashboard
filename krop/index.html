@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#111318">
 <title>Krop</title>
 <script src="krop-core.js"></script>
+<script src="../tp-core.js"></script>
+<script src="../tp-sync.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap');
 :root{
@@ -74,6 +76,9 @@ input[type=checkbox]{ width:auto; }
 <script>
 var K = window.KropCore;
 var KEY = 'krop_state';
+var SYNC_BASE_URL = 'https://oliver-training-sync.olivercyka.workers.dev';
+var TPS = null; try { TPS = TPSYNC.boot(SYNC_BASE_URL); } catch (e) { TPS = null; }
+function nowT() { return Date.now(); }
 var S = null, tab = 'today', confirmKey = null, draft = { type: 'cut', pct: null, meals: null, adherence: null, energy: null, symptoms: false };
 
 /* ── hjælpere ── */
@@ -94,10 +99,14 @@ function load() {
   var raw = null; try { raw = JSON.parse(localStorage.getItem(KEY)); } catch (e) { raw = null; }
   if (!raw || typeof raw !== 'object' || raw.v !== 1) raw = K.emptyState();
   raw.profile = raw.profile || K.emptyState().profile;
+  raw.profileAt = +raw.profileAt || 0; raw.phaseAt = +raw.phaseAt || 0; if (!raw.tombs || typeof raw.tombs !== 'object') raw.tombs = {};
   ['weighins', 'checkins', 'adjustments', 'snapshots', 'history'].forEach(function (k) { if (!Array.isArray(raw[k])) raw[k] = []; });
   S = raw;
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kunne ikke gemme (lager fuldt eller blokeret)'); } }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kunne ikke gemme (lager fuldt eller blokeret)'); return; }
+  if (TPS) { try { TPS.schedulePush(KEY); } catch (e) { /* sync må aldrig blokere lokal lagring */ } }
+}
 function sbdPauses() { try { var s = JSON.parse(localStorage.getItem('sbd_state')); return s && Array.isArray(s.pauses) ? s.pauses : []; } catch (e) { return []; } }
 
 /* ── afledte tal ── */
@@ -254,14 +263,28 @@ function viewMore(D) {
     + '<label for="pf-s">Gennemsnitlige skridt pr. dag</label><input id="pf-s" type="text" inputmode="numeric" value="' + esc(p.steps) + '">'
     + '<label for="pf-t">Træningsforbrug pr. uge (kcal, SBD + løb)</label><input id="pf-t" type="text" inputmode="numeric" value="' + esc(p.trainingKcalWeek) + '">'
     + '<button class="btn" onclick="saveProfile()">Gem profil</button><div class="dim" style="margin-top:8px">Ændringer her påvirker kun estimatet for nye faser og forslag, ikke det nuværende kalorie-mål.</div></div>'
+    + '<div class="card"><h2>Synkronisering</h2><div id="sync-note">' + syncNoteHtml() + '</div><button class="btn ghost" onclick="syncNow()">Synkronisér nu</button></div>'
     + '<div class="card"><h2>Eksport</h2><div class="dim">Plan, vejninger, ugecheck, justeringer og ugentlige snapshots som JSON.</div>'
     + '<button class="btn" onclick="exportJson()">Download JSON</button> <button class="btn ghost" onclick="copyJson()">Kopiér</button></div>'
     + '<div class="card"><h2>Import</h2><label for="imp">Indsæt JSON fra tidligere eksport</label><textarea id="imp" rows="4"></textarea><button class="btn ghost" onclick="importJson()">Importér</button></div>'
     + '<div class="card"><h2>Nulstil</h2><div class="dim">Sletter alle Krop-data på denne enhed.</div><button class="btn danger" onclick="resetAll()">' + (confirmKey === 'reset' ? 'Bekræft: slet alt' : 'Nulstil Krop') + '</button></div>';
 }
 
+function syncNoteHtml() {
+  if (!TPS) return '<div class="dim">Synkronisering er ikke tilgængelig her — Krop gemmes kun på denne enhed.</div>';
+  var st = TPS.status(), h = '';
+  if (!st.enabled) return '<div class="dim">Synkronisering er ikke sat op — Krop gemmes kun på denne enhed.</div>';
+  if (st.auth) h += '<div class="note warn">Worker\'en afviste adgangskoden. Tjek koden under Opsætning i løbe-appen.</div>';
+  if (st.unsupported.indexOf(KEY) >= 0 && !st.auth) h += '<div class="note warn">Din Cloudflare-Worker kender ikke Krop endnu. Krop gemmes kun på denne enhed, indtil den nye sync-worker/worker.js er deployet.</div>';
+  var pend = st.pending.indexOf(KEY) >= 0;
+  h += '<div class="dim">' + (st.lastOk ? 'Sidst synkroniseret: ' + esc(new Date(st.lastOk).toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short' })) + '. ' : 'Endnu ikke synkroniseret fra denne enhed. ') + (pend ? 'Krop venter på at blive sendt.' : 'Krop er sendt.') + '</div>';
+  if (!st.online) h += '<div class="dim">Offline — ændringer sendes, når du er online igen.</div>';
+  return h;
+}
+function syncNow() { if (!TPS) return; toast('Synkroniserer …'); TPS.syncKey(KEY).then(function () { load(); render(); }, function () { toast('Synkronisering fejlede'); }); }
+
 /* ── handlinger ── */
-function setMeals(n) { if (!S.phase) return; S.phase.meals = K.clampMeals(n); save(); render(); }
+function setMeals(n) { if (!S.phase) return; S.phase.meals = K.clampMeals(n); S.phaseAt = nowT(); save(); render(); }
 function pickPhase(t) { draft.type = t; draft.pct = null; draft.meals = null; render(); }
 function addWeighin() {
   var d = val('w-date'), kg = K.num(val('w-kg')), fat = K.num(val('w-fat'));
@@ -269,11 +292,11 @@ function addWeighin() {
   if (kg === null || kg < 30 || kg > 300) { toast('Skriv en gyldig vægt i kg'); return; }
   if (fat !== null && (fat < 3 || fat > 60)) { toast('Fedt % ser forkert ud'); return; }
   S.weighins = S.weighins.filter(function (w) { return w.date !== d; });
-  var rec = { date: d, kg: kg }; if (fat !== null) rec.fat = fat;
+  var rec = { date: d, kg: kg, t: nowT() }; if (fat !== null) rec.fat = fat;
   S.weighins.push(rec); S.weighins.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
   save(); toast('Vejning gemt'); render();
 }
-function delWeighin(d) { S.weighins = S.weighins.filter(function (w) { return w.date !== d; }); save(); render(); }
+function delWeighin(d) { S.tombs['w:' + d] = nowT(); S.weighins = S.weighins.filter(function (w) { return w.date !== d; }); save(); render(); }
 function startNewPhase() {
   var D = derive(), start = draft.start || today(), type = draft.type;
   if (!K.isISO(start)) { toast('Vælg en startdato'); return; }
@@ -281,38 +304,39 @@ function startNewPhase() {
   var tgt = draft.targetKg ? K.num(draft.targetKg) : null; if (draft.targetKg && (tgt === null || tgt < 40 || tgt > 250)) { toast('Ugyldig målvægt'); return; }
   var np = K.startPhase(S, { type: type, start: start, deadline: dl, targetKg: tgt, pct: draft.pct, meals: draft.meals });
   if (!np) { toast('Tilføj mindst én vejning først'); return; }
-  if (S.phase) S.history.push({ phase: S.phase, ended: today() });
-  S.phase = np; draft.pct = null; draft.meals = null; draft.deadline = ''; draft.targetKg = ''; draft.start = null;
+  if (S.phase) S.history.push({ phase: S.phase, ended: today(), t: nowT() });
+  S.phase = np; S.phaseAt = nowT(); draft.pct = null; draft.meals = null; draft.deadline = ''; draft.targetKg = ''; draft.start = null;
   save(); toast('Fase startet'); tab = 'today'; render();
 }
 function savePhaseEdit() {
   if (!S.phase) return; var dl = val('ph-deadline'), tg = val('ph-target');
   if (dl && (!K.isISO(dl) || dl <= S.phase.start)) { toast('Deadline skal ligge efter start'); return; }
   var t = tg ? K.num(tg) : null; if (tg && (t === null || t < 40 || t > 250)) { toast('Ugyldig målvægt'); return; }
-  S.phase.deadline = dl || null; S.phase.targetKg = t; save(); toast('Gemt'); render();
+  S.phase.deadline = dl || null; S.phase.targetKg = t; S.phaseAt = nowT(); save(); toast('Gemt'); render();
 }
-function markBreak() { if (!S.phase) return; S.phase.lastBreak = today(); save(); toast('Noteret — pausen tæller fra i dag'); render(); }
+function markBreak() { if (!S.phase) return; S.phase.lastBreak = today(); S.phaseAt = nowT(); save(); toast('Noteret — pausen tæller fra i dag'); render(); }
 function endPhase() {
   if (confirmKey !== 'end') { confirmKey = 'end'; render(); return; }
-  if (S.phase) S.history.push({ phase: S.phase, ended: today() });
-  S.phase = null; confirmKey = null; save(); render();
+  if (S.phase) S.history.push({ phase: S.phase, ended: today(), t: nowT() });
+  S.phase = null; S.phaseAt = nowT(); confirmKey = null; save(); render();
 }
 function saveCheckin() {
   var D = derive(), P = S.phase; if (!P) return;
   if (!draft.adherence) { toast('Vælg om kosten er fulgt'); return; }
   if (!draft.energy) { toast('Vælg energi (1–5)'); return; }
   var prop = K.weeklyProposal({ phase: P.type, calibrationDone: !!(D.cal && D.cal.done), adherence: draft.adherence, trend: D.trend, kcal: P.kcal, bmr: D.bmr });
-  var rec = { date: today(), adherence: draft.adherence, energy: draft.energy, symptoms: !!draft.symptoms };
+  var rec = { date: today(), adherence: draft.adherence, energy: draft.energy, symptoms: !!draft.symptoms, t: nowT() };
   rec.proposal = { change: prop.change, next: prop.next || P.kcal, reason: prop.reason, state: prop.change ? 'open' : 'none' };
   S.checkins.push(rec);
-  S.snapshots.push({ date: today(), weightFitted: D.trend && D.trend.enough ? D.trend.fitted : null, kgPerWeek: D.trend && D.trend.enough ? D.trend.kgPerWeek : null, pctPerWeek: D.trend && D.trend.enough ? D.trend.pctPerWeek : null, kcal: P.kcal, adherence: draft.adherence, energy: draft.energy, symptoms: !!draft.symptoms, weighins: D.trend ? D.trend.n : 0 });
+  S.snapshots.push({ t: nowT(), date: today(), weightFitted: D.trend && D.trend.enough ? D.trend.fitted : null, kgPerWeek: D.trend && D.trend.enough ? D.trend.kgPerWeek : null, pctPerWeek: D.trend && D.trend.enough ? D.trend.pctPerWeek : null, kcal: P.kcal, adherence: draft.adherence, energy: draft.energy, symptoms: !!draft.symptoms, weighins: D.trend ? D.trend.n : 0 });
   draft.adherence = null; draft.energy = null; draft.symptoms = false;
   save(); toast(prop.change ? 'Gemt — se forslaget' : 'Ugecheck gemt'); render();
 }
 function answerProposal(ok) {
   var last = S.checkins[S.checkins.length - 1]; if (!last || !last.proposal || last.proposal.state !== 'open' || !S.phase) return;
-  if (ok) { S.adjustments.push({ date: today(), from: S.phase.kcal, to: last.proposal.next, reason: last.proposal.reason }); S.phase.kcal = last.proposal.next; last.proposal.state = 'accepted'; }
+  if (ok) { S.adjustments.push({ date: today(), from: S.phase.kcal, to: last.proposal.next, reason: last.proposal.reason, t: nowT() }); S.phase.kcal = last.proposal.next; S.phaseAt = nowT(); last.proposal.state = 'accepted'; }
   else last.proposal.state = 'declined';
+  last.t = nowT();
   save(); render();
 }
 function saveProfile() {
@@ -321,7 +345,7 @@ function saveProfile() {
   if (!K.isISO(b)) { toast('Ugyldig fødselsdato'); return; }
   if (s === null || s < 0 || s > 60000) { toast('Ugyldige skridt'); return; }
   if (t === null || t < 0 || t > 20000) { toast('Ugyldigt træningsforbrug'); return; }
-  S.profile = { heightCm: h, birth: b, steps: s, trainingKcalWeek: t }; save(); toast('Profil gemt'); render();
+  S.profile = { heightCm: h, birth: b, steps: s, trainingKcalWeek: t }; S.profileAt = nowT(); save(); toast('Profil gemt'); render();
 }
 function buildExport() {
   var D = derive(), P = S.phase, items = D.status ? D.status.items : [];
@@ -352,15 +376,36 @@ function importJson() {
   base.profile = o.profile || base.profile; base.phase = o.phase || null;
   ['weighins', 'checkins', 'adjustments', 'history'].forEach(function (k) { base[k] = Array.isArray(o[k]) ? o[k] : []; });
   base.snapshots = Array.isArray(o.weeklySnapshots) ? o.weeklySnapshots : [];
+  var tn = nowT(); ['weighins', 'checkins', 'adjustments', 'snapshots', 'history'].forEach(function (k) { base[k].forEach(function (r) { r.t = tn; }); });
+  base.phaseAt = tn; base.profileAt = tn; base.tombs = {};
   S = base; save(); toast('Importeret'); render();
 }
 function resetAll() {
   if (confirmKey !== 'reset') { confirmKey = 'reset'; render(); return; }
-  S = K.emptyState(); confirmKey = null; save(); render();
+  var old = S, tn = nowT(), fresh = K.emptyState(); fresh.weighins = [];
+  fresh.tombs = {};
+  Object.keys(old.tombs || {}).forEach(function (k) { fresh.tombs[k] = old.tombs[k]; });
+  old.weighins.forEach(function (w) { fresh.tombs['w:' + w.date] = tn; });
+  old.checkins.forEach(function (c) { fresh.tombs['c:' + c.date] = tn; });
+  old.snapshots.forEach(function (x) { fresh.tombs['s:' + x.date] = tn; });
+  old.adjustments.forEach(function (a) { fresh.tombs['a:' + a.date + '|' + a.from + '|' + a.to] = tn; });
+  old.history.forEach(function (h) { if (h && h.phase) fresh.tombs['h:' + h.phase.type + '|' + h.phase.start + '|' + h.ended] = tn; });
+  fresh.phaseAt = tn; fresh.profileAt = tn;
+  S = fresh; confirmKey = null; save(); render();
 }
 
 load(); render();
-if ('serviceWorker' in navigator) { /* dashboardets service worker dækker /krop/ via scope */ }
+if (TPS) {
+  TPS.on(function (ev) {
+    if (ev.type === 'changed' && ev.key === KEY) {
+      load(); var a = document.activeElement;
+      if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); // ingen gen-render midt i indtastning
+    }
+    if (ev.type === 'synced' || ev.type === 'pushed') updateSyncNote();
+  });
+  TPS.syncKey(KEY).then(updateSyncNote, updateSyncNote);
+}
+function updateSyncNote() { if (tab === 'more') { var e = $('sync-note'); if (e) e.innerHTML = syncNoteHtml(); } }
 </script>
 </body>
 </html>

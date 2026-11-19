@@ -235,8 +235,8 @@
   function emptyState(todayIso) {
     return {
       v: 1,
-      profile: { heightCm: 185, birth: '2005-10-07', steps: 16700, trainingKcalWeek: 1700 },
-      phase: null,
+      profile: { heightCm: 185, birth: '2005-10-07', steps: 16700, trainingKcalWeek: 1700 }, profileAt: 0,
+      phase: null, phaseAt: 0, tombs: {},
       weighins: [
         { date: '2026-11-02', kg: 116.5, fat: 33.6 }, { date: '2026-11-05', kg: 115.15, fat: 33.3 },
         { date: '2026-11-11', kg: 115.95, fat: 33.5 }, { date: '2026-11-14', kg: 116.5, fat: 33.6 },
