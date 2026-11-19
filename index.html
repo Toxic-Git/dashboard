@@ -1676,7 +1676,15 @@ function renderToday(sRaw, lRaw, personKey, sbdStatus){
   const allDone = items.length>0 && items.every(h=>h.includes('tag-done'));
   el.innerHTML = `<div class="today-hero">
     <div class="today-head"><h2>${allDone ? 'Klaret i dag ✓' : 'I dag'}</h2><div class="today-date">${dateLabel}</div></div>
-    ${gapHtml}${body}</div>`;
+    ${gapHtml}${body}${kropLine(personKey)}</div>`;
+}
+// Krop (kun Oliver): dagens kcal-mål, hvis en fase er aktiv. Linket åbner Krop-siden; ellers et diskret link.
+function kropLine(personKey){
+  if(personKey==='ellen') return '';
+  let k=null; try{ k=JSON.parse(localStorage.getItem('krop_state')); }catch(e){ k=null; }
+  const ph=k&&k.phase;
+  const txt=ph&&ph.kcal ? `Krop: <b>${esc2(ph.kcal)} kcal</b> i dag` : 'Krop: ingen fase valgt';
+  return `<div class="today-warn" role="note" style="background:transparent;border-top:1px solid var(--border)"><span>${txt} · <a href="./krop/index.html">Åbn Krop</a></span></div>`;
 }
 
 // ── Render: Åbningsforsøg (kun i test/peak-uge) ────────────────────────────

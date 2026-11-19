@@ -502,6 +502,39 @@ function ok(c, msg) { if (!c) throw new Error(msg || 'forventede sand'); }
     const ptxt = await p.evaluate(() => document.getElementById('slot-hybrid-cal').textContent + ' ' + [...document.querySelectorAll('#slot-hybrid-cal [aria-label]')].map(e => e.getAttribute('aria-label')).join(' ')); ok(/accessories/i.test(ptxt), 'pausetekst mangler: ' + ptxt.slice(0, 200));
     eq(p.errors, []); await p.ctx.close();
   });
+  await check('Krop', 'Start cut: kcal/makroer/måltider vises, vejning + ugecheck gemmes, eksport er komplet og data overlever reload', async () => {
+    const p = await newPage(); await open(p, 'krop/index.html');
+    ok(/Ingen fase/i.test(await p.innerText('#main')), 'tom tilstand uden fase');
+    await p.click('#tab-phase'); await p.waitForSelector('#np-start');
+    await p.click('button:has-text("Start fase")'); await p.waitForTimeout(300);
+    let st = await ls(p, 'krop_state'); eq(st.phase.type, 'cut'); eq(st.phase.kcal, 2850, 'startmål 2850 kcal'); eq(st.phase.meals, 3);
+    const t = await p.innerText('#main'); ok(/2850/.test(t) && /Protein/i.test(t) && /Måltider/i.test(t), 'dagsmål vises: ' + t.slice(0, 160));
+    eq(await p.locator('#main table tr').count(), 4, '3 måltider + header');
+    await p.selectOption('#meals-n', '5'); await p.waitForTimeout(200); eq(await p.locator('#main table tr').count(), 6, '5 måltider + header');
+    await p.click('#tab-weight'); await p.fill('#w-kg', '118,0'); await p.fill('#w-fat', '34'); await p.click('text=Gem vejning'); await p.waitForTimeout(300);
+    st = await ls(p, 'krop_state'); ok(st.weighins.some(w => w.kg === 118 && w.fat === 34), 'vejning gemt'); eq(st.weighins.length, 6);
+    await p.fill('#w-kg', 'abc'); await p.click('text=Gem vejning'); await p.waitForTimeout(200); eq((await ls(p, 'krop_state')).weighins.length, 6, 'ugyldig vægt afvises');
+    await p.click('#tab-today');
+    await p.click('button:has-text("delvist")'); await p.click('button[onclick="pick(\'energy\',3)"]'); await p.click('text=Gem ugecheck'); await p.waitForTimeout(300);
+    st = await ls(p, 'krop_state'); eq(st.checkins.length, 1); eq(st.checkins[0].adherence, 'delvist'); eq(st.snapshots.length, 1, 'ugentligt snapshot'); eq(st.checkins[0].proposal.change, 0, 'ingen justering under kalibrering');
+    const ex = await p.evaluate(() => buildExport()); eq(ex.exportType, 'krop'); ok(ex.current && ex.current.kcal === 2850 && ex.current.meals.length === 5, 'eksport: aktuelt mål + måltider'); ok(ex.weighins.length === 6 && ex.weeklySnapshots.length === 1 && ex.trend, 'eksport: vejninger, snapshots, trend');
+    await p.reload(); await p.waitForTimeout(400); ok(/2850/.test(await p.innerText('#main')), 'fase overlever reload');
+    const d = await newPage(); await d.addInitScript(k => { localStorage.setItem('krop_state', k); }, JSON.stringify(st)); await open(d, 'index.html'); await d.waitForTimeout(1200);
+    ok(/Krop:\s*2850 kcal/.test(await d.innerText('#slot-today')), 'dashboard viser Krop-kcal: ' + (await d.innerText('#slot-today')).slice(-120)); eq(d.errors, []); await d.ctx.close();
+    eq(p.errors, []); await p.ctx.close();
+  });
+  await check('Krop', 'Deadline-tilstand og pause-venlig kalibrering: deadline gemmes, SBD-pauser forlænger kalibreringen, ingen automatisk fasekift', async () => {
+    const p = await newPage(); await open(p, 'krop/index.html');
+    const iso = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    await p.evaluate(s => localStorage.setItem('sbd_state', JSON.stringify({ pauses: [{ id: 'a', from: s[0], to: s[1], name: 'Skole', mode: 'acc' }] })), [iso(0), iso(2)]);
+    await p.click('#tab-phase'); await p.waitForSelector('#np-deadline'); await p.fill('#np-deadline', iso(140)); await p.dispatchEvent('#np-deadline', 'change');
+    await p.fill('#np-target', '105'); await p.dispatchEvent('#np-target', 'change'); await p.click('button:has-text("Start fase")'); await p.waitForTimeout(300);
+    let st = await ls(p, 'krop_state'); eq(st.phase.deadline, iso(140)); eq(st.phase.targetKg, 105);
+    ok(/Kalibrering/i.test(await p.innerText('#main')), 'kalibreringskort vist'); ok(/Dag 0 af (14|21)/.test(await p.innerText('#main')), 'pausedage tæller ikke i kalibreringen: ' + (await p.innerText('#main')).slice(0, 400));
+    await p.click('#tab-phase'); await p.click('#end-btn'); ok(/Bekræft/.test(await p.innerText('#end-btn')), 'afslut kræver bekræftelse'); eq((await ls(p, 'krop_state')).phase.type, 'cut', 'ikke afsluttet før bekræftet');
+    await p.click('#end-btn'); await p.waitForTimeout(200); st = await ls(p, 'krop_state'); eq(st.phase, null); eq(st.history.length, 1);
+    eq(p.errors, []); await p.ctx.close();
+  });
   /* ───────── FASE 2: ØVELSESSKIFT + EVALUERING ───────── */
   const curLog = p => p.evaluate(() => { const as = aState(); return JSON.parse(JSON.stringify({ log: as.logs[logKey()], subs: as.exerciseSubs || {}, ev: as.sessionEval || {}, oneRM: as.oneRM, pr: as.pr })); });
   await check('Øvelsesskift (V3)', 'Arket viser primær + 2 alternativer med begrundelse; skift "kun i dag" gemmer plannedName og rører ikke 1RM/PR', async () => {

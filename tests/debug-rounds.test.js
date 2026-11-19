@@ -1,7 +1,7 @@
 // De tre debug-runder (statisk/semantisk). Kør: node tests/debug-rounds.js   — exit 1 ved fund.
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const R = p => path.join(__dirname, '..', p); const read = p => fs.readFileSync(R(p), 'utf8');
-const pages = ['index.html', 'sbd/index.html', 'lob/index.html'], libs = ['tp-core.js', 'tp-sync.js', 'tp-plan.js', 'tp-report.js', 'tp-ui.js', 'ds.js', 'sw.js', 'sbd/sw.js', 'lob/sw.js', 'sync-worker/worker.js'];
+const pages = ['index.html', 'sbd/index.html', 'lob/index.html', 'krop/index.html'], libs = ['krop/krop-core.js', 'tp-core.js', 'tp-sync.js', 'tp-plan.js', 'tp-report.js', 'tp-ui.js', 'ds.js', 'sw.js', 'sbd/sw.js', 'lob/sw.js', 'sync-worker/worker.js'];
 const inline = p => [...read(p).matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 let bad = 0; const F = (round, msg) => { bad++; console.log('  FUND [' + round + '] ' + msg); };
 
